@@ -74,10 +74,12 @@ Prerequisite: CHR-001, the flake bootstrap (devshell, checks, quotient forms).
    - a oneshot user service plus timer that resolves the `op://` reference at
      start (`op run`, after the jailed-agents precedent in
      `~/flakes/agents/README.md`);
-   - the state directory;
-   - a `check-jails` assertion that the `op` wrapper and its integration
-     socket are bound into no jail that holds model output (RFC-020 D3).
-3. **satan's doctrine:**
+   - the state directory.
+3. **satan:**
+   - a `check-jails` assertion (satan's `justfile` and `flake.nix` checks,
+     where `check-jails` lives) that the `op` wrapper and the 1Password app's
+     sockets reach no jail that holds model output. The abstract socket is
+     included (RFC-020 D3; research finding 2).
    - update RFC-020 with settled findings;
    - add Screwtape to SPEC-002 (satan's context spec) if design says it
      belongs there.
@@ -100,8 +102,8 @@ Prerequisite: CHR-001, the flake bootstrap (devshell, checks, quotient forms).
 ## Affected surface
 
 - This repo: `gleam.toml`, `src/**`, `test/**`, `flake.nix`, `README.md`.
-- `~/flakes`: package input, the `features/` unit and timer, jail checks.
-- `~/dev/satan`: `.doctrine/rfc/020/`, and possibly
+- `~/flakes`: package input, the `features/` unit and timer.
+- `~/dev/satan`: `justfile` and `flake.nix` (the `check-jails` assertion), `.doctrine/rfc/020/`, and possibly
   `.doctrine/spec/tech/002/`.
 
 ## Risks, assumptions, open questions

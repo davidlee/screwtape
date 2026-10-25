@@ -1,6 +1,7 @@
 # Screwtape
 
-![img](./screwtape.jpg)
+![img](./screwtape3.jpg)
+
 
 Infernal bureaucrat responsible for mediating [SATAN](https://github.com/davidlee/satan)'s access to mail.
 

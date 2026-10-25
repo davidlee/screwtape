@@ -1,0 +1,51 @@
+memory_uid = "mem_01a17529ee6472a38f8466f02b653545"
+memory_key = "mem.pattern.host.op-secrets-for-units"
+schema_version = 1
+lifespan = "semantic"
+memory_type = "pattern"
+status = "active"
+title = "1Password secrets for unattended systemd units: provision once, don't resolve at start"
+summary = "op:// resolved at systemd unit start prompts on every run; provision once into systemd-creds (llm-gateway pattern) instead"
+created = "2026-10-25"
+updated = "2026-10-25"
+
+[scope]
+paths = []
+globs = ["flake.nix"]
+commands = ["op run", "op read"]
+tags = ["1password", "secrets", "systemd", "belphegor"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "feaf15c1721ccb014ab6391ee5905434a290a6e0"
+ref_name = "refs/heads/main"
+checkout_state_id = "da336e80ce2d31bf25c7fe66c9afa200b7b33f958aaf4205a16835269f24ffc9"
+base_commit = "2fa0535648f0ed93db31b1457ee2ef99dd28e9c2"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "high"
+weight = 0
+
+[[source]]
+kind = "test"
+ref = "host optest 2026-10-26 (SL-001 research P10)"
+
+[[source]]
+kind = "file"
+ref = "~/flakes/features/agents/gateway/llm-gateway:312-357"
+
