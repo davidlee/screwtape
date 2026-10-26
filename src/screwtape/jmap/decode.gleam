@@ -201,12 +201,19 @@ pub fn emails(response: MethodResponse) -> Result(EmailPage, Error) {
   decode_at(response.arguments, email_page_decoder(), "")
 }
 
-/// The threads and state of a `Thread/get` response; `notFound` is ignored
-/// (PHASE-05 A8).
-pub fn threads(
-  response: MethodResponse,
-) -> Result(#(List(model.Thread), String), Error) {
+/// The threads of a `Thread/get` response; `notFound` is ignored (PHASE-05
+/// A8), and the run takes the Thread state from the opening request (`state`).
+pub fn threads(response: MethodResponse) -> Result(List(model.Thread), Error) {
   decode_at(response.arguments, thread_page_decoder(), "")
+}
+
+/// The `state` of a `/get` response, for a get that asked for no objects.
+pub fn state(response: MethodResponse) -> Result(String, Error) {
+  decode_at(
+    response.arguments,
+    decode.field("state", decode.string, decode.success),
+    "",
+  )
 }
 
 /// A JMAP `UTCDate` field. Text that does not parse fails here, so it surfaces
@@ -512,10 +519,8 @@ fn body_value_decoder() -> decode.Decoder(normalise.BodyValue) {
   ))
 }
 
-fn thread_page_decoder() -> decode.Decoder(#(List(model.Thread), String)) {
-  use list <- decode.field("list", decode.list(thread_decoder()))
-  use state <- decode.field("state", decode.string)
-  decode.success(#(list, state))
+fn thread_page_decoder() -> decode.Decoder(List(model.Thread)) {
+  decode.field("list", decode.list(thread_decoder()), decode.success)
 }
 
 fn thread_decoder() -> decode.Decoder(model.Thread) {

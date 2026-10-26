@@ -210,6 +210,46 @@ pub fn thread_get_arguments_test() {
   |> should.equal(["t1", "t2"])
 }
 
+/// The opening request (design § 5.2) is three gets under its own call ids, in
+/// this order: `Mailbox/get` with `ids: null` (every mailbox and its state),
+/// then `Email/get` and `Thread/get` with `ids: []`, which fetch nothing but
+/// answer each type's `state`. Catches a builder that dropped or reordered a
+/// call, reused a call id, or asked the content get for objects, which would
+/// cost the opening its states or spend it on the wrong method.
+pub fn opening_wire_shape_test() {
+  let assert Ok([mailboxes, emails, threads]) =
+    json.parse(
+      request.body(request.opening("acct-1", 1000)) |> json.to_string,
+      using: decode.at(["methodCalls"], decode.list(sent_decoder())),
+    )
+
+  mailboxes.name |> should.equal(request.method_name(request.MailboxGet))
+  mailboxes.call_id |> should.equal("c0")
+  field(mailboxes.arguments, "accountId", decode.string)
+  |> should.equal("acct-1")
+  // `ids` is present and null, not an empty list (which fetches nothing) and
+  // not absent.
+  field(mailboxes.arguments, "ids", decode.optional(decode.string))
+  |> should.equal(None)
+  decode.run(mailboxes.arguments, decode.at(["ids"], decode.dynamic))
+  |> should.be_ok
+
+  emails.name |> should.equal(request.method_name(request.EmailGet))
+  emails.call_id |> should.equal("c1")
+  field(emails.arguments, "accountId", decode.string) |> should.equal("acct-1")
+  field(emails.arguments, "ids", decode.list(decode.string))
+  |> should.equal([])
+  field(emails.arguments, "maxBodyValueBytes", decode.int)
+  |> should.equal(1000)
+
+  threads.name |> should.equal(request.method_name(request.ThreadGet))
+  threads.call_id |> should.equal("c2")
+  field(threads.arguments, "accountId", decode.string)
+  |> should.equal("acct-1")
+  field(threads.arguments, "ids", decode.list(decode.string))
+  |> should.equal([])
+}
+
 /// One decoded `methodCalls` entry with its arguments left dynamic, so each
 /// test decodes only the fields it asserts on.
 type Sent {

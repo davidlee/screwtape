@@ -311,6 +311,55 @@ pub fn method_error_is_jmap_method_test() {
   |> expect_error(error.JmapMethod("Mailbox/get", "unknown"))
 }
 
+// ---------------------------------------------------------------- call
+
+/// The three calls of `request.opening`, and the entries that answer them in
+/// order, under their call ids.
+fn opening() -> List(jmap_request.Invocation) {
+  jmap_request.opening(account_id, 1000)
+}
+
+fn opening_entries() -> List(jmap_fixture.Entry) {
+  jmap_fixture.opening_entries([], "ms-1", "es-1", "ts-1")
+}
+
+fn call_with(entries: List(jmap_fixture.Entry)) {
+  let #(_, client_) = with_session([post(200, jmap_fixture.responses(entries))])
+  client.call(client_, opening())
+}
+
+/// The pass-through case of D1: calls answered in order come back under their
+/// own ids, in that order. The refusals below carry the check.
+pub fn call_answers_each_call_in_order_test() {
+  let assert Ok(#(_, responses)) = call_with(opening_entries())
+  responses
+  |> list.map(fn(response) { response.call_id })
+  |> should.equal(["c0", "c1", "c2"])
+}
+
+/// Entries out of call order, each still naming the method its own id was sent
+/// for: F8 passes them, so only the position check refuses. Catches a `call`
+/// that matched entries to calls by id alone, which would hand a positional
+/// caller the Thread state as the Email state.
+pub fn call_rejects_responses_out_of_order_test() {
+  let assert [c0, c1, c2] = opening_entries()
+  call_with([c0, c2, c1]) |> expect_error(error.Decode("methodResponses"))
+}
+
+/// A call left unanswered is a decode error at the map, not a short list the
+/// caller would match past. Catches a `call` that returned whatever arrived.
+pub fn call_rejects_a_missing_response_test() {
+  let assert [c0, c1, _] = opening_entries()
+  call_with([c0, c1]) |> expect_error(error.Decode("methodResponses"))
+}
+
+/// An entry that answers no call: like a missing one, a decode error. Catches
+/// a `call` that checked order but not the count.
+pub fn call_rejects_an_extra_response_test() {
+  let assert [c0, c1, c2] = opening_entries()
+  call_with([c0, c1, c2, c2]) |> expect_error(error.Decode("methodResponses"))
+}
+
 // ---------------------------------------------------------------- call_one
 
 fn mailbox_method() -> String {

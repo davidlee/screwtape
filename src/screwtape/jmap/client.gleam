@@ -19,6 +19,7 @@ import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import gleam/int
 import gleam/json
+import gleam/list
 import gleam/result
 import gleam/string
 import screwtape/credential.{type Token}
@@ -80,7 +81,9 @@ pub fn session(
 
 /// Post `calls` to the session's `apiUrl` and decode the method responses. An
 /// `apiUrl` we cannot parse is `Decode("apiUrl")`; the client handed back
-/// carries the same budget, now short of this response's bytes.
+/// carries the same budget, now short of this response's bytes. Response i
+/// answers call i: an unequal count, or a response whose call id is not its
+/// call's, is `Decode("methodResponses")`.
 pub fn call(
   client: Client,
   calls: List(jmap_request.Invocation),
@@ -100,15 +103,17 @@ pub fn call(
     req,
     client.budget,
   ))
-  use responses <- result.try(decode.method_responses(
-    response.body,
-    jmap_request.call_names(calls),
-  ))
-  Ok(#(Client(..client, budget:), responses))
+  let names = jmap_request.call_names(calls)
+  let call_ids = list.map(names, fn(call) { call.0 })
+  use responses <- result.try(decode.method_responses(response.body, names))
+  case list.map(responses, fn(response) { response.call_id }) == call_ids {
+    True -> Ok(#(Client(..client, budget:), responses))
+    False -> Error(error.Decode("methodResponses"))
+  }
 }
 
-/// Post the one call `invocation` and answer its one response. A response
-/// document with any other number of entries is `Decode("methodResponses")`.
+/// Post the one call `invocation` and answer its one response. `call` already
+/// refuses any other count; the fallback keeps the match total.
 pub fn call_one(
   client: Client,
   invocation: jmap_request.Invocation,

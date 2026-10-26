@@ -1,7 +1,8 @@
 //// Contract tests for `screwtape/sync` (PHASE-05 T5; EX-2..EX-6; VT-1..VT-4).
 ////
 //// Every case runs the real `sync.run` over a real `Client` bound to a
-//// scripted `fixture_send` (session, then one JMAP call per request), against a
+//// scripted `fixture_send` (session, the three-call opening request, then one
+//// JMAP call per request), against a
 //// temporary store whose writer stays open (`support/sync_fixture`). Every case
 //// asserts the exact sequence of JMAP calls sent and that no request went
 //// unmatched, so a run that sends an extra page, a repeated get or a call out
@@ -14,7 +15,7 @@
 import gleam/dynamic/decode
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -104,6 +105,17 @@ fn first_query(run: Run) -> fixture_send.RecordedCall {
 fn synced_at() -> model.UtcDate {
   let assert Ok(date) = normalise.utc_date(sync_fixture.now_text)
   date
+}
+
+/// A call's `ids`: `None` when it is JSON null, `Some([])` when it is empty.
+/// Panics when the call carries no `ids` at all.
+fn ids_argument(call: fixture_send.RecordedCall) -> Option(List(String)) {
+  let assert Ok(ids) =
+    decode.run(
+      call.arguments,
+      decode.at(["ids"], decode.optional(decode.list(decode.string))),
+    )
+  ids
 }
 
 // Rows of the committed store.
@@ -558,6 +570,76 @@ pub fn inject_500_at_thread_get_test() {
   inject_500_at(9)
 }
 
+fn opening_entries() -> List(jmap_fixture.Entry) {
+  jmap_fixture.opening_entries([sync_fixture.inbox()], "ms-1", "es-0", "ts-0")
+}
+
+/// A script holding only the opening request, answered with `entries`: the run
+/// must send nothing after it and leave the seeded store untouched.
+fn first_request_case(
+  entries: List(jmap_fixture.Entry),
+  expected: error.Error,
+) -> Nil {
+  use store, run <- run_sync(
+    spec([sync_fixture.opening_with(entries)]),
+    seeded(),
+  )
+
+  expect_calls(run, [MailboxGet])
+  expect_unchanged(store, run, expected)
+  // The run must still have sent the three calls of the opening request.
+  sync_fixture.opening_calls(run)
+  |> list.map(fn(call) { call.name })
+  |> should.equal([
+    request.method_name(request.MailboxGet),
+    request.method_name(request.EmailGet),
+    request.method_name(request.ThreadGet),
+  ])
+}
+
+/// ISS-001: a method error answering the opening `Email/get` (c1) names
+/// `Email/get`. Catches a run that attributes errors to `Mailbox/get` or to
+/// the wrong call id.
+pub fn inject_first_request_email_error_test() {
+  let entries =
+    list.map(opening_entries(), fn(entry) {
+      case entry.call_id {
+        "c1" -> jmap_fixture.error_entry("serverFail", "c1")
+        _ -> entry
+      }
+    })
+  first_request_case(entries, error.JmapMethod("Email/get", "serverFail"))
+}
+
+/// ISS-001: a method error answering the opening `Thread/get` (c2) names
+/// `Thread/get`. Catches a run that assumes only the mailbox call can fail.
+pub fn inject_first_request_thread_error_test() {
+  let entries =
+    list.map(opening_entries(), fn(entry) {
+      case entry.call_id {
+        "c2" -> jmap_fixture.error_entry("serverFail", "c2")
+        _ -> entry
+      }
+    })
+  first_request_case(entries, error.JmapMethod("Thread/get", "serverFail"))
+}
+
+/// ISS-001: the opening request makes three calls, so two answers are a
+/// `methodResponses` decode error. Catches a run that accepts a short reply.
+pub fn inject_first_request_missing_thread_get_test() {
+  let entries =
+    list.filter(opening_entries(), fn(entry) { entry.call_id != "c2" })
+  first_request_case(entries, error.Decode("methodResponses"))
+}
+
+/// ISS-001: answers out of call order are a `methodResponses` decode error,
+/// even though every name and call id is still present. Catches positional
+/// decoding that ignores call ids.
+pub fn inject_first_request_reordered_responses_test() {
+  let assert [c0, c1, c2] = opening_entries()
+  first_request_case([c0, c2, c1], error.Decode("methodResponses"))
+}
+
 /// Two attachments with one `partId` on one email break the attachment
 /// primary key at insert: `Store("write_failed")`, rolled back. Catches a
 /// write outside one transaction, or a leaked transaction (the writer must
@@ -608,16 +690,17 @@ pub fn inject_budget_breach_test() {
 
 // ---------------------------------------------------------------- VT-4 states
 
-/// Two chunks of each get: `type_state` keeps the earliest state per type
-/// (Email from the first `Email/get`, Thread from the first `Thread/get`,
-/// Mailbox from `Mailbox/get`), and each message keeps the state of the chunk
-/// that delivered it. Catches latest-state-wins, and one state for all
-/// messages.
-pub fn type_state_earliest_test() {
+/// ISS-001: the opening request fetches the Email and Thread states with two
+/// empty gets, so `type_state` holds `es-0` and `ts-0`, not the first phase-2
+/// chunk's states. Catches the PHASE-05 behaviour, where the first phase-2
+/// state won.
+pub fn type_state_earliest_first_request_test() {
   let all = ids("e", 1, 3)
+  let opening =
+    sync_fixture.opening([sync_fixture.inbox()], "ms-1", "es-0", "ts-0")
   let script =
     list.flatten([
-      [inbox_step(), page(all, "qs-1", 0, 3, None)],
+      [opening, page(all, "qs-1", 0, 3, None)],
       fetch_chunked(emails_of(all), 2),
     ])
   use store, run <- run_sync(Spec(..spec(script), max_objects_in_get: 2), None)
@@ -625,18 +708,31 @@ pub fn type_state_earliest_test() {
   expect_calls(run, methods(script))
   type_states(store)
   |> should.equal([
-    #("Email", "es-1"),
+    #("Email", "es-0"),
     #("Mailbox", "ms-1"),
-    #("Thread", "ts-1"),
+    #("Thread", "ts-0"),
   ])
   message_states(store)
   |> should.equal([#("e1", "es-1"), #("e2", "es-1"), #("e3", "es-2")])
   summary(run).states
   |> should.equal([
-    model.TypeState("Email", "es-1"),
+    model.TypeState("Email", "es-0"),
     model.TypeState("Mailbox", "ms-1"),
-    model.TypeState("Thread", "ts-1"),
+    model.TypeState("Thread", "ts-0"),
   ])
+
+  let calls = sync_fixture.opening_calls(run)
+  calls
+  |> list.map(fn(call) { call.name })
+  |> should.equal([
+    request.method_name(request.MailboxGet),
+    request.method_name(request.EmailGet),
+    request.method_name(request.ThreadGet),
+  ])
+  calls |> list.map(ids_argument) |> should.equal([None, Some([]), Some([])])
+  calls
+  |> list.map(fn(call) { call.call_id })
+  |> should.equal(["c0", "c1", "c2"])
 }
 
 /// The `query_state` row holds the filter as sent (with `after` = `now`
@@ -739,7 +835,6 @@ pub fn window_role_beats_name_test() {
       "ms-1",
     ),
     empty_page(),
-    ..fetch([])
   ]
   use _store, run <- run_sync(
     Spec(..spec(script), bounds: window(["inbox"])),
@@ -765,7 +860,6 @@ pub fn window_name_fallback_in_config_order_test() {
       "ms-1",
     ),
     empty_page(),
-    ..fetch([])
   ]
   let spec =
     Spec(..spec(script), bounds: window(["Receipts", "inbox", "Inbox"]))
@@ -776,23 +870,22 @@ pub fn window_name_fallback_in_config_order_test() {
   |> should.equal(["mb-r", "mb-a"])
 }
 
-/// An empty window still sends one `Email/get` and one `Thread/get` with
-/// `ids: []`, records all three states and commits a snapshot with no
-/// messages (A9). Catches a run that skips the empty gets, or commits nothing.
-pub fn empty_window_commits_test() {
-  let script = [inbox_step(), empty_page(), ..fetch([])]
+/// ISS-001: an empty window sends only the opening request and the phase-1
+/// page: no `Email/get` or `Thread/get` follows. The opening states are stored
+/// and the snapshot commits with no messages. Catches a run that skips the
+/// empty gets, or commits nothing.
+pub fn empty_window_first_request_test() {
+  let script = [inbox_step(), empty_page()]
   use store, run <- run_sync(spec(script), None)
 
-  expect_calls(run, [MailboxGet, EmailQuery, EmailGet, ThreadGet])
-  id_lists(run, EmailGet) |> should.equal([[]])
-  id_lists(run, ThreadGet) |> should.equal([[]])
+  expect_calls(run, [MailboxGet, EmailQuery])
   run.after |> should.not_equal(run.before)
   count(store, "message") |> should.equal(0)
   type_states(store)
   |> should.equal([
-    #("Email", "es-1"),
+    #("Email", "es-0"),
     #("Mailbox", "ms-1"),
-    #("Thread", "ts-1"),
+    #("Thread", "ts-0"),
   ])
   summary(run).messages |> should.equal(0)
   summary(run).threads |> should.equal(0)
@@ -897,9 +990,9 @@ pub fn summary_values_test() {
     not_found: 1,
     conversion_failures: 1,
     states: [
-      model.TypeState("Email", "es-1"),
+      model.TypeState("Email", "es-0"),
       model.TypeState("Mailbox", "ms-1"),
-      model.TypeState("Thread", "ts-1"),
+      model.TypeState("Thread", "ts-0"),
     ],
     is_read_only: True,
   ))
@@ -956,15 +1049,10 @@ pub fn paging_oversized_page_is_cut_to_the_window_test() {
 }
 
 /// Review F7: an empty page ends phase 1 even when `total` says more remain,
-/// and the empty window commits. Catches a run that relies on `total` alone
-/// (it would page until `max_pages`).
+/// and the empty window commits without any phase-2 gets (ISS-001). Catches a
+/// run that relies on `total` alone (it would page until `max_pages`).
 pub fn paging_empty_page_stops_test() {
-  let script = [
-    inbox_step(),
-    page([], "qs-1", 0, 50, None),
-    emails([], "es-1", []),
-    threads([], "ts-1"),
-  ]
+  let script = [inbox_step(), page([], "qs-1", 0, 50, None)]
   use _store, run <- run_sync(spec(script), None)
 
   expect_calls(run, methods(script))

@@ -398,13 +398,59 @@ pub fn emails_invalid_received_at_test() {
   |> should.equal(Error(error.Decode("list[0].receivedAt")))
 }
 
-/// A thread page keeps its ids in order with the Email state it was served
-/// under; a decoder that reordered or re-keyed them would break thread order.
+/// A thread page keeps its member ids in order; a decoder that reordered or
+/// re-keyed them would break thread order.
 pub fn threads_page_test() {
   let text = jmap_fixture.thread_get_response([#("t1", ["m1", "m2"])], "ts-1")
 
   decode.threads(response_of(text, request.ThreadGet))
-  |> should.equal(Ok(#([model.Thread("t1", ["m1", "m2"])], "ts-1")))
+  |> should.equal(Ok([model.Thread("t1", ["m1", "m2"])]))
+}
+
+/// A `Thread/get` that asked for no objects still answers the Thread state: the
+/// opening call needs exactly this string. Catches a decoder that looked for the
+/// state through `threads`, whose empty `list` would make it fail.
+pub fn state_reads_the_thread_get_state_test() {
+  let text = jmap_fixture.thread_get_response([], "ts-9")
+
+  decode.state(response_of(text, request.ThreadGet))
+  |> should.equal(Ok("ts-9"))
+}
+
+/// The same for an `Email/get` with no ids: its `state` is the Email state the
+/// run starts from, reported on the arguments themselves rather than inside a
+/// list entry. Catches a decoder that read `list[0].state`.
+pub fn state_reads_the_email_get_state_test() {
+  let text = jmap_fixture.email_get_response([], "es-9", [])
+
+  decode.state(response_of(text, request.EmailGet))
+  |> should.equal(Ok("es-9"))
+}
+
+/// RFC 8620 § 5.1 makes `state` mandatory in a `/get` response, so its absence
+/// is a decode failure at the field, not `Ok("")`. Catches a decoder that
+/// defaulted the state, which would let the next call ask for changes since a
+/// state that was never served.
+pub fn state_missing_is_a_decode_error_test() {
+  let text =
+    jmap_fixture.email_get_response([], "es-9", [])
+    |> string.replace("\"state\":\"es-9\",", "")
+  string.contains(text, "\"state\"") |> should.be_false
+
+  decode.state(response_of(text, request.EmailGet))
+  |> should.equal(Error(error.Decode("state")))
+}
+
+/// A non-string `state` is the same failure at the same path: server text that
+/// is not a string must not be coerced into one, or the run would carry a
+/// state no server issued.
+pub fn state_non_string_is_a_decode_error_test() {
+  let text =
+    jmap_fixture.thread_get_response([], "ts-9")
+    |> string.replace("\"state\":\"ts-9\"", "\"state\":7")
+
+  decode.state(response_of(text, request.ThreadGet))
+  |> should.equal(Error(error.Decode("state")))
 }
 
 /// I1: `mailboxIds` is keyed by server data, so the path must end at the map.

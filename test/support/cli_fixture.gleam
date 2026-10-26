@@ -149,7 +149,8 @@ pub fn token(secret: String) -> credential.Token {
 }
 
 /// The replies one whole `sync` run reads, for the CLI cases that drive the
-/// production path end to end: the session, a `Mailbox/get` with an `inbox`,
+/// production path end to end: the session, the opening request's answer (an
+/// `inbox`, Email and Thread states `es-0` and `ts-0`),
 /// one `Email/query` page of two messages, their `Email/get`, and the
 /// `Thread/get` of their two threads.
 pub fn full_sync_script(base_url: String) -> List(local_jmap.Reply) {
@@ -157,7 +158,7 @@ pub fn full_sync_script(base_url: String) -> List(local_jmap.Reply) {
     local_jmap.reply(200, jmap_fixture.session(base_url <> "/api")),
     local_jmap.reply(
       200,
-      jmap_fixture.mailbox_get_response([inbox()], "mb-state-1"),
+      jmap_fixture.opening_response([inbox()], "mb-state-1", "es-0", "ts-0"),
     ),
     local_jmap.reply(
       200,

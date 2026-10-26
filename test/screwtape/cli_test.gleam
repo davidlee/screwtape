@@ -259,12 +259,12 @@ pub fn full_sync_test() {
     json_document,
     decode.at(["data", "states", "Email"], decode.string),
   )
-  |> should.equal(Ok("es-1"))
+  |> should.equal(Ok("es-0"))
   decode.run(
     json_document,
     decode.at(["data", "states", "Thread"], decode.string),
   )
-  |> should.equal(Ok("ts-1"))
+  |> should.equal(Ok("ts-0"))
   let assert Ok(synced_at) =
     decode.run(json_document, decode.at(["data", "synced_at"], decode.string))
   // A whole-second RFC 3339 instant, the run's own clock.

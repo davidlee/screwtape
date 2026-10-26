@@ -5,8 +5,9 @@
 //// this module from a `Method` (invariant I6). `method_name` is the one place
 //// the wire spellings live.
 ////
-//// Every request carries both capabilities of the scope. A run sends one call
-//// per request (PHASE-05 A1), under the one `call_id`.
+//// Every request carries both capabilities of the scope. A run's first
+//// request is `opening`, three calls under distinct ids (ISS-001); every later
+//// request carries one call (PHASE-05 A1), under the one `call_id`.
 
 import gleam/function
 import gleam/json
@@ -19,7 +20,7 @@ pub const core_capability = "urn:ietf:params:jmap:core"
 
 pub const mail_capability = "urn:ietf:params:jmap:mail"
 
-/// The call id of the one call a run sends per request.
+/// The call id of a one-call request, and of the opening's `Mailbox/get`.
 pub const call_id = "c0"
 
 /// The Email properties a run fetches: exactly what `normalise.Email` reads
@@ -180,6 +181,21 @@ pub fn thread_get(
     ]),
     call_id: call_id,
   )
+}
+
+/// A run's first request (design § 5.2, ISS-001): `Mailbox/get`, then an
+/// `Email/get` and a `Thread/get` with `ids: []`, which fetch nothing but
+/// answer each type's `state` before phase 1. Each call has its own id, so a
+/// method error names the call it answers.
+pub fn opening(
+  account_id: String,
+  max_body_value_bytes: Int,
+) -> List(Invocation) {
+  [
+    mailbox_get(account_id, call_id),
+    email_get(account_id, [], max_body_value_bytes, "c1"),
+    thread_get(account_id, [], "c2"),
+  ]
 }
 
 /// The request document: `{using, methodCalls}`.

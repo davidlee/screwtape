@@ -8,8 +8,9 @@
 //// connection rolls back a transaction it leaked (memory
 //// `mem.fact.sqlite.esqlite-readonly-uri`).
 ////
-//// The step builders answer under the one `call_id` with `jmap_fixture`
-//// documents, so a script names only the fields a case cares about.
+//// The step builders answer with `jmap_fixture` documents, so a script names
+//// only the fields a case cares about: `mailboxes` and `opening` answer the
+//// three calls of the opening request, the rest one call under `call_id`.
 
 import gleam/dynamic/decode
 import gleam/http
@@ -110,8 +111,31 @@ pub fn inbox() -> jmap_fixture.Mailbox {
   jmap_fixture.mailbox("mb-1", "Inbox", Some("inbox"))
 }
 
+/// The opening request's answer: `list` and its `state`, with the Email and
+/// Thread states `es-0` and `ts-0`.
 pub fn mailboxes(list: List(jmap_fixture.Mailbox), state: String) -> Step {
-  Expect(request.MailboxGet, ok(jmap_fixture.mailbox_get_response(list, state)))
+  opening(list, state, "es-0", "ts-0")
+}
+
+/// The opening request's answer, with all three states.
+pub fn opening(
+  list: List(jmap_fixture.Mailbox),
+  mailbox_state: String,
+  email_state: String,
+  thread_state: String,
+) -> Step {
+  opening_with(jmap_fixture.opening_entries(
+    list,
+    mailbox_state,
+    email_state,
+    thread_state,
+  ))
+}
+
+/// The opening request answered with `entries`, in order: for a case that
+/// drops, reorders or replaces one.
+pub fn opening_with(entries: List(jmap_fixture.Entry)) -> Step {
+  Expect(request.MailboxGet, ok(jmap_fixture.responses(entries)))
 }
 
 /// One `Email/query` page with `total`, the server's `limit` when it sent one,
@@ -182,23 +206,18 @@ pub fn fetch(emails_: List(jmap_fixture.Email)) -> List(Step) {
 
 /// The `Email/get` steps that deliver `emails` in chunks of `size`, states
 /// `es-1`, `es-2`, …, then the `Thread/get` steps over their threads in chunks
-/// of `size`, states `ts-1`, …. No emails is still one empty get of each (A9).
+/// of `size`, states `ts-1`, …. No emails is no step (PHASE-11 EX-2).
 pub fn fetch_chunked(
   emails_: List(jmap_fixture.Email),
   size: Int,
 ) -> List(Step) {
-  case emails_ {
-    [] -> [emails([], "es-1", []), threads([], "ts-1")]
-    _ -> {
-      let email_steps =
-        list.sized_chunk(emails_, size)
-        |> list.index_map(fn(chunk, i) { emails(chunk, numbered("es-", i), []) })
-      let thread_steps =
-        list.sized_chunk(threads_of(emails_), size)
-        |> list.index_map(fn(chunk, i) { threads(chunk, numbered("ts-", i)) })
-      list.append(email_steps, thread_steps)
-    }
-  }
+  let email_steps =
+    list.sized_chunk(emails_, size)
+    |> list.index_map(fn(chunk, i) { emails(chunk, numbered("es-", i), []) })
+  let thread_steps =
+    list.sized_chunk(threads_of(emails_), size)
+    |> list.index_map(fn(chunk, i) { threads(chunk, numbered("ts-", i)) })
+  list.append(email_steps, thread_steps)
 }
 
 fn numbered(prefix: String, index: Int) -> String {
@@ -261,11 +280,13 @@ pub type Store {
   Store(dir: String, path: String, writer: store.Writer)
 }
 
-/// What one run returned and sent, and the store around it.
+/// What one run returned and sent, and the store around it. `calls` holds the
+/// first call of each JMAP request; `requests` every call of each.
 pub type Run {
   Run(
     result: Result(sync.Summary, Error),
     calls: List(RecordedCall),
+    requests: List(List(RecordedCall)),
     unmatched: Int,
     before: String,
     after: String,
@@ -316,6 +337,9 @@ pub fn run(store: Store, spec: Spec) -> Run {
   Run(
     result: result,
     calls: fixture_send.recorded_calls(fixture),
+    requests: fixture_send.recorded(fixture)
+      |> list.filter(fn(request) { request.method == http.Post })
+      |> list.map(fixture_send.calls_of),
     unmatched: fixture_send.unmatched_count(fixture),
     before: before,
     after: after,
@@ -367,6 +391,12 @@ pub fn summary(run: Run) -> sync.Summary {
 }
 
 // ---------------------------------------------------------------- recorded calls
+
+/// Every call of the run's first JMAP request: the opening request.
+pub fn opening_calls(run: Run) -> List(RecordedCall) {
+  let assert [first, ..] = run.requests
+  first
+}
 
 /// The calls of `method`, in order.
 pub fn calls_of(run: Run, method: request.Method) -> List(RecordedCall) {

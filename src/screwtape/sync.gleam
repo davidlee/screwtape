@@ -1,15 +1,17 @@
 //// One bounded sync run (PHASE-05; design § 5.2 JMAP usage, § 5.4).
 ////
-//// Mailbox/get, then phase 1 — `Email/query` pages that settle on one
-//// coherent id list under a single `queryState` — then phase 2 — `Email/get`
-//// over those ids, each once, in chunks of `maxObjectsInGet` — then
-//// `Thread/get`, `normalise`, and one `store.write_snapshot`. Nothing is
+//// The opening request carries three calls — `Mailbox/get`, then an
+//// `Email/get` and a `Thread/get` with no ids, which serve only the Email and
+//// Thread states (ISS-001). Then phase 1 — `Email/query` pages that settle on
+//// one coherent id list under a single `queryState` — then phase 2 —
+//// `Email/get` over those ids, each once, in chunks of `maxObjectsInGet` —
+//// then `Thread/get`, `normalise`, and one `store.write_snapshot`. Nothing is
 //// written until every fetch has succeeded (DEC-008), so a failed run leaves
 //// the store as it was (I2).
 ////
-//// Every call goes through `client.call_one` (one call per request, A1) on the
-//// `Client` value the previous call handed back, so the byte budget is spent
-//// across the whole run. Nothing is retried.
+//// After the opening request every request carries one call through
+//// `client.call_one` (A1) on the `Client` value the previous call handed back,
+//// so the byte budget is spent across the whole run. Nothing is retried.
 
 import gleam/bool
 import gleam/int
@@ -68,12 +70,15 @@ pub fn run(
   let now = whole_seconds(now)
   let window = bounds.window
 
-  use #(client, #(mailboxes, mailbox_state)) <- result.try(call(
+  use #(client, opened) <- result.try(opening(
     client,
-    request.mailbox_get(account_id, request.call_id),
-    decode.mailboxes,
+    account_id,
+    bounds.max_body_bytes,
   ))
-  use mailbox_ids <- result.try(resolve_mailboxes(mailboxes, window.mailboxes))
+  use mailbox_ids <- result.try(resolve_mailboxes(
+    opened.mailboxes,
+    window.mailboxes,
+  ))
   let filter =
     request.email_query_filter(mailbox_ids, after(now, window.max_age_days))
   let query =
@@ -91,7 +96,7 @@ pub fn run(
     chunk_size,
     bounds.max_body_bytes,
   ))
-  use #(_client, #(threads, thread_state)) <- result.try(get_threads(
+  use #(_client, threads) <- result.try(get_threads(
     client,
     account_id,
     distinct_thread_ids(fetched.messages),
@@ -103,12 +108,12 @@ pub fn run(
       account: account_meta(session, window, synced_at(now)),
       // Ordered by type name.
       states: [
-        model.TypeState("Email", fetched.state),
-        model.TypeState("Mailbox", mailbox_state),
-        model.TypeState("Thread", thread_state),
+        model.TypeState("Email", opened.email_state),
+        model.TypeState("Mailbox", opened.mailbox_state),
+        model.TypeState("Thread", opened.thread_state),
       ],
       query: query_row(filter, settled),
-      mailboxes:,
+      mailboxes: opened.mailboxes,
       messages: fetched.messages,
       threads:,
     )
@@ -144,6 +149,43 @@ fn after(now: Timestamp, max_age_days: Option(Int)) -> Option(String) {
 }
 
 // ---------------------------------------------------------------- calls
+
+/// What the opening request yields: the mailboxes, and the state of each type
+/// the run starts from (ISS-001).
+type Opened {
+  Opened(
+    mailboxes: List(model.Mailbox),
+    mailbox_state: String,
+    email_state: String,
+    thread_state: String,
+  )
+}
+
+/// The opening request: its three calls sent together, their answers matched
+/// by position (D1).
+fn opening(
+  client: Client,
+  account_id: String,
+  max_body_bytes: Int,
+) -> Result(#(Client, Opened), Error) {
+  use #(client, responses) <- result.try(jmap_client.call(
+    client,
+    request.opening(account_id, max_body_bytes),
+  ))
+  case responses {
+    [mailbox, email, thread] -> {
+      use #(mailboxes, mailbox_state) <- result.try(decode.mailboxes(mailbox))
+      use email_state <- result.try(decode.state(email))
+      use thread_state <- result.try(decode.state(thread))
+      Ok(#(
+        client,
+        Opened(mailboxes:, mailbox_state:, email_state:, thread_state:),
+      ))
+    }
+    // Unreachable while `call` holds D1; kept so the match stays total.
+    _ -> Error(error.Decode("methodResponses"))
+  }
+}
 
 /// One call, its response decoded, and the client it hands back (which
 /// carries the budget left).
@@ -353,10 +395,10 @@ fn settled(ids: Collected, first: QueryPage) -> Settled {
 
 // ---------------------------------------------------------------- phase 2
 
-/// The messages of every `Email/get`, the earliest Email state, and how many
-/// ids the server no longer had.
+/// The messages of every `Email/get` and how many ids the server no longer
+/// had.
 type Fetched {
-  Fetched(messages: List(model.Message), state: String, not_found: Int)
+  Fetched(messages: List(model.Message), not_found: Int)
 }
 
 fn get_emails(
@@ -366,7 +408,7 @@ fn get_emails(
   chunk_size: Int,
   max_body_bytes: Int,
 ) -> Result(#(Client, Fetched), Error) {
-  use #(client, first, rest) <- result.map(
+  use #(client, pages) <- result.map(
     in_chunks(client, ids, chunk_size, fn(client, chunk) {
       use #(client, page) <- result.try(call(
         client,
@@ -379,37 +421,35 @@ fn get_emails(
       #(client, page)
     }),
   )
-  let pages = [first, ..rest]
   let messages =
     list.flat_map(pages, fn(page) {
       list.map(page.emails, normalise.message(_, page.state, max_body_bytes))
     })
   let not_found =
     int.sum(list.map(pages, fn(page) { list.length(page.not_found) }))
-  #(client, Fetched(messages:, state: first.state, not_found:))
+  #(client, Fetched(messages:, not_found:))
 }
 
-/// The threads of `thread_ids` and the earliest Thread state.
+/// The threads of `thread_ids`, in chunk order.
 fn get_threads(
   client: Client,
   account_id: String,
   thread_ids: List(String),
   chunk_size: Int,
-) -> Result(#(Client, #(List(model.Thread), String)), Error) {
-  use #(client, first, rest) <- result.map(
+) -> Result(#(Client, List(model.Thread)), Error) {
+  use #(client, pages) <- result.map(
     in_chunks(client, thread_ids, chunk_size, fn(client, chunk) {
       use #(client, page) <- result.try(call(
         client,
         request.thread_get(account_id, chunk, request.call_id),
         decode.threads,
       ))
-      let returned = list.map(page.0, fn(thread) { thread.id })
+      let returned = list.map(page, fn(thread) { thread.id })
       use Nil <- result.map(only_requested(chunk, returned))
       #(client, page)
     }),
   )
-  let #(_, state) = first
-  #(client, #(list.flat_map([first, ..rest], fn(page) { page.0 }), state))
+  #(client, list.flatten(pages))
 }
 
 /// A get's `list` holds only ids the chunk asked for (RFC 8620 § 5.1): an
@@ -445,34 +485,24 @@ fn distinct_thread_ids(messages: List(model.Message)) -> List(String) {
 }
 
 /// `fetch` over `items` in chunks of `size`, threading the client, stopping at
-/// the first error. The first chunk's result comes apart from the rest, so
-/// the earliest state needs no fallback.
+/// the first error. No items is no chunk, so no request.
 fn in_chunks(
   client: Client,
   items: List(String),
   size: Int,
   fetch: fn(Client, List(String)) -> Result(#(Client, a), Error),
-) -> Result(#(Client, a, List(a)), Error) {
-  let #(first_chunk, later_chunks) = chunks(items, size)
-  use #(client, first) <- result.try(fetch(client, first_chunk))
-  use #(client, later) <- result.map(
-    list.try_fold(later_chunks, #(client, []), fn(acc, chunk) {
-      let #(client, results) = acc
-      use #(client, result) <- result.map(fetch(client, chunk))
-      #(client, [result, ..results])
-    }),
-  )
-  #(client, first, list.reverse(later))
-}
-
-/// `items` in chunks of at most `size`, first chunk apart. There is always a
-/// first chunk: no items is one empty chunk, so an empty window still sends
-/// one get of each type and records its state (A9).
-fn chunks(items: List(a), size: Int) -> #(List(a), List(List(a))) {
-  case list.sized_chunk(items, size) {
-    [first, ..rest] -> #(first, rest)
-    [] -> #([], [])
-  }
+) -> Result(#(Client, List(a)), Error) {
+  items
+  |> list.sized_chunk(size)
+  |> list.try_fold(#(client, []), fn(acc, chunk) {
+    let #(client, results) = acc
+    use #(client, result) <- result.map(fetch(client, chunk))
+    #(client, [result, ..results])
+  })
+  |> result.map(fn(acc) {
+    let #(client, results) = acc
+    #(client, list.reverse(results))
+  })
 }
 
 // ---------------------------------------------------------------- snapshot

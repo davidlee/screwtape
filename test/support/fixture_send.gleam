@@ -7,8 +7,9 @@
 //// passed — before it is answered, so a test can assert how many requests
 //// arrived, what cap the client asked for and which header it sent.
 ////
-//// `recorded_calls` reads the JMAP calls back out of the recorded bodies, in
-//// arrival order, and `ids_of` is their `ids` argument. `unmatched_count` counts
+//// `recorded_calls` reads the first JMAP call of each recorded body back, in
+//// arrival order, `calls_of` every call of one request, and `ids_of` is a
+//// call's `ids` argument. `unmatched_count` counts
 //// the requests no position answered, including those after the script ran out.
 ////
 //// The cap is honoured as the real `Send` honours it: a reply body whose
@@ -59,10 +60,10 @@ pub type Recorded {
   )
 }
 
-/// One call a request carried: its method name and arguments, as parsed from
-/// the first entry of `methodCalls`.
+/// One call a request carried: its method name, arguments and call id, as
+/// parsed from an entry of `methodCalls`.
 pub type RecordedCall {
-  RecordedCall(name: String, arguments: Dynamic)
+  RecordedCall(name: String, arguments: Dynamic, call_id: String)
 }
 
 pub opaque type Fixture {
@@ -133,6 +134,12 @@ pub fn recorded_calls(fixture: Fixture) -> List(RecordedCall) {
   })
 }
 
+/// Every call `request` carried, in order (`recorded_calls` reads only the
+/// first of each request).
+pub fn calls_of(request: Recorded) -> List(RecordedCall) {
+  calls_in(request.body)
+}
+
 /// How many requests no scripted position matched, including those that
 /// arrived after the script ran out.
 pub fn unmatched_count(fixture: Fixture) -> Int {
@@ -196,27 +203,24 @@ fn matches(step: Step, received: Recorded) -> Bool {
 }
 
 fn call_of(body: String) -> Option(RecordedCall) {
-  case json.parse(body, using: decode.dynamic) {
-    Ok(document) -> {
-      let entries =
-        decode.run(
-          document,
-          decode.at(["methodCalls"], decode.list(decode.dynamic)),
-        )
-      case entries {
-        Ok([entry, ..]) -> {
-          let name = decode.run(entry, decode.at([0], decode.string))
-          let arguments = decode.run(entry, decode.at([1], decode.dynamic))
-          case name, arguments {
-            Ok(name), Ok(arguments) ->
-              Some(RecordedCall(name: name, arguments: arguments))
-            _, _ -> None
-          }
-        }
-        _ -> None
-      }
-    }
-    Error(_) -> None
+  case calls_in(body) {
+    [call, ..] -> Some(call)
+    [] -> None
+  }
+}
+
+/// Every entry of a request body's `methodCalls`, in order; nothing for a body
+/// that is not a JMAP request document.
+fn calls_in(body: String) -> List(RecordedCall) {
+  let entry = {
+    use name <- decode.then(decode.at([0], decode.string))
+    use arguments <- decode.then(decode.at([1], decode.dynamic))
+    use call_id <- decode.then(decode.at([2], decode.string))
+    decode.success(RecordedCall(name:, arguments:, call_id:))
+  }
+  case json.parse(body, using: decode.at(["methodCalls"], decode.list(entry))) {
+    Ok(calls) -> calls
+    Error(_) -> []
   }
 }
 

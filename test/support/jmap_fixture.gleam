@@ -5,7 +5,9 @@
 //// name the URL of the server a test just started, and vary the core limits.
 //// `mailbox_get_response`, `email_query_response`, `email_get_response` and
 //// `thread_get_response` build method-response documents from records, so a
-//// test names only the fields it cares about. The rest are fixtures under
+//// test names only the fields it cares about; `opening_response` answers the
+//// three calls of `request.opening`, and `responses` builds any document from
+//// its `Entry` list. The rest are fixtures under
 //// `test/fixtures/jmap/`, read through `screwtape/file`; a missing fixture
 //// crashes the test that asked for it.
 ////
@@ -108,13 +110,17 @@ pub fn mailbox(id: String, name: String, role: Option(String)) -> Mailbox {
 pub fn mailbox_get_response(mailboxes: List(Mailbox), state: String) -> String {
   method_response(
     request.method_name(request.MailboxGet),
-    json.object([
-      #("accountId", json.string(account_id)),
-      #("state", json.string(state)),
-      #("list", json.array(mailboxes, mailbox_json)),
-      #("notFound", json.preprocessed_array([])),
-    ]),
+    mailbox_get_arguments(mailboxes, state),
   )
+}
+
+fn mailbox_get_arguments(mailboxes: List(Mailbox), state: String) -> json.Json {
+  json.object([
+    #("accountId", json.string(account_id)),
+    #("state", json.string(state)),
+    #("list", json.array(mailboxes, mailbox_json)),
+    #("notFound", json.preprocessed_array([])),
+  ])
 }
 
 /// An `Email/query` response page. `total` and `limit` are omitted when `None`.
@@ -261,13 +267,21 @@ pub fn email_get_response(
 ) -> String {
   method_response(
     request.method_name(request.EmailGet),
-    json.object([
-      #("accountId", json.string(account_id)),
-      #("state", json.string(state)),
-      #("list", json.array(emails, email_json)),
-      #("notFound", json.array(not_found, json.string)),
-    ]),
+    email_get_arguments(emails, state, not_found),
   )
+}
+
+fn email_get_arguments(
+  emails: List(Email),
+  state: String,
+  not_found: List(String),
+) -> json.Json {
+  json.object([
+    #("accountId", json.string(account_id)),
+    #("state", json.string(state)),
+    #("list", json.array(emails, email_json)),
+    #("notFound", json.array(not_found, json.string)),
+  ])
 }
 
 /// A `Thread/get` response with `state` and an empty `notFound`.
@@ -277,38 +291,93 @@ pub fn thread_get_response(
 ) -> String {
   method_response(
     request.method_name(request.ThreadGet),
-    json.object([
-      #("accountId", json.string(account_id)),
-      #("state", json.string(state)),
-      #(
-        "list",
-        json.array(threads, fn(thread) {
-          let #(id, email_ids) = thread
-          json.object([
-            #("id", json.string(id)),
-            #("emailIds", json.array(email_ids, json.string)),
-          ])
-        }),
-      ),
-      #("notFound", json.preprocessed_array([])),
-    ]),
+    thread_get_arguments(threads, state),
   )
 }
 
-fn method_response(name: String, arguments: json.Json) -> String {
+fn thread_get_arguments(
+  threads: List(#(String, List(String))),
+  state: String,
+) -> json.Json {
+  json.object([
+    #("accountId", json.string(account_id)),
+    #("state", json.string(state)),
+    #(
+      "list",
+      json.array(threads, fn(thread) {
+        let #(id, email_ids) = thread
+        json.object([
+          #("id", json.string(id)),
+          #("emailIds", json.array(email_ids, json.string)),
+        ])
+      }),
+    ),
+    #("notFound", json.preprocessed_array([])),
+  ])
+}
+
+/// One entry of `methodResponses`: `[name, arguments, callId]`.
+pub type Entry {
+  Entry(name: String, arguments: json.Json, call_id: String)
+}
+
+/// The entries that answer `request.opening`, under its call ids: the
+/// mailboxes and `mailbox_state`, then an empty `Email/get` and `Thread/get`
+/// with `email_state` and `thread_state`.
+pub fn opening_entries(
+  mailboxes: List(Mailbox),
+  mailbox_state: String,
+  email_state: String,
+  thread_state: String,
+) -> List(Entry) {
+  let arguments = [
+    mailbox_get_arguments(mailboxes, mailbox_state),
+    email_get_arguments([], email_state, []),
+    thread_get_arguments([], thread_state),
+  ]
+  request.opening(account_id, 0)
+  |> request.call_names
+  |> list.zip(arguments)
+  |> list.map(fn(pair) {
+    let #(#(call_id, name), arguments) = pair
+    Entry(name:, arguments:, call_id:)
+  })
+}
+
+/// The response document `opening_entries` describes.
+pub fn opening_response(
+  mailboxes: List(Mailbox),
+  mailbox_state: String,
+  email_state: String,
+  thread_state: String,
+) -> String {
+  responses(opening_entries(mailboxes, mailbox_state, email_state, thread_state))
+}
+
+/// A method error entry of `type_` answering `call_id`.
+pub fn error_entry(type_: String, call_id: String) -> Entry {
+  Entry("error", json.object([#("type", json.string(type_))]), call_id)
+}
+
+/// A response document of `entries`, in order.
+pub fn responses(entries: List(Entry)) -> String {
   json.object([
     #(
       "methodResponses",
-      json.preprocessed_array([
+      json.array(entries, fn(entry) {
         json.preprocessed_array([
-          json.string(name),
-          arguments,
-          json.string(request.call_id),
-        ]),
-      ]),
+          json.string(entry.name),
+          entry.arguments,
+          json.string(entry.call_id),
+        ])
+      }),
     ),
   ])
   |> json.to_string
+}
+
+fn method_response(name: String, arguments: json.Json) -> String {
+  responses([Entry(name, arguments, request.call_id)])
 }
 
 fn mailbox_json(mailbox: Mailbox) -> json.Json {
