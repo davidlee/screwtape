@@ -6,9 +6,10 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · b690e2f · PHASE-06 completed; slice status started; next PHASE-07 (then 09; 08 independent), ISS-001 before /audit
+fresh-as-of: 2026-10-26 · 6b8d0bf · PHASE-07 completed; slice status started; next PHASE-09 (operator gates EN-2..EN-4; 08 independent), ISS-001 before /audit
 
 ### Produced
+- PHASE-07 (95b04ee, 6b8d0bf): nix/module.nix `homeManagerModules.default` (options, hardened oneshot unit, timer, store config with a parser checkPhase, `--config`-only wrapper, screwtape-provision, stateHome/configHome assertions, internal `configFile`); nix/module-eval.nix `checks.module-eval` (VT-1, VT-2); flake home-manager input; README deployment sections
 - PHASE-06 (93850f0, 5fa77da, 54ca590, 04f0f2f, 49d0d95): read verbs mailboxes/list/read/thread; modules argv (pure parse), render (one envelope writer, governed pure), utf8 (I5), store/query (read queries), store/codec (stored encodings both ways); model MessageSummary/ThreadEntry/mailboxes_matching; reader busy_timeout 5 s; `open_reader_with` + `cli.run_with` I8 seams; tests read_snapshot_test (4, VT-1), render_test, cli_test read contract (VT-2, EX-3), store_test read contract, utf8_test, model_test; memory mem.pattern.sqlite.snapshot-read-test, mem.fact.sqlite.esqlite-readonly-uri extended
 - PHASE-05 (bfeb35f, b2cb3a5, 2498e04): sync (run, paging with sticky clamp, ≤2 restarts, chunked gets, earliest states, Email/get answer checks); jmap/request Email/query/get + Thread/get builders, `call_id`; decode QueryPage/EmailPage/threads/full Mailbox, `server_keyed_fields`, F8 name check; client.call_one; config.window_json; cli full sync + summary envelope + read-only warning; test support fixture_send `Expect`/recorded_calls, jmap_fixture builders, sync_fixture, cli_fixture token/full_sync_script; sync_test (36), I1 suite extended to the full path + store dump
 - PHASE-04: store (schema v1 = migration chain `[schema_v1]`, write_snapshot/_with, open_reader/read/select, close_*); test support store_dump (in-process logical dump incl. user_version), snapshot_fixture (full/broken); store_test (16 tests)
@@ -35,7 +36,10 @@ fresh-as-of: 2026-10-26 · b690e2f · PHASE-06 completed; slice status started; 
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: PHASE-07 (then 09; 08 independent); ISS-001 (type_state race) after PHASE-06 and before /audit
+- Next: PHASE-09 (needs the operator for EN-2 token ref, EN-3 quotient pin or host-local pin, EN-4 lingering); 08 independent; ISS-001 (type_state race) before /audit
+- Audit (pre-existing, found at PHASE-07 verify-vt): PHASE-10 VT-2 keyword `ca_file` is absent from `test/screwtape/token_leak_test.gleam` (never present; the test trusts a per-run CA via `server.ca_path`). Behaviour covered; the keyword/traceability needs a ruling at /audit
+- Reconcile at audit (PHASE-07): design § 5.2/5.4 additions — module asserts xdg.configHome default too (the unit's %E; provision bakes `xdg.configHome`/credstore.encrypted/screwtape.fastmail); the config file is validated at build by the program's parser (writeTextFile checkPhase); `services.screwtape.configFile` internal option; provision traps EXIT/INT/TERM/HUP
+- PHASE-09 (ASM-005) for the module: `systemd-creds encrypt --user` and the unit under the hardening are unverified on the host; provision's `/run/wrappers/bin/op` is a NixOS-with-1Password-module assumption
 - Reconcile at audit (PHASE-06): design § 5.1 module graph (new utf8, argv, store/query, store/codec; render imports utf8 not error; cli imports store/query; model gains pure rules); § 5.2/5.3 `list` order is newest first (D5); D7 output shapes and `--max-bytes` as a prefix of the concatenated bodies; usage reason codes (argv module doc); design § 5.2 says read verbs fail `no_snapshot` on v0 (A9 covers "older")
 - PHASE-06 operator decisions, settled (2026-10-26): `list` newest first (received_at_ms DESC, id DESC; reconcile design § 5.2/5.3 wording); unknown message/thread id → Usage, exit 2
 - ISS-001 (PHASE-05 review F1, type_state race): operator decided 2026-10-26 — fix within SL-001 after PHASE-06, before /audit; REV for design § 5.2 + PHASE-05/EX-4 first
@@ -56,6 +60,17 @@ fresh-as-of: 2026-10-26 · b690e2f · PHASE-06 completed; slice status started; 
 - RFC-020 OQ-2, OQ-5, OQ-6, OQ-10, OQ-11
 - Research host checks 8 and 9: not run
 - CHR-001: swap the quotient pin to a published tag
+
+## PHASE-07 evidence
+
+- EN-1: PHASE-06 complete (13ea2e2), gate 364.
+- Probe: a fresh `nix build .#screwtape` exits 1 (`store`/`no_snapshot`) on a valid config with no store, 2 on an invalid config; the repo-root `result` symlink is a stale early build (exits 0, no output).
+- TDD: module-eval written by pi from EX-1..EX-3 + sheet D2-D8, red against the options-only stub (`Type: want oneshot`); module by orch; green. Review round: tests added first, red (`configFile` missing), then green.
+- Negative controls (module copy backup, restored by copy), each red with its own message: LimitCORE removed; wrapper gains `--verbose`; `/home/` literal; stateHome assertion `true`; config credential_name changed (jq); ERL_CRASH_DUMP_SECONDS=10; configHome assertion `true`; parser exit 2 ignored (testBuildFailure: "builder did not fail"); provision opRef literal; `--name=other`; wrapper ignores `package`; `max_pages` literal.
+- Gate (6b8d0bf tree): `doctrine check gate` 364 passed; `nix flake check` exit 0, only "unknown flake output 'homeManagerModules'" (EX-5); `doctrine slice verify-vt 1` PHASE-07 VT-1, VT-2 pass.
+- VA-1 (orch): screwtape-provision against `~/flakes/features/agents/gateway/llm-gateway` `credentials` (l.326-360): same op read → encrypt pipe to `<stored>.new`, both statuses checked (PIPESTATUS), mv only on success, then one start of the unit with its result reported. The token is in no argv, variable or clear file; the op ref is the only argv. Differences: user scope (`--user`, no sudo, no `--with-key=host+tpm2`, per design § 5.4; key binding is ASM-005), and an EXIT trap (plus INT/TERM/HUP → exit) removes the staged file on every path. shellcheck runs in module-eval (it caught SC2174).
+- VA-2 (orch): README checked against design § 5.4 and DEC-016 (`record-016.toml` context), `error.exit_code`, `cli.gleam` unknown-id → Usage; failures write nothing to stdout (probed).
+- Review (pi `review`, max; 10 findings), dispositions: 1, 3 fixed (parser checkPhase; testBuildFailure cases for no window bound and http); 2 fixed (override case for every option; package and opRef reach wrapper/provision); 4 fixed (`credentialPath` shared; provision text checks); 5 fixed in part (home-relative negative value; a second value judged not worth it — the mutant `!= <literal>` is implausible); 6 fixed (traps); 7 fixed (configHome assertion, baked path; 10 follows); 8, 9 fixed (README).
 
 ## PHASE-05 evidence
 
@@ -167,6 +182,8 @@ Inquiry ids (`inq-N`) are the design run's; `doctrine design show 1`.
 - RFC-020 lists OQ-7 open; its Outcome records it settled (raised, unanswered).
 
 ## Review passes
+
+- Orchestration (2026-10-26, PHASE-07): orch = Opus; pi deepseek-flash. T2 module-eval contract (`implement`) $0.056; T5 README (`write`) $0.018; T6 review (`review`, max) $0.071 hit the 45-request ceiling probing (systemd docs, /nix/store greps) and answered on a 1-request continuation $0.022: ≈ $0.17. Module written by orch (pi has no `nix`; the eval loop is orch-only). pi got wrong: module-eval took the config path via `builtins.match` (drops string context → config missing in the sandbox; orch fixed, later replaced by an internal option); the brief's own half-abandoned sentence (orch's fault) left the config check shallow. pi got right where orch had not: review F1/F3 (configs the parser rejects evaluate fine), F2 (no override coverage), F7 (XDG_CONFIG_HOME vs %E split). Brief tuning: reviewers need "no probing of systemd/nix store; read only the listed files"; write briefs fully before sending.
 
 - Orchestration (2026-10-26, PHASE-06): orch = Opus; pi deepseek-flash (`implement`) for T1, the T3/T5 tests and implementations, the T6 implementation, the T7 refactors and the review fixes; Opus subagents for the I8 test (T4), the cli contract tests (T6) and one review. pi costs: T1 $0.019, T3 tests $0.064 + impl $0.054, T5 tests $0.064 + impl $0.027, T6 impl $0.048, T7 $0.057 + $0.017, review (max) $0.129, fix tests $0.038 + fixes $0.020: ≈ $0.54. No pi run hit a ceiling (largest 54 requests, the reviewer). pi got wrong: nothing that reached a commit; the T5 test author settled `--max-bytes` as a prefix of the concatenated bodies (accepted, D7 updated) where the brief left it open. pi got right where Opus had not: the reader `busy_timeout` gap (P-2). Opus review found the bignum `--offset` crash (pi too), the I8-through-one-query gap and the missing read-only test. Brief tuning that worked: orch writes the stubs and the output-shape decision (D7) before any test brief; implementers are told which tests are fixed; split render and cli implementation into separate runs.
 

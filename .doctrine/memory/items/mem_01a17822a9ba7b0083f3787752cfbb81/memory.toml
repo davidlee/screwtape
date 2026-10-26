@@ -1,0 +1,46 @@
+memory_uid = "mem_01a17822a9ba7b0083f3787752cfbb81"
+memory_key = "mem.pattern.nix.hm-module-eval-check"
+schema_version = 1
+memory_type = "pattern"
+status = "active"
+title = "Test a Home Manager module by evaluation: tryEval for assertions, testBuildFailure for build-time rejects"
+summary = "checks.module-eval shape (SL-001 PHASE-07) and the Nix string-context traps it hit"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = []
+globs = ["nix/module-eval.nix", "nix/module.nix"]
+commands = []
+tags = ["nix", "home-manager", "testing"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "561bc91360ca60544d00d3ae11235627dcc5eea1"
+ref_name = "refs/heads/main"
+checkout_state_id = "767dde3621f2f7b0d232f04fcf5e1dffda5a13165c9b11b79e04af346caa1e65"
+base_commit = "6b8d0bfb9cfd8ee36fcea0ba0d0263f1e854bdab"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "commit"
+ref = "6b8d0bf"
+
