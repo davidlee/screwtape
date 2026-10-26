@@ -6,9 +6,10 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · PHASE-02 completed; slice status started; next PHASE-10
+fresh-as-of: 2026-10-26 · PHASE-10 in_progress at a482012 (T0-T2 done); slice status started
 
 ### Produced
+- PHASE-10 so far (a482012): error, credential, config, jmap/request, jmap/decode, screwtape_ffi:getenv; DEC-019 (I1 crash case); RV-002 concluded as waived (1fc3923)
 - PHASE-02: screwtape_http.erl (production Send), jmap/client types, test/support local_jmap (+ local_tls_ffi serve/2), transport_test; memory mem.fact.erlang.httpc-reason-shapes
 - PHASE-01 (1c76354, 8604d32, 40fbf74): gleam package + pins, screwtape_ffi, nix/package.nix + checks.gleam-test, test/support (subprocess, local_tls, temp); ASM-001 validated; memories mem.fact.gleam.shipment-compiles-test-erl, mem.pattern.gleam.guard-spawn-monitor
 - SL-001 scope: research amendment (check-jails to satan) committed in 15914cd; design amendments (DEC-001, DEC-004, DEC-013, DEC-016, DEC-017, F11 body values, F-13 wording) uncommitted
@@ -30,7 +31,8 @@ fresh-as-of: 2026-10-26 · PHASE-02 completed; slice status started; next PHASE-
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: /phase-plan PHASE-10 → /execute (pi-orchestrate); plan.md § Risks remaining: forced crash in client, raw JMAP type home
+- Next: PHASE-10 T3-T7 (phase sheet); credential control-byte rejection (operator 'b) yes'); raw JMAP type home (PHASE-03)
+- Reconcile: design § 5.2 premise 'an httpc worker crash logs a report holding its request' is false on OTP 28.5 (DEC-019 consequences); EX-5 crash case reading per DEC-019
 - Audit reconcile: design § 5.2 crash rules should name the linked-exit containment (guard under spawn_monitor; PHASE-01 review F2); PHASE-10/EX-5 inherits review F7 (forced crash through main)
 - Design § 6: OQ-A (operator 2026-10-26: warn now, decide after the live run); lingering (host choice); silent sync failures; library pins closed by PHASE-01/EX-1 (manifest.toml)
 - ASM-002 (PHASE-03), ASM-003 (unvalidated; satan RSK-021), ASM-004 (PHASE-09), ASM-005 (PHASE-09) (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
@@ -50,6 +52,13 @@ fresh-as-of: 2026-10-26 · PHASE-02 completed; slice status started; next PHASE-
   - F2 (high): a process linked from inside `guard` that crashes kills `main`; gleam's `screwtape@@main` wrapper (trap_exit false) prints the exit reason to stderr (SENTINEL leaked). Fix: guard runs the body under `spawn_monitor`. Bears on design § 5.2's crash rules and PHASE-10's I1 suite: reconcile at audit.
   - F3: `gleam export erlang-shipment` compiles `test/**/*.erl` into the production app ebin. Fix: package src includes `test/` only when `doCheck`.
   - F4/F5/F6/F10 fixed (subprocess stderr/timeout, hostname-mismatch control, temp file modes). F7 deferred to PHASE-10 (forced crash through main). F8 accepted: `{flush,true}` is OTP's default since 26; kept explicit per design. F9 documented.
+
+## PHASE-10 evidence
+
+- T0 spike (2026-10-26, pi, $0.07): no client crash carrying the token is reachable on OTP 28.5. httpc concatenates header bytes unvalidated (CR/LF, NUL, 1 MB tokens all send); malformed responses return `{error,_}` with no log events; `httpc_handler` catches every exception into a `{shutdown,_}` stop (orch read lines 268-313). Only crash found: Cap = 0 `function_clause`, token-free. Consulted → DEC-019 (operator: "a) 1").
+- Header injection: a token containing CR/LF is sent as-is. Operator ("b) yes", 2026-10-26): `credential.read` rejects control bytes → `Credential("invalid")`, tested.
+- Test-helper gotcha (T0): `local_tls_ffi` request reading (`string:lowercase` on header lines) badargs on non-UTF-8 request header bytes; the I1 suite must use UTF-8 tokens or the helper be hardened.
+- T1 (pi, $0.05) and T2 (pi, $0.07): TDD, 92 tests green, gate + `nix flake check` pass. `jmap/request.Invocation` is opaque: T3 needs an accessor (call ids → method names) for `decode.method_responses`'s `calls` argument.
 
 ## PHASE-02 evidence
 
