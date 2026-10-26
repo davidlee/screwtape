@@ -439,9 +439,9 @@ fn run_sync_at(
       cli_fixture.config_text_with(
         local_jmap.url(server, "/session"),
         store_path,
-        Some(server.ca_path),
-        max_total_bytes,
-        request_timeout_ms,
+        ca_file: Some(server.ca_path),
+        max_total_bytes:,
+        request_timeout_ms:,
       ),
     )
   let shipment = unwrap(subprocess.shipment_dir())

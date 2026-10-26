@@ -58,9 +58,9 @@ pub fn config_text(
 pub fn config_text_with(
   session_url: String,
   store_path: String,
-  ca_file: Option(String),
-  max_total_bytes: Int,
-  request_timeout_ms: Int,
+  ca_file ca_file: Option(String),
+  max_total_bytes max_total_bytes: Int,
+  request_timeout_ms request_timeout_ms: Int,
 ) -> String {
   document(
     session_url,

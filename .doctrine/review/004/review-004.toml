@@ -8,9 +8,501 @@ title = "reconciliation review of SL-001"
 facet     = "reconciliation"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
 raiser    = "raiser"
 responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Conformance audit of SL-001 (all 11 phases) at a02225e + F-1 fix, primary checkout. Examined: doctrine check gate (377 passed), nix flake check (exit 0, accepted homeManagerModules warning), slice verify-vt 1 (0 FAIL after F-1), slice conformance 1 (undeclared/undelivered leads → F-2..F-4), design.md §§ 5.1–5.5, 6, 9, 10 against src/ imports, signatures, check_imports.gleam and nix/module.nix, the notes `### Open` audit queue, and DEC-019/DEC-020 consequences. 15 findings: 1 fix-now, 14 design-wrong, all briefed; no governance/spec REV.
+"""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Re-conclusion after F-16/F-17 (raised from the audit-tail phase-sheet sweep, phases 01–11). Basis otherwise as the prior conclusion: gate 377 passed, nix flake check exit 0, verify-vt 0 FAIL after F-1, conformance leads F-2..F-4, design §§ 5.1–5.5, 6, 9, 10 vs code, notes audit queue, DEC-019/020/021. 17 findings: 1 fix-now, 16 design-wrong, all briefed; no governance/spec REV.
+"""
 
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-001"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "PHASE-10 VT-2 expects keyword `ca_file` in token_leak_test; observed absent, so verify-vt FAILs"
+detail = """
+Expected: `plan.toml` PHASE-10 VT-2 keywords = ["sentinel", "local_jmap", "forced_crash", "ca_file"] all present in `test/screwtape/token_leak_test.gleam`.
+Observed: `doctrine slice verify-vt 1` → `✗ FAIL VT-2 — keyword ca_file absent`. It was never present. The behaviour is covered: the suite passes `Some(server.ca_path)` positionally as the `ca_file` argument of `cli_fixture.config_text_with` (token_leak_test.gleam:442) and `cli.production_send` (:564), so every subprocess run trusts the per-run CA. Only the traceability keyword is missing. Plan criteria are immutable, so the test has to name it."""
+disposition = "fix-now"
+response = "Fixed in the test code, not the plan (criteria are immutable). `cli_fixture.config_text_with` now labels its trailing parameters (`ca_file`, `max_total_bytes`, `request_timeout_ms`), and the I1 suite's call (token_leak_test.gleam:439) passes `ca_file: Some(server.ca_path)`. The keyword now names the real argument that makes every subprocess trust the per-run CA, so it isn't a comment added to satisfy the check. The label also clarifies a positional `Option` among ints. Evidence: `gleam format --check` clean; `doctrine check gate` 377 passed; `doctrine slice verify-vt 1` 0 FAIL."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in the test code, not the plan (criteria are immutable). `cli_fixture.config_text_with` now labels its trailing parameters (`ca_file`, `max_total_bytes`, `request_timeout_ms`), and the I1 suite's call (token_leak_test.gleam:439) passes `ca_file: Some(server.ca_path)`. The keyword now names the real argument that makes every subprocess trust the per-run CA, so it isn't a comment added to satisfy the check. The label also clarifies a positional `Option` among ints. Evidence: `gleam format --check` clean; `doctrine check gate` 377 passed; `doctrine slice verify-vt 1` 0 FAIL."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "fix observed: verify-vt 0 FAIL, gate 377 passed"
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "major"
+title = "Conformance: `src/screwtape_html_ffi.erl` is shipped code with no design-target selector and no § 10 row"
+detail = """
+Expected: every shipped source path is declared by a `design-target` selector, mirrored in design § 10 Code Impact.
+Observed: `doctrine slice conformance 1` lists `A src/screwtape_html_ffi.erl` as undeclared. DEC-020 introduced it (the catching wrapper over `htmgrrrl_ffi:sax/3`), but neither the selector registry (`slice-001.toml`) nor § 10 names it. `src/**` covers it only as `scope-relevant`."""
+disposition = "design-wrong"
+response = "The code is right (DEC-020). The design omits the file. Reconciliation Brief § Per-slice, F-2: `doctrine slice selector add 1 src/screwtape_html_ffi.erl` (design-target) is the load-bearing change; a § 10 row is its mirror."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "The code is right (DEC-020). The design omits the file. Reconciliation Brief § Per-slice, F-2: `doctrine slice selector add 1 src/screwtape_html_ffi.erl` (design-target) is the load-bearing change; a § 10 row is its mirror."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "nit"
+title = "Conformance: `flake.lock` and `.gitignore` edited but undeclared"
+detail = """
+Expected: edited repo files are declared by a `design-target` selector.
+Observed: conformance lists `M flake.lock` (a consequence of § 10's `flake.nix` row, which adds the nix-gleam and home-manager inputs) and `M .gitignore` (PHASE-03, 75dd306, added `erl_crash.dump`, an I1 crash-dump artefact) as undeclared. Both edits are legitimate. The design simply doesn't declare them."""
+disposition = "design-wrong"
+response = "Both edits are intended consequences of design rows (`flake.nix` inputs → lock; I1 crash-dump artefact → ignore). Reconciliation Brief § Per-slice, F-3: `slice selector add` for `flake.lock` and `.gitignore` (design-target); § 10 mirror lines."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Both edits are intended consequences of design rows (`flake.nix` inputs → lock; I1 crash-dump artefact → ignore). Reconciliation Brief § Per-slice, F-3: `slice selector add` for `flake.lock` and `.gitignore` (design-target); § 10 mirror lines."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "nit"
+title = "Conformance: `nix/module.nix` and `nix/package.nix` read undelivered, though delivered, because `nix/**` shadows them"
+detail = """
+Expected: undelivered = declared paths with no edit.
+Observed: both files are edited and appear as conformant under `nix/**` (added for PHASE-07 module-eval), yet their literal selectors are reported undelivered. The handover records `selector doctor` flagging the pair as redundant. This is a registry artefact, not dropped work. (`src/**` also shadows the `src/*` literals, but its intent is `scope-relevant`, so those still count.)"""
+disposition = "design-wrong"
+response = "A registry artefact. Reconciliation Brief § Per-slice, F-4: `doctrine slice selector rm 1 nix/package.nix nix/module.nix`. `nix/**` (design-target) already covers both, plus `nix/module-eval.nix`. § 10 keeps its two rows as prose; no other mirror edit."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "A registry artefact. Reconciliation Brief § Per-slice, F-4: `doctrine slice selector rm 1 nix/package.nix nix/module.nix`. `nix/**` (design-target) already covers both, plus `nix/module-eval.nix`. § 10 keeps its two rows as prose; no other mirror edit."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "major"
+title = "§ 5.1 module graph and table describe 13 modules; the code has 21, with different edges"
+detail = """
+Expected: § 5.1's diagram and table name every module and its imports (DEC-006 purity is read from it).
+Observed (import lines in src/):
+- Modules missing from § 5.1: `screwtape/argv` (argv parsing and usage reason codes), `screwtape/file` (file reads for cli and credential), `screwtape/utf8` (pure; byte-bounded prefixes), `screwtape/store/query` (read queries), `screwtape/store/codec` (row codecs), `screwtape/html_sax` (DEC-020 catch wrapper), and `screwtape_html_ffi.erl`.
+- Edges that differ: `render` imports `model` and `utf8`, not `error`. `cli` also imports `argv`, `file`, `model`, `store/query` and `jmap/client`. `html_text` imports `html_sax`, not htmgrrrl. `normalise` imports `utf8`. `jmap/decode` imports `normalise` and `model`. `argv` imports `normalise`. `credential` imports `file`. `store` imports `store/codec`.
+- Table rows: `html_text` is described as "the htmgrrrl SAX fold"; it folds `html_sax` events. `store` "run the read queries" now lives in `store/query`. `model` gains pure rules (PHASE-06).
+Source: notes `### Open` (PHASE-06, DEC-020 items), confirmed against the current imports."""
+disposition = "design-wrong"
+response = "The code's decomposition is the better one (smaller single-responsibility modules), and the purity boundary is enforced by check-imports. The design is stale. Reconciliation Brief § Per-slice, F-5: redraw the § 5.1 module diagram from the actual imports and extend the table."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "The code's decomposition is the better one (smaller single-responsibility modules), and the purity boundary is enforced by check-imports. The design is stale. Reconciliation Brief § Per-slice, F-5: redraw the § 5.1 module diagram from the actual imports and extend the table."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "major"
+title = "§ 9 I5 evidence row states an allowlist the check does not implement"
+detail = """
+Expected: the I5 row describes what `just check-imports` (`test/check_imports.gleam`) enforces.
+Observed: the row says `html_text` may import `htmgrrrl`, and that the three governed modules (model, html_text, normalise) carry no `@external`. The check, per DEC-020 consequences, actually:
+- governs six modules: model and utf8 (gleam_stdlib only); html_text (+ `screwtape/html_sax`, no htmgrrrl); normalise (+ model, html_text, utf8); render (+ model, utf8, gleam_json); and html_sax (gleam_stdlib + htmgrrrl, with `@external` allowed only to `screwtape_html_ffi`);
+- denies `gleam/io` even within gleam_stdlib;
+- reads the compiled beam's import table for `screwtape_html_ffi`, allowing only `htmgrrrl_ffi:sax/3` (plus `get_module_info`), rather than a text scan;
+- for I6 (same row family), matches method-name literals whole only, a residual it documents (concatenation is not caught).
+The negative fixtures named in the row (normalise → gleam/erlang/process; html_text `@external`) remain valid."""
+disposition = "design-wrong"
+response = "The check is stricter than the row, and DEC-020's consequences already prescribe the amendment. Reconciliation Brief § Per-slice, F-6: rewrite the § 9 I5 row (six governed modules, the html_sax FFI rule via beam imports, the gleam/io denial) and note I6's whole-literal residual in the I6 row."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "The check is stricter than the row, and DEC-020's consequences already prescribe the amendment. Reconciliation Brief § Per-slice, F-6: rewrite the § 9 I5 row (six governed modules, the html_sax FFI rule via beam imports, the gleam/io denial) and note I6's whole-literal residual in the I6 row."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = '§ 5.5 "Parse failure" covers only a parse error; a parser crash and the partial-tag trim are undocumented'
+detail = """
+Expected: § 5.5 states what happens to every HTML body that fails conversion.
+Observed: § 5.5 says only "If htmgrrrl fails to parse, … conversion_failed". Per DEC-020, htmerl 0.2.1 raises (case_clause on input ending inside a tag name; badmap on an unclosed table cell). `html_sax` catches any exception into `Error(Nil)`, which yields conversion_failed. Before parsing, `html_text` trims an unterminated trailing `<…`, which recovers server-truncated HTML. Neither is in § 5.5's "Parse failure" or "Truncated HTML" edges."""
+disposition = "design-wrong"
+response = 'Reconciliation Brief § Per-slice, F-7: amend the § 5.5 "Parse failure" and "Truncated HTML" edges per DEC-020.'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = 'Reconciliation Brief § Per-slice, F-7: amend the § 5.5 "Parse failure" and "Truncated HTML" edges per DEC-020.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "major"
+title = "§ 5.2 crash rules rest on a false premise (DEC-019) and omit the linked-exit containment"
+detail = """
+Expected: § 5.2 "The closure doesn't cover crashes" states the crash channels I1 must contain, and the rules that contain them.
+Observed:
+- § 5.2 says "An httpc worker that crashes logs a report holding its request." DEC-019 (spike T0, OTP 28.5) found this false: httpc_handler catches every exception into a `{shutdown,_}` stop that OTP never reports. Logger silencing stays as defence in depth.
+- The rules don't name how `guard` contains a linked-process exit. Per PHASE-01 review F2, `guard` runs the body under `spawn_monitor`, so a linked exit cannot kill main unguarded.
+- § 9 I1 row: "a crash forced inside the client". Per DEC-019, PHASE-10/EX-5 reads this as a crash in a frame holding the revealed token, under the production main edge, driven from test code in the shipment (an error raise and a linked-process exit), with VA-1 as the unguarded control. The row doesn't say so. (PHASE-10/EX-5 also inherits review F7: the forced crash goes through main.)"""
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-8: correct the § 5.2 crash premise (DEC-019), name the spawn_monitor containment in the guard rule, and state the DEC-019 reading of the crash case in the § 9 I1 row. Plan text (PHASE-10/EX-5) stays as written; its reading is recorded in DEC-019."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-8: correct the § 5.2 crash premise (DEC-019), name the spawn_monitor containment in the guard rule, and state the DEC-019 reading of the crash case in the § 9 I1 row. Plan text (PHASE-10/EX-5) stays as written; its reading is recorded in DEC-019."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "minor"
+title = "§ 5.2 omits `client.call`'s response-order guarantee (PHASE-11 D1)"
+detail = """
+Expected: § 5.2 states the contract `call` gives its callers.
+Observed: `jmap/client.call` (client.gleam:82–86) refuses any response list whose count differs from the calls, or whose call ids are out of order, as `Decode("methodResponses")`. sync relies on response i answering call i (the three-call opening request). This is stricter than RFC 8620, which allows implicit extra responses, but sound for the four scoped methods. The operator chose it on 2026-10-27 ("ok, b"). The design states neither the guarantee nor the deviation; notes suggest naming it next to F8."""
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-9: state the response-order guarantee and its RFC 8620 deviation in § 5.2 (client signatures / JMAP usage)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-9: state the response-order guarantee and its RFC 8620 deviation in § 5.2 (client signatures / JMAP usage)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "minor"
+title = "§ 5.2/§ 5.4 `sync.run(client, store, window, now)`; code is `run(client, writer, bounds, now)`"
+detail = """
+Expected: the key signatures in § 5.2 match the code.
+Observed: `sync.run(client: Client, writer: Writer, bounds: Bounds, now: Timestamp)` (sync.gleam:61). `Bounds` carries the window plus the page and body limits. The session is established in cli (`client.session`) before `run`, so the § 5.4 sequence diagram's `SY->>CL: session` step is in the wrong participant, and its `run(client, writer, window, now)` label names `window`. Flag PHASE-05 A14."""
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-10: § 5.2 `sync.run` signature to `(client, writer, bounds, now)`; § 5.4 sequence: the session is opened by cli before `run`."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-10: § 5.2 `sync.run` signature to `(client, writer, bounds, now)`; § 5.4 sequence: the session is opened by cli before `run`."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "minor"
+title = "§ 5.2 CLI contract omits list order, output shapes, `--max-bytes` semantics and usage errors settled in PHASE-06"
+detail = """
+Expected: § 5.2 CLI and § 5.3 ordering state the read verbs' contract.
+Observed (PHASE-06 operator decisions, 2026-10-26; notes `### Open`):
+- `list` returns newest first: `received_at_ms DESC, id DESC` (store/query.gleam:596). § 5.3's ordering contract says "milliseconds, then id" with no direction, so the tie-break also runs descending.
+- The `--max-bytes` cap applies to the concatenated bodies, so output is a prefix of them (D7), and the D7 output shapes are fixed.
+- An unknown message or thread id is a usage error, exit 2.
+- The usage reason codes are documented in the `argv` module doc.
+None of this appears in § 5.2."""
+disposition = "design-wrong"
+response = "These are operator-settled decisions, and the code follows them. Reconciliation Brief § Per-slice, F-11: § 5.2 CLI and § 5.3 ordering."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "These are operator-settled decisions, and the code follows them. Reconciliation Brief § Per-slice, F-11: § 5.2 CLI and § 5.3 ordering."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "minor"
+title = "§ 5.5 edge cases miss four behaviours flagged at PHASE-05 (A10, A13, F5, N1)"
+detail = """
+Expected: § 5.5 edge cases describe the observable outcome of each case.
+Observed (PHASE-05 audit flags, notes `### Open`):
+- A10/D4: the `isReadOnly: false` stderr warning is emitted only on a committed run. § 5.5 says only "the sync still runs … and writes a stderr warning".
+- A13/D5: a first run that fails leaves an empty store file at `user_version` 0, which reads report as `no_snapshot`. I2 ("byte-for-byte as it was") is literally false when there was no file before. The behaviour is benign, but § 5.5's "No store yet" edge and I2 don't say so.
+- F5 (PHASE-05 review, accepted): an email whose mailbox id is not among the `Mailbox/get` results fails the commit as `Store("write_failed")` (foreign key).
+- N1: `Thread/get` notFound ids are not counted. `not_found` counts Email only."""
+disposition = "design-wrong"
+response = "All four are accepted behaviours (A13 is benign: an empty v0 file reads as `no_snapshot`, the same outcome as a missing one). Reconciliation Brief § Per-slice, F-12: § 5.5 edges, plus an I2 qualifier for the no-prior-file case."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "All four are accepted behaviours (A13 is benign: an empty v0 file reads as `no_snapshot`, the same outcome as a missing one). Reconciliation Brief § Per-slice, F-12: § 5.5 edges, plus an I2 qualifier for the no-prior-file case."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "minor"
+title = "§ 5.2/§ 5.4 module contract omits PHASE-07 additions (configHome assert, build-time config check, provision traps)"
+detail = """
+Expected: § 5.2 Configuration and § 5.4 Deployment describe the module as built.
+Observed in `nix/module.nix`:
+- The module also asserts `xdg.configHome` is `~/.config` (:204). The unit's `%E` and `screwtape-provision` both resolve the credential path from it. § 5.2 names only the `xdg.stateHome` assertion.
+- The generated config is validated at build time by the program's own parser (`writeTextFile` checkPhase, :40).
+- An internal option, `services.screwtape.configFile`, exposes it (:100, :194).
+- `screwtape-provision` traps EXIT (removes the staged file) and INT/TERM/HUP (:72–73). § 5.4 says only "otherwise removes it"."""
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-13: § 5.2 Configuration and § 5.4 Deployment."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-13: § 5.2 Configuration and § 5.4 Deployment."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "minor"
+title = "§ 6 lists questions as open that were settled during execution"
+detail = """
+Expected: § 6 lists only questions still open.
+Observed:
+- OQ-A was decided (operator 2026-10-27, PHASE-08/09 VH-2). The live run observed `isReadOnly: true`. Fail-closed is the chosen later change, captured as IMP-001. M1 keeps record-and-warn.
+- Lingering: decided for now (PHASE-09 EN-4, operator 2026-10-26: no lingering; the timer runs only while a session exists).
+- Library versions: closed by PHASE-01/EX-1 (`manifest.toml` pins).
+- Fastmail rate limits: the PHASE-09 live sync of the default window (419 messages) completed within limits. Limit clamping and `total` were not exercised.
+Still open: RFC-020 OQ-11, silent sync failures, and ASM-003 (satan RSK-021)."""
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-14: mark OQ-A, lingering, library pins and rate limits as settled in § 6, with their sources, and keep the three open items."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Reconciliation Brief § Per-slice, F-14: mark OQ-A, lingering, library pins and rate limits as settled in § 6, with their sources, and keep the three open items."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-15"
+status = "verified"
+severity = "minor"
+title = "§ 5.3 says `query_state` serves M2 `queryChanges`; with `max_age_days` the stored row can never be reused"
+detail = """
+Expected: § 5.3's `query_state` row ("Serves: M2 queryChanges") holds for the configured window.
+Observed (PHASE-05 D3): when `max_age_days` is set, the filter's `after` changes every run. `after` is part of `filter_json`, which keys the `query_state` row, so the row stored by one run never matches the next run's query, and `Email/queryChanges` can't use it as is. The default window sets `max_age_days: 30`. M2 has to recompute or re-key the filter. The design should say so, not imply reuse."""
+disposition = "design-wrong"
+response = 'M1 stores the row correctly; only the "serves M2" claim overreaches. Reconciliation Brief § Per-slice, F-15: qualify the § 5.3 `query_state` row and add a note.'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = 'M1 stores the row correctly; only the "serves M2" claim overreaches. Reconciliation Brief § Per-slice, F-15: qualify the § 5.3 `query_state` row and add a note.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-16"
+status = "verified"
+severity = "minor"
+title = "§ 5.1/§ 5.2 omit PHASE-10 and DEC-021 contract refinements: opaque Client/Budget, control-byte credential rejection, normalise's input records"
+detail = """
+Expected: § 5.2 key signatures and § 5.1 responsibilities match the code (phase sheets swept at audit).
+Observed:
+- `Client` and `Budget` are `pub opaque type` (client.gleam:46, :51), with accessors `session_of` and `budget_of` (PHASE-10 T3). § 5.2 shows `Client` as a public record. Opaque is narrower, because the token is unreachable from callers. `Budget` stays a pure Int (the T3a counters-cell proposal was rejected).
+- `credential.read` rejects a token with control bytes (< 0x20 or 0x7f, after trimming) as `Credential("invalid")` (operator choice (b), PHASE-10 T1b, d64002a). Neither § 5.2 nor the § 9 credential cases mention it.
+- DEC-021: `normalise` owns stdlib-only input records for the JMAP Email shape and a pure `utc_date_ms`. `jmap/decode` builds them, so a bad timestamp is `Decode(path)` (hence the decode → normalise edge in F-5). The § 5.1 table doesn't say so."""
+disposition = "design-wrong"
+response = "All three are recorded choices (PHASE-10 T3, operator (b), DEC-021) and stricter than the design. Reconciliation Brief § Per-slice, F-16: § 5.2 signatures and credential rule; § 5.1 normalise row."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "All three are recorded choices (PHASE-10 T3, operator (b), DEC-021) and stricter than the design. Reconciliation Brief § Per-slice, F-16: § 5.2 signatures and credential rule; § 5.1 normalise row."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
+
+[[finding]]
+id = "F-17"
+status = "verified"
+severity = "minor"
+title = "§ 9 html_text promises script/style are dropped; uppercase `<SCRIPT>` is mis-tokenised by htmerl and may leak"
+detail = """
+Expected: § 9 "html_text: script, style and head are dropped" holds for all inputs, or the design states the exception.
+Observed (PHASE-03 Risks): htmerl 0.2.1 mis-tokenises uppercase raw-text elements (`<SCRIPT>`). Script source may appear in the stored text, and the text after it may be dropped. This was accepted for M1. CHR-002 carries the upstream report, and the test pins only "no crash". The consequence is cosmetic and not a security issue: the text is stored and printed inert, and nothing executes it (I5). The design states the rule without the exception, though."""
+disposition = "design-wrong"
+response = "The code limitation is accepted for M1, and its upstream fix is already owned (CHR-002), so no new backlog item is needed. The design must state the exception. Reconciliation Brief § Per-slice, F-17: § 5.5 edge plus the § 9 html_text case."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "The code limitation is accepted for M1, and its upstream fix is already owned (CHR-002), so no new backlog item is needed. The design must state the exception. Reconciliation Brief § Per-slice, F-17: § 5.5 edge plus the § 9 html_text case."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "brief entry present in review-004.md Reconciliation Brief"
 
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.
