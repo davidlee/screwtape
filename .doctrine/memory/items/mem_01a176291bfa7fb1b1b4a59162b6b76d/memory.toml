@@ -1,0 +1,42 @@
+memory_uid = "mem_01a176291bfa7fb1b1b4a59162b6b76d"
+memory_key = "mem.fact.erlang.httpc-reason-shapes"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "httpc error reason shapes and option traps on OTP 28.5"
+summary = "Observed httpc failure reasons per HttpFailure class; cacerts_get raises with no CA store; oversized 503 not retried"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = ["src/screwtape_http.erl"]
+globs = []
+commands = []
+tags = ["erlang", "httpc", "security"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "6e6ec9d39cb2afc658ed236fba9d8cc37f0bf912"
+ref_name = "refs/heads/main"
+checkout_state_id = "13ca4db11346dd3fd117f6137078203695f5eb2f692bdcb323791d5565ea0f13"
+base_commit = "3a4784a11f45f1f2fa1137b5885fe71d40a04107"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+

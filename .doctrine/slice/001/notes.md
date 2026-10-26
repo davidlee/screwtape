@@ -6,9 +6,10 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · PHASE-01 completed at 40fbf74; slice status started; next PHASE-02
+fresh-as-of: 2026-10-26 · PHASE-02 completed; slice status started; next PHASE-10
 
 ### Produced
+- PHASE-02: screwtape_http.erl (production Send), jmap/client types, test/support local_jmap (+ local_tls_ffi serve/2), transport_test; memory mem.fact.erlang.httpc-reason-shapes
 - PHASE-01 (1c76354, 8604d32, 40fbf74): gleam package + pins, screwtape_ffi, nix/package.nix + checks.gleam-test, test/support (subprocess, local_tls, temp); ASM-001 validated; memories mem.fact.gleam.shipment-compiles-test-erl, mem.pattern.gleam.guard-spawn-monitor
 - SL-001 scope: research amendment (check-jails to satan) committed in 15914cd; design amendments (DEC-001, DEC-004, DEC-013, DEC-016, DEC-017, F11 body values, F-13 wording) uncommitted
 - CHR-001: flake and quotient forms; quotient pin swap pending
@@ -29,7 +30,7 @@ fresh-as-of: 2026-10-26 · PHASE-01 completed at 40fbf74; slice status started; 
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: /phase-plan PHASE-02 (transport proof) → /execute, orchestrated per the pi-orchestrate skill; plan.md § Risks lists remaining unknowns (forced crash in client, body withholding, raw JMAP type home, F-20 'charged' reading)
+- Next: /phase-plan PHASE-10 → /execute (pi-orchestrate); plan.md § Risks remaining: forced crash in client, raw JMAP type home
 - Audit reconcile: design § 5.2 crash rules should name the linked-exit containment (guard under spawn_monitor; PHASE-01 review F2); PHASE-10/EX-5 inherits review F7 (forced crash through main)
 - Design § 6: OQ-A (operator 2026-10-26: warn now, decide after the live run); lingering (host choice); silent sync failures; library pins closed by PHASE-01/EX-1 (manifest.toml)
 - ASM-002 (PHASE-03), ASM-003 (unvalidated; satan RSK-021), ASM-004 (PHASE-09), ASM-005 (PHASE-09) (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
@@ -49,6 +50,20 @@ fresh-as-of: 2026-10-26 · PHASE-01 completed at 40fbf74; slice status started; 
   - F2 (high): a process linked from inside `guard` that crashes kills `main`; gleam's `screwtape@@main` wrapper (trap_exit false) prints the exit reason to stderr (SENTINEL leaked). Fix: guard runs the body under `spawn_monitor`. Bears on design § 5.2's crash rules and PHASE-10's I1 suite: reconcile at audit.
   - F3: `gleam export erlang-shipment` compiles `test/**/*.erl` into the production app ebin. Fix: package src includes `test/` only when `doCheck`.
   - F4/F5/F6/F10 fixed (subprocess stderr/timeout, hostname-mismatch control, temp file modes). F7 deferred to PHASE-10 (forced crash through main). F8 accepted: `{flush,true}` is OTP's default since 26; kept explicit per design. F9 documented.
+
+## PHASE-02 evidence
+
+- EX-1..EX-4 / VT-1 / VT-2 (2026-10-26, orch): `test/screwtape/transport_test.gleam` (14 tests) against `local_jmap`: fixed-length and chunked 500 over the cap fail `TooLarge` while the server still withholds the body end; an oversized withheld 200 likewise; a 503 with `Retry-After: 0` is returned as a 503 after one request; an oversized 503 fails `TooLarge` after one request; a 301 is returned, not followed (one request); an untrusted CA, a missing `ca_file` and system CAs against the per-run CA each fail `TlsFailed`; closed port `ConnectFailed`; withheld under cap `Timeout` after one request; invalid UTF-8 `BadUtf8`; a non-ASCII body round-trips byte-exact. `doctrine check gate` 35 passed; `nix flake check` passes, sandbox ran 35 passed; shipment ebin holds no test FFI.
+- VA-1 negative controls (2026-10-26, orch, witnessed, not committed; mutants of `src/screwtape_http.erl`):
+  - (a) buffer-then-check stub (no `max_body_size`, OTP default autoretry, crude mapping): 10 fail, incl. both VT-1 500s (`Timeout`: it waited for the withheld end) and both VT-2 tests (request_count 2).
+  - (b) `max_body_size` moved into HttpOptions: fixed-length 500, chunked 500, oversized 503, oversized 200 fail.
+  - (c) `{autoretry, 0}` removed: `retry_after_503_one_request_test` fails (count 2). The oversized 503 stays at one request even under default autoretry: the cap fires before httpc's retry logic.
+  - (d) `{autoredirect, false}` removed: `redirect_301_not_followed_test` fails.
+  - (e) `{body_format, binary}` removed: four tests fail (charlist body → `BadUtf8` by the `is_binary` guard).
+- Sandbox finding: `public_key:cacerts_get/0` raises when the host has no CA store (Nix build sandbox), so `ca_file = None` crashed `Send`. Now `TlsFailed` (red in `nix flake check`, green after). mem.fact.erlang.httpc-reason-shapes.
+- Decisions D1-D4 (phase sheet), in scope: `HttpFailure`/`Send` live in `src/screwtape/jmap/client.gleam` now (types only; PHASE-10 adds session/call/Budget); Erlang entry `screwtape_http:send(Request, Cap, TimeoutMs, CaFile)`; the Gleam `@external` binding sits in transport_test until PHASE-10's cli owns the production one; `local_jmap` reuses `local_tls_ffi`'s listener and per-connection acceptor (`serve/2` with a responder fun).
+- PHASE-02 review (pi `review`, max, unanchored; 12 findings). Fixed: 1 (body_format undiscriminated), 2 (`{options,_}` → TlsFailed), 3 (withholding registered after send: race), 4 (no 2xx cap test), 5 (autoredirect and system-CA branch untested), 6 (sleep as sync), 7, 8 (acceptor duplication vs D3), 10, 11 (badmatch on app start → `ConnectFailed`). Accepted 9 (servers leak only on an already-failed test). Rejected 11's per-request `cacerts_get` cost (OTP caches it in persistent_term) and 12 (unknown reason → `ConnectFailed` is deliberate and commented).
+- For PHASE-10: a zero cap must never reach `Send` (F-29); unknown httpc reasons classify as `ConnectFailed`; `local_jmap` serves scripts in order (no method matching yet).
 
 ## Design triage (2026-10-26, run dr-01a17546)
 
@@ -93,6 +108,8 @@ Inquiry ids (`inq-N`) are the design run's; `doctrine design show 1`.
 ## Review passes
 
 - Orchestration (2026-10-26, PHASE-01): orch = Opus; workers = quotient pi (deepseek-flash). Observed: planner, test and code workers reliable on bounded briefs ($0.01-0.07 each); two runs hit their request ceiling exploring (TLS test debug; reviewer cloning nixpkgs) and finished on a session continuation with a "stop probing, answer now" prompt; parallel workers in one tree serialise on gleam's `build/` lock; a worker-written test was vacuous (atom logger message raising function_clause) and caught only by orch running a control. Review at `max` found two real high/medium defects orch had missed.
+
+- Orchestration (2026-10-26, PHASE-02): orch = Opus; pi deepseek-flash. Sheet written by orch (brief would have cost as much). T1 helper $0.04, T3 tests $0.02, T4 adapter $0.03, review (max) $0.07, two fix workers $0.02 each: total ≈ $0.20. pi got wrong: T1 served connections inline in the acceptor (a withheld reply would hide a retry; caught by orch reading) and registered withholding after sending (caught by review); T3 skipped BadUtf8 rather than flag the helper's String body; T4's atom-walk classifier missed `{options,_}` (review). Review again found real defects orch had not (5 contract gaps). Orch caught by sandbox only: `cacerts_get/0` raising without a CA store. Brief tuning: name the test-helper type constraints up front; ask contract-test writers for one mutant per option.
 
 - Plan review (2026-10-26): pi `review` profile (deepseek-flash), read-only, unanchored brief over plan + design + RV-001. 12 findings, all integrated (F-5 as a two-way split to PHASE-02 + PHASE-10; F-6's prescription contested, observation integrated as the F-20 reading in plan.md). Finding 1 (https-only config vs loopback I1 suite) reopened the design: operator chose https + optional `ca_file` → DEC-018; design relocked rev 111 with RV-002 waived (operator: human review of the four amended sections).
 
