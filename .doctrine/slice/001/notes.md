@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · plan authored (9 phases), phase sheets materialised; slice status ready · design committed 20b9fa2
+fresh-as-of: 2026-10-26 · design relocked rev 111 (DEC-018); plan 10 phases (PHASE-10 split from PHASE-02); slice status ready
 
 ### Produced
 - SL-001 scope: research amendment (check-jails to satan) committed in 15914cd; design amendments (DEC-001, DEC-004, DEC-013, DEC-016, DEC-017, F11 body values, F-13 wording) uncommitted
@@ -28,7 +28,7 @@ fresh-as-of: 2026-10-26 · plan authored (9 phases), phase sheets materialised; 
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: /phase-plan PHASE-01 (packaging skeleton) → /execute; plan.md § Risks lists phase-plan unknowns (forced crash in client, body withholding, raw JMAP type home)
+- Next: /phase-plan PHASE-01 (packaging skeleton) → /execute; plan.md § Risks lists phase-plan unknowns (forced crash in client, body withholding, raw JMAP type home, F-20 'charged' reading)
 - Design § 6: OQ-A (operator 2026-10-26: warn now, decide after the live run); lingering (host choice); silent sync failures; library pins
 - ASM-001 (PHASE-01), ASM-002 (PHASE-03), ASM-003 (unvalidated; satan RSK-021), ASM-004 (PHASE-09), ASM-005 (PHASE-09) (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
 - I7 jail clause is conditional on launch directory (operator accepted, F-27)
@@ -79,6 +79,8 @@ Inquiry ids (`inq-N`) are the design run's; `doctrine design show 1`.
 - RFC-020 lists OQ-7 open; its Outcome records it settled (raised, unanswered).
 
 ## Review passes
+
+- Plan review (2026-10-26): pi `review` profile (deepseek-flash), read-only, unanchored brief over plan + design + RV-001. 12 findings, all integrated (F-5 as a two-way split to PHASE-02 + PHASE-10; F-6's prescription contested, observation integrated as the F-20 reading in plan.md). Finding 1 (https-only config vs loopback I1 suite) reopened the design: operator chose https + optional `ca_file` → DEC-018; design relocked rev 111 with RV-002 waived (operator: human review of the four amended sections).
 
 - RV-001 pass 1 (2026-10-26): agent self-review; F-1..F-8 raised and disposed (7 fix-now, 1 follow-up).
 - RV-001 pass 2 (2026-10-26): Codex (`gpt-6.1-sol`, high), unanchored brief; F-9..F-18 raised. All fix-now; F-13 accepted in part (whole-home binds left to ISS-028).
