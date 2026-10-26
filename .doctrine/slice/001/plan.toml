@@ -1,0 +1,242 @@
+# Implementation plan for SL-001 — the authored, durable phase plan.
+#
+# This is the single source of each phase's objective, criteria, verification,
+# and links. Runtime status lives separately under .doctrine/state/ (phase
+# tracking) — never record progress here. Hand-edit freely: the tool reads this
+# file but does not rewrite it.
+schema  = "doctrine.plan.overview"
+version = 1
+slice   = "SL-001"
+
+# Canonical spec/requirement links — cite ids, never restate what they say. The
+# plan reader does not model these yet, so nothing downstream consumes them.
+[specs]
+primary       = []
+collaborators = []
+
+[requirements]
+targets      = []
+dependencies = []
+
+# One [[phase]] per ordered phase, in execution order — the authored array order
+# IS the order; never sort by id. Ids are PHASE-NN (zero-padded), immutable and
+# never reused once authored — edits append, they never renumber. Criterion ids
+# are local to their phase, bare, and equally immutable. Reference a criterion
+# from another phase phase-qualified (PHASE-03/EX-8).
+
+[[phase]]
+id        = "PHASE-01"
+name      = "Packaging walking skeleton"
+objective = "Prove the toolchain end to end before any domain code (DEC-005, ASM-001): a Gleam package with the full design § 10 dependency set builds offline under nix-gleam into an erlang-shipment, gleam test runs inside nix flake check, and the main/FFI edge (halt flush, silenced logger, guard) and httpc TLS work on this host."
+entrance_criteria = [
+  { id = "EN-1", text = "CHR-001's flake (devshell, quotient forms, quotient-forms check) is on main and `nix flake check` passes; its open quotient-pin swap does not block this phase." },
+  { id = "EN-2", text = "SL-001 design run dr-01a17546 is locked (rev 102)." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "gleam.toml and manifest.toml declare the design § 10 dependency set (gleam_stdlib, gleam_http, gleam_json, sqlight, htmgrrrl, argv, gleam_time, gleam_erlang; dev gleeunit) with exact versions and checksums pinned; this closes design § 6 'library versions'." },
+  { id = "EX-2", text = "`nix build .#screwtape` (nix/package.nix, nix-gleam, rebar3 with pc) builds the esqlite NIF in the sandbox with no network and yields an erlang-shipment whose bin entry runs. If the vendored NIF fails, fallback 1 (ESQLITE_USE_SYSTEM against nixpkgs sqlite) is taken; if that fails, stop and /consult (design § 8)." },
+  { id = "EX-3", text = "`checks.gleam-test` runs `gleam test` offline under `nix flake check`, including a sqlight round trip on a temporary file." },
+  { id = "EX-4", text = "src/screwtape_ffi.erl provides halt/1 (erlang:halt with flush), silence_logger/0 and guard/1. A subprocess test shows a large stdout document written immediately before halt arrives whole, and that guard turns a raised exception into exactly the stderr line {\"level\":\"error\",\"error\":\"internal\"} with exit 1." },
+  { id = "EX-5", text = "httpc verifies a real https host (verify_peer with public_key:cacerts_get/0) from the built code on this NixOS host; if the system CA store is empty, an explicit cacertfile from Nix cacert is adopted and the choice recorded in notes (design § 8)." },
+  { id = "EX-6", text = "justfile gains test, fmt and check recipes; `gleam format --check` and `gleam build` are warning-free." },
+]
+verification = [
+  { id = "VT-1", expects = "sqlight opens a temporary file, writes a row and reads it back", test_file = "test/screwtape/skeleton_test.gleam", keywords = ["sqlight", "round_trip"], waived = false },
+  { id = "VT-2", expects = "subprocess runs of the built code: large stdout survives halt; guard yields the internal error line and exit 1", test_file = "test/screwtape/ffi_test.gleam", keywords = ["halt", "guard", "internal"], waived = false },
+  { id = "VT-3", expects = "the Nix package builds the shipment with rebar3/pc and its check runs gleam test", test_file = "nix/package.nix", keywords = ["gleam test", "rebar3"], waived = false },
+  { id = "VA-1", text = "ASM-001 is settled through `doctrine knowledge` with the observed outcome (vendored NIF, fallback 1, or consult)." },
+  { id = "VA-2", text = "The TLS check of EX-5 was run from the devshell against a real host (network; outside the sandbox) and its result is in notes." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-02"
+name      = "Transport proof and JMAP client"
+objective = "Build the token path end to end and prove the byte ceiling empirically before anything relies on it: the production Send over httpc, the Budget-enforcing client, credential, config, error, request/decode for the session and Mailbox/get, and a thin CLI whose `sync` reaches Mailbox/get, with the I1 sentinel suite."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-01 exit criteria hold: the shipment builds offline and `checks.gleam-test` runs." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "src/screwtape_http.erl makes one synchronous httpc:request/4: {max_body_size, Cap} in Options; {autoretry, 0}, {autoredirect, false} and the timeout in HttpOptions; ssl verify_peer with system CAs. Every failure maps onto HttpFailure (Timeout, ConnectFailed, TlsFailed, BadUtf8, TooLarge) and keeps no term that could hold the request (design § 5.2, RV-001 F-29 option placement)." },
+  { id = "EX-2", text = "Test helpers exist: fixture_send(script), which matches by method and position, honours its byte cap and records requests; and local_jmap(script), an inets httpd on loopback that serves fixtures and raw responses (chosen status, Content-Length or chunked framing, a withheld body end, Retry-After) and counts requests." },
+  { id = "EX-3", text = "Transport proof, oversized error bodies (RV-001 F-12, F-19): from local_jmap, a fixed-length 500 and a chunked 500, each over the cap with its terminal bytes withheld, yield TooLarge while local_jmap is still withholding. The test must fail a buffer-then-check adapter (plain gleam_httpc, or httpc without max_body_size)." },
+  { id = "EX-4", text = "Transport proof, no hidden retry (RV-001 F-20): a 503 with Retry-After: 0 reaches jmap/client as a failure, local_jmap counts exactly one request, and the 503 body is charged to the Budget. The test must fail an adapter left at OTP's default autoretry." },
+  { id = "EX-5", text = "Transport proof, exhausted budget (RV-001 F-29): with 0 bytes left, the next call fails with LimitExceeded(\"max_total_bytes\") and local_jmap counts no request." },
+  { id = "EX-6", text = "credential (opaque Token, read, bearer as the only reveal), config.parse (§ 5.2 checks), error (one Error type, type-string diagnostics), jmap/request (closed Method of the four calls; session and Mailbox/get bodies with the core and mail `using`), jmap/decode (session incl. apiUrl https, primary mail account, maxObjectsInGet, maxCallsInRequest, isReadOnly; request-level problem documents; method-level errors; Decode with a path) and jmap/client (session/4, call/2 threading Budget). No let assert or panic in credential or jmap/client." },
+  { id = "EX-7", text = "src/screwtape.gleam and cli: main silences the logger and runs cli.run under guard; --config parsing; one stdout JSON envelope {version, kind, data}; stderr JSON lines; exit 0/1/2. `sync` reads the credential from $CREDENTIALS_DIRECTORY and runs the session and Mailbox/get only (orchestration lands in PHASE-05); run outside the unit it fails with Error.Credential (I9)." },
+  { id = "EX-8", text = "I1 sentinel suite (RV-001 F-1): a sentinel token runs through 401, 403, 429, 500, a timeout, malformed JSON, a method error, an oversized response and a crash forced inside the client, each as a subprocess of the built code against local_jmap; the sentinel is absent from stdout, stderr and every inspected Error. Any later phase that adds a token-holding code path extends this suite." },
+]
+verification = [
+  { id = "VT-1", expects = "fixed-length and chunked oversized 500s fail TooLarge while local_jmap withholds the body end", test_file = "test/screwtape/transport_test.gleam", keywords = ["fixed_length_500", "chunked_500", "TooLarge", "local_jmap"], waived = false },
+  { id = "VT-2", expects = "503 with Retry-After: 0 is one request, surfaces as a failure, and is charged to the budget", test_file = "test/screwtape/transport_test.gleam", keywords = ["retry_after", "request_count"], waived = false },
+  { id = "VT-3", expects = "an exhausted budget fails max_total_bytes without sending", test_file = "test/screwtape/jmap/client_test.gleam", keywords = ["max_total_bytes", "exhausted"], waived = false },
+  { id = "VT-4", expects = "the sentinel token never appears across every failure path and a forced crash, run as subprocesses", test_file = "test/screwtape/token_leak_test.gleam", keywords = ["sentinel", "local_jmap", "forced_crash"], waived = false },
+  { id = "VT-5", expects = "Method is closed: method_name over all four variants", test_file = "test/screwtape/jmap/request_test.gleam", keywords = ["method_name", "MailboxGet", "EmailQuery", "EmailGet", "ThreadGet"], waived = false },
+  { id = "VT-6", expects = "config rejects empty mailboxes, no window bound, non-positive numbers and non-https URLs", test_file = "test/screwtape/config_test.gleam", keywords = ["empty_mailboxes", "non_https", "non_positive"], waived = false },
+  { id = "VT-7", expects = "credential: missing, empty and readable file; inspect of a Token hides the secret", test_file = "test/screwtape/credential_test.gleam", keywords = ["inspect", "missing", "empty"], waived = false },
+  { id = "VT-8", expects = "decode: session with and without mail, problem documents, method errors, Decode paths on malformed input", test_file = "test/screwtape/jmap/decode_test.gleam", keywords = ["session", "problem", "isReadOnly"], waived = false },
+  { id = "VT-9", expects = "argv usage errors exit 2; sync outside the unit fails with Error.Credential", test_file = "test/screwtape/cli_test.gleam", keywords = ["exit_code", "CREDENTIALS_DIRECTORY"], waived = false },
+  { id = "VA-1", text = "Negative controls demonstrated and recorded in notes: the VT-1/VT-2 tests fail against a deliberately misconfigured adapter (no max_body_size; default autoretry), and the VT-4 forced crash prints the sentinel when run without guard/1 and with the logger at its default level. The demonstration code is not committed." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-03"
+name      = "Pure core: model, html_text, normalise, import check"
+objective = "Build the pure modules that turn JMAP objects into the normalised model, enforce the per-message body bound, and prove structurally that they cannot do I/O."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-02 exit criteria hold (jmap/request exists, so the I6 structural check has its subject)." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "ASM-002 settled: htmgrrrl's events suffice for the fold. If they do not, stop and /consult before writing a parser." },
+  { id = "EX-2", text = "html_text: script, style and head dropped; block elements and br give newlines, li a bullet, img its alt; links inert text; entities decoded; input truncated mid-tag still yields text; unparseable input sets conversion_failed (design § 9)." },
+  { id = "EX-3", text = "Per-message body bound (RV-001 F-9): normalise keeps a running byte count over textBody parts after HTML conversion. With two parts that each fit but together exceed max_body_bytes, plain and HTML, the second is cut to the longest valid UTF-8 prefix and marked truncated_by message_limit; later parts are stored empty with the same mark. Server-truncated parts are marked server. The test must fail per-part-only enforcement." },
+  { id = "EX-4", text = "normalise: multipart/alternative keeps the text part; HTML-only is converted; isEncodingProblem carried; Message-ID, In-Reply-To and References lists kept apart from JMAP ids; multiple mailbox memberships preserved; Unicode intact." },
+  { id = "EX-5", text = "Timestamps: UTCDate with and without fractional seconds parses to epoch milliseconds; the ordering is milliseconds then id; `--since` at midnight includes 00:00:00.500Z; an unparseable timestamp is Error.Decode (RV-001 F-17, F-23)." },
+  { id = "EX-6", text = "`just check-imports` runs inside checks.gleam-test (I5, RV-001 F-24, F-30): the import allowlist for model, html_text and normalise resolved by package; no @external in those three; only jmap/request builds invocations (I6). A conforming fixture passes; a normalise importing gleam/erlang/process fails; an html_text declaring @external fails." },
+]
+verification = [
+  { id = "VT-1", expects = "html_text cases of design § 9", test_file = "test/screwtape/html_text_test.gleam", keywords = ["script", "truncated", "conversion_failed", "entity"], waived = false },
+  { id = "VT-2", expects = "cumulative per-message bound: second part cut at a UTF-8 boundary and marked message_limit; server truncation marked server", test_file = "test/screwtape/normalise_test.gleam", keywords = ["message_limit", "utf8", "server", "html"], waived = false },
+  { id = "VT-3", expects = "timestamp parsing and ms-then-id ordering", test_file = "test/screwtape/normalise_test.gleam", keywords = ["fractional", "00:00:00.500Z"], waived = false },
+  { id = "VT-4", expects = "check-imports recipe exists and runs in the gleam-test check against positive and negative fixtures", test_file = "justfile", keywords = ["check-imports"], waived = false },
+  { id = "VA-1", text = "The two negative check-imports fixtures were seen to fail the check, and the conforming one to pass, recorded in notes." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-04"
+name      = "Store"
+objective = "The SQLite store of design § 5.3: schema and migration ledger, the single-transaction snapshot writer that refuses a newer schema, and the read-only reader with one read transaction per verb."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-03 exit criteria hold (the model types exist)." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Schema per design § 5.3: all eleven tables, the three indexes, foreign_keys=ON, journal_mode=WAL, busy_timeout 5 s, PRAGMA user_version as the one migration ledger, received_at kept raw and as received_at_ms." },
+  { id = "EX-2", text = "open_writer does not migrate. write_snapshot runs one BEGIN IMMEDIATE: refuse a newer user_version, apply pending migrations, delete every row of every data table, insert the snapshot, COMMIT; any error rolls everything back." },
+  { id = "EX-3", text = "Migrations inside the snapshot transaction (RV-001 F-14): a store with a pending migration plus a write that then fails before commit leaves .dump and PRAGMA user_version unchanged; a failing migration rolls back. The test must fail migrate-on-open." },
+  { id = "EX-4", text = "Newer schema refused (RV-001 F-22, I10): a populated store at the supported user_version plus one, carrying a column the binary does not know, makes write_snapshot fail with schema_mismatch and leaves .dump and user_version unchanged. The test must fail a forward-only migration loop." },
+  { id = "EX-5", text = "open_reader opens mode=ro and refuses a missing store (no_snapshot) and a version mismatch (schema_mismatch); store.read runs all of a caller's queries in one read transaction. Its I8 test lands with the read verbs (PHASE-06, per RV-001 F-15's placement)." },
+  { id = "EX-6", text = "A second identical write gives identical rows; a write with a different account leaves nothing of the first; an insert failure rolls back (I2, I3 at store level)." },
+]
+verification = [
+  { id = "VT-1", expects = "pending migration then failure before commit leaves .dump and user_version unchanged", test_file = "test/screwtape/store_test.gleam", keywords = ["pending_migration", "user_version", "dump"], waived = false },
+  { id = "VT-2", expects = "user_version + 1 with an unknown column fails schema_mismatch, store unchanged", test_file = "test/screwtape/store_test.gleam", keywords = ["schema_mismatch", "newer"], waived = false },
+  { id = "VT-3", expects = "reader refuses missing and mismatched stores; repeat writes are idempotent; account change clears", test_file = "test/screwtape/store_test.gleam", keywords = ["no_snapshot", "open_reader", "identical"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-05"
+name      = "Sync orchestration"
+objective = "The two-phase bounded sync of design § 5.2 and § 5.4: session, mailboxes, a coherent id list under one queryState, each id fetched once, threads, normalise, and one snapshot write; the CLI `sync` complete."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-02/EX-3, PHASE-02/EX-4 and PHASE-02/EX-5 (the transport proof) pass: this phase relies on the max_total_bytes ceiling." },
+  { id = "EN-2", text = "PHASE-03 and PHASE-04 exit criteria hold." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "jmap/request and decode cover Email/query (ids only; OR of inMailbox, with after when max_age_days is set; receivedAt descending; collapseThreads false; position; limit = messages still wanted), Email/get (model properties, fetchTextBodyValues, maxBodyValueBytes = max_body_bytes) and Thread/get, in chunks of maxObjectsInGet." },
+  { id = "EX-2", text = "Phase 1 paging stops on a full window, a short page or position = total; a server-clamped limit is followed; paging past max_pages is LimitExceeded(\"max_pages\"). A queryState change restarts from position 0 at most twice; a third is Error.QueryUnstable with the store unchanged." },
+  { id = "EX-3", text = "Phase 2 requests each id exactly once (asserted on fixture_send's recorded requests); notFound ids are left out and counted." },
+  { id = "EX-4", text = "type_state holds the earliest state per type (Mailbox from Mailbox/get, Email from the first Email/get, Thread from the first Thread/get); the query_state row holds the settled queryState." },
+  { id = "EX-5", text = "I2: failures injected at the session, Mailbox/get, each phase-1 page, Email/get, Thread/get and an insert each leave .dump and PRAGMA user_version unchanged. A max_total_bytes breach mid-run fails the run with the store unchanged." },
+  { id = "EX-6", text = "I3: a repeated run gives identical rows; a message that leaves the window is removed. An unknown mailbox name is Error.Config (exit 2); an empty window commits; isReadOnly false records the value and warns on stderr." },
+  { id = "EX-7", text = "cli `sync` runs the whole orchestration and prints the summary envelope of design § 5.2. The I1 suite (PHASE-02/EX-8, RV-001 F-1) is extended to the full sync path, and the sentinel is also absent from the store's .dump." },
+]
+verification = [
+  { id = "VT-1", expects = "paging across three pages, short-page stop, clamped limit, max_pages", test_file = "test/screwtape/sync_test.gleam", keywords = ["max_pages", "clamped", "short_page"], waived = false },
+  { id = "VT-2", expects = "queryState restarts and QueryUnstable leave the store unchanged; each id requested once; notFound excluded", test_file = "test/screwtape/sync_test.gleam", keywords = ["QueryUnstable", "notFound", "exactly_once"], waived = false },
+  { id = "VT-3", expects = "I2 injected failures at every stage leave .dump and user_version unchanged", test_file = "test/screwtape/sync_test.gleam", keywords = ["inject", "dump", "user_version"], waived = false },
+  { id = "VT-4", expects = "earliest type_state; repeat run identical; window leaver removed; empty window commits", test_file = "test/screwtape/sync_test.gleam", keywords = ["type_state", "earliest", "empty_window"], waived = false },
+  { id = "VT-5", expects = "the sentinel suite covers the full sync and the store dump", test_file = "test/screwtape/token_leak_test.gleam", keywords = ["sentinel", "dump"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-06"
+name      = "Read verbs"
+objective = "The human read surface over the store: render envelopes and the mailboxes, list, read and thread verbs, each served from one committed snapshot."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-05 exit criteria hold (a sync can populate a store)." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "render produces the {version: 1, kind, data} envelopes. mailboxes; list with --mailbox (id, role or name), --since, --from, --unread, --limit 1..500 default 50, --offset, ordered by received_at_ms then id; read with headers, the id lists, bodies and their flags, attachment metadata, provenance and --max-bytes setting output_truncated; thread with in_store false for messages outside the window." },
+  { id = "EX-2", text = "One snapshot per read (RV-001 F-15, I8): read runs its first query, pauses on an injected hook while a second connection commits a new snapshot, and resumes; its output is wholly from the old snapshot. The test must fail per-query autocommit reads under WAL." },
+  { id = "EX-3", text = "Each read verb on a missing store, an older schema and a newer one fails with Error.Store (no_snapshot or schema_mismatch) and exit 1." },
+]
+verification = [
+  { id = "VT-1", expects = "a commit between a read's queries does not reach its output", test_file = "test/screwtape/read_snapshot_test.gleam", keywords = ["hook", "second_connection", "old_snapshot"], waived = false },
+  { id = "VT-2", expects = "list filters, limit bounds, offset; read --max-bytes; thread in_store; store errors exit 1", test_file = "test/screwtape/cli_test.gleam", keywords = ["--unread", "output_truncated", "in_store", "no_snapshot"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-07"
+name      = "Home Manager module and package"
+objective = "Ship the deployment surface from this repo (DEC-004, DEC-016, DEC-017): the final package, homeManagerModules.default with the hardened user service, timer, config, wrapper and provisioning script, a module-eval check, and the README."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-06 exit criteria hold (the CLI is complete)." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "nix/module.nix exports homeManagerModules.default: options for the op:// ref, window and bounds, OnCalendar (default *:0/15), TimeoutStartSec (default 5min) and MemoryMax (default 1G); screwtape.service Type=oneshot with StateDirectory=screwtape, StateDirectoryMode 0700, LoadCredentialEncrypted=fastmail:%E/credstore.encrypted/screwtape.fastmail, NoNewPrivileges, PrivateTmp, ProtectSystem=strict, ProtectHome=tmpfs, RestrictAddressFamilies, SystemCallFilter=@system-service, UMask=0077, LimitCORE=0, ERL_CRASH_DUMP_SECONDS=0; screwtape.timer with Persistent=true." },
+  { id = "EX-2", text = "The generated JSON config takes store_path from xdg.stateHome, and the module asserts that xdg.stateHome is the default (RV-001 F-31). The screwtape wrapper only adds --config and execs the binary (DEC-017). screwtape-provision pipes op read --no-newline into systemd-creds encrypt --user to a staged file, moves it into place only if both succeed, otherwise removes it, then starts the service once and reports the result." },
+  { id = "EX-3", text = "flake.nix gains the home-manager input (nixpkgs.follows) and checks.module-eval, which evaluates the module in a minimal Home Manager configuration without a VM and asserts every EX-1 key, the config, Type=oneshot and the wrapper's arguments (I7, I9 eval halves); a customised xdg.stateHome fails evaluation; the module source contains no /home/ (NF-006)." },
+  { id = "EX-4", text = "README: what Screwtape is, the CLI, provisioning, `sync` as service-only, and the plaintext-at-rest note (DEC-016)." },
+  { id = "EX-5", text = "Hygiene: `gleam format --check`, a warning-free `gleam build`, and `nix flake check` all clean, the 'unknown flake output homeManagerModules' warning excepted (RV-001 F-31)." },
+]
+verification = [
+  { id = "VT-1", expects = "module-eval asserts the hardening keys, crash-dump closure, state directory mode and credential load", test_file = "nix/module-eval.nix", keywords = ["ProtectHome", "LimitCORE", "ERL_CRASH_DUMP_SECONDS", "StateDirectoryMode", "LoadCredentialEncrypted"], waived = false },
+  { id = "VA-1", text = "screwtape-provision is reviewed against the llm-gateway credentials procedure (staging rule, no token in argv or files outside the staged credential), as I1's provisioning evidence." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-08"
+name      = "satan op-unjailed check and RFC-020 drafts"
+objective = "The out-of-repo governance work in ~/dev/satan: the check-jails regression guard for 1Password paths (DEC-013) and the RFC-020 revision drafts (DEC-015)."
+entrance_criteria = [
+  { id = "EN-1", text = "None beyond the locked design; this phase is independent of PHASE-01..PHASE-07 and may run in parallel with them." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "satan flake.nix gains checks.op-unjailed: it scans each jailPkgs launcher, its inner launcher, and the --args and runtime-closure files they reference; it forbids /run/wrappers/bin/op, onepassword-cli, .1password, the 1Password socket names, and binds of /run, /run/wrappers and /run/user/<uid>; it fails if it scanned no launcher. satan's justfile check-jails runs it." },
+  { id = "EX-2", text = "A synthetic launcher with --ro-bind /run /run makes the check fail (positive control). `just check-jails` passes, or each hit is filed in satan's backlog as an NF-004 violation (SPEC-002 D3)." },
+  { id = "EX-3", text = "RFC-020 revision drafts (D3, OQ-4, D7 row 10, the OQ-7 drift) are written in ~/dev/satan, uncommitted, for the operator to commit (DEC-015)." },
+]
+verification = [
+  { id = "VA-1", text = "`just check-jails` output and the positive control's failure, recorded in notes." },
+  { id = "VH-1", text = "The operator reviews the satan check and the RFC-020 drafts and commits them in satan." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-09"
+name      = "Deployment and live acceptance"
+objective = "Enable Screwtape on the host through ~/flakes, validate the user unit under hardening (ASM-005), and run RFC-020 M1's live acceptance with a read-only token."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-07 exit criteria hold." },
+  { id = "EN-2", text = "The operator has created a Fastmail 'Read-only access' token with mail scope (research host check 9) and stored it in 1Password; its op:// ref is known." },
+  { id = "EN-3", text = "~/flakes can evaluate this flake as an input: either CHR-001's quotient pin is swapped to a published tag, or the operator accepts the host-local git+file pin for this host." },
+  { id = "EN-4", text = "The operator has chosen whether to enable lingering (design § 6)." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "~/flakes: the screwtape input (nixpkgs.follows, home-manager.follows); features/satan/screwtape.nix whose homeManager key imports the module and sets the ref and window; lingering per EN-4; SATAN.md host facts and smoke checks." },
+  { id = "EX-2", text = "ASM-005: provisioned, service started, journal read. The unit succeeds under the EX-1 hardening of PHASE-07, or only a failing key is relaxed and recorded; whether the user credential is TPM-bound is recorded; ASM-005 is settled." },
+  { id = "EX-3", text = "I7 smoke: stat shows the store and its -wal and -shm files owned by the operator, mode 0600, in a 0700 directory." },
+  { id = "EX-4", text = "Live acceptance (RFC-020 M1): one sync puts a bounded set of real messages in the store; Mailbox and Email states from a separate read-only session, taken before and after, are equal; the session's capabilities, isReadOnly and canCalculateChanges are recorded (F2, F4, F6); ASM-004 is settled from the session's accounts." },
+  { id = "EX-5", text = "OQ-A is decided by the operator from the observed isReadOnly value and recorded (a decision record, or a backlog item for fail-closed)." },
+]
+verification = [
+  { id = "VH-1", text = "The operator confirms the live sync, the unchanged mailbox states and the smoke checks." },
+  { id = "VH-2", text = "The operator rules on OQ-A." },
+  { id = "VA-1", text = "ASM-004 and ASM-005 are settled through `doctrine knowledge` with the observed evidence." },
+]
+specs        = []
+requirements = []
