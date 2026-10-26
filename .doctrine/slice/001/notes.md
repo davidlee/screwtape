@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · PHASE-06 completed; slice status started; next PHASE-07 (then 09; 08 independent), ISS-001 before /audit
+fresh-as-of: 2026-10-26 · b690e2f · PHASE-06 completed; slice status started; next PHASE-07 (then 09; 08 independent), ISS-001 before /audit
 
 ### Produced
 - PHASE-06 (93850f0, 5fa77da, 54ca590, 04f0f2f, 49d0d95): read verbs mailboxes/list/read/thread; modules argv (pure parse), render (one envelope writer, governed pure), utf8 (I5), store/query (read queries), store/codec (stored encodings both ways); model MessageSummary/ThreadEntry/mailboxes_matching; reader busy_timeout 5 s; `open_reader_with` + `cli.run_with` I8 seams; tests read_snapshot_test (4, VT-1), render_test, cli_test read contract (VT-2, EX-3), store_test read contract, utf8_test, model_test; memory mem.pattern.sqlite.snapshot-read-test, mem.fact.sqlite.esqlite-readonly-uri extended
