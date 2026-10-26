@@ -136,11 +136,19 @@ const path_fields = [
   "emailIds",
 ]
 
-/// The field names whose value is a map keyed by server data (`mailboxIds`,
-/// `keywords`, `bodyValues`). A path that enters one of them ends there: the
+/// The field names whose value is a map keyed by server data (the session's
+/// `primaryAccounts`, `capabilities` and `accounts`; an email's `mailboxIds`,
+/// `keywords` and `bodyValues`). A path that enters one of them ends there: the
 /// keys are document text and may never be appended, not even when a key
 /// happens to read as a list index or as one of `path_fields` (I1).
-const server_keyed_fields = ["mailboxIds", "keywords", "bodyValues"]
+const server_keyed_fields = [
+  "primaryAccounts",
+  "capabilities",
+  "accounts",
+  "mailboxIds",
+  "keywords",
+  "bodyValues",
+]
 
 /// The parts of the JMAP session the scope uses.
 pub type Session {
@@ -488,10 +496,15 @@ fn body_part_decoder() -> decode.Decoder(normalise.BodyPart) {
   ))
 }
 
+/// RFC 8621 § 4.1.4: both flags default to false.
 fn body_value_decoder() -> decode.Decoder(normalise.BodyValue) {
   use value <- decode.field("value", decode.string)
-  use is_encoding_problem <- decode.field("isEncodingProblem", decode.bool)
-  use is_truncated <- decode.field("isTruncated", decode.bool)
+  use is_encoding_problem <- decode.optional_field(
+    "isEncodingProblem",
+    False,
+    decode.bool,
+  )
+  use is_truncated <- decode.optional_field("isTruncated", False, decode.bool)
   decode.success(normalise.BodyValue(
     value:,
     is_encoding_problem:,

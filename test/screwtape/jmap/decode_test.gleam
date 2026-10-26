@@ -516,3 +516,32 @@ pub fn received_at_invalid_utc_date_is_a_decode_error_test() {
   decode.document("{\"receivedAt\":\"not a date\"}", received_at_decoder())
   |> should.equal(Error(error.Decode("receivedAt")))
 }
+
+/// Review F4: a digits-only server key in `primaryAccounts` must not become a
+/// list index in the path (`primaryAccounts[98765]`): the path names the map.
+pub fn session_numeric_primary_account_key_ends_the_path_test() {
+  let text =
+    bent(
+      "session.json",
+      "\"urn:ietf:params:jmap:mail\":\"acct-1\"",
+      "\"98765432101234\":5",
+    )
+
+  decode.session(text) |> should.equal(Error(error.Decode("primaryAccounts")))
+}
+
+/// Review F6: RFC 8621 § 4.1.4 defaults `isEncodingProblem` and `isTruncated`
+/// to false; a server that omits them is answering correctly. Catches a
+/// decoder that requires them.
+pub fn emails_body_value_flags_default_to_false_test() {
+  let text =
+    jmap_fixture.email_get_response([jmap_fixture.email("m1")], "state-e1", [])
+    |> string.replace(",\"isEncodingProblem\":false", "")
+    |> string.replace(",\"isTruncated\":false", "")
+  string.contains(text, "isTruncated") |> should.be_false
+  let assert Ok(page) = decode.emails(response_of(text, request.EmailGet))
+  let assert [email] = page.emails
+  let assert [#("1", value)] = email.body_values
+  value.is_truncated |> should.be_false
+  value.is_encoding_problem |> should.be_false
+}

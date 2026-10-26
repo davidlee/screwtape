@@ -274,7 +274,7 @@ fn query_pages(
           position: page.position + list.length(page.ids),
           // A clamp holds until the server names another (F9).
           clamp: option.or(page.limit, attempt.clamp),
-          ids: collect(attempt.ids, page.ids),
+          ids: collect(attempt.ids, page.ids, query.max_messages),
           first: Some(first),
         )
       case is_last_page(page, limit, attempt.ids.count, query.max_messages) {
@@ -321,16 +321,28 @@ fn is_last_page(
   is_full || is_short || page.position + length >= page.total || length == 0
 }
 
-fn collect(collected: Collected, ids: List(String)) -> Collected {
-  use collected, id <- list.fold(ids, collected)
+/// `collected` with the new ids of a page, in first-seen order, up to
+/// `max_messages` in all: a page longer than the window still wants is cut
+/// there (I4), and the full window then ends phase 1.
+fn collect(
+  collected: Collected,
+  ids: List(String),
+  max_messages: Option(Int),
+) -> Collected {
+  use collected, id <- list.fold_until(ids, collected)
+  let is_full = case max_messages {
+    Some(max) -> collected.count >= max
+    None -> False
+  }
+  use <- bool.guard(is_full, list.Stop(collected))
   case set.contains(collected.seen, id) {
-    True -> collected
+    True -> list.Continue(collected)
     False ->
-      Collected(
+      list.Continue(Collected(
         reversed: [id, ..collected.reversed],
         seen: set.insert(collected.seen, id),
         count: collected.count + 1,
-      )
+      ))
   }
 }
 
@@ -359,11 +371,15 @@ fn get_emails(
 ) -> Result(#(Client, Fetched), Error) {
   use #(client, first, rest) <- result.map(
     in_chunks(client, ids, chunk_size, fn(client, chunk) {
-      call(
+      use #(client, page) <- result.try(call(
         client,
         request.email_get(account_id, chunk, max_body_bytes, request.call_id),
         decode.emails,
-      )
+      ))
+      let returned = list.map(page.emails, fn(email) { email.id })
+      use Nil <- result.try(only_requested(chunk, returned))
+      use Nil <- result.map(all_answered(chunk, returned, page.not_found))
+      #(client, page)
     }),
   )
   let pages = [first, ..rest]
@@ -385,15 +401,45 @@ fn get_threads(
 ) -> Result(#(Client, #(List(model.Thread), String)), Error) {
   use #(client, first, rest) <- result.map(
     in_chunks(client, thread_ids, chunk_size, fn(client, chunk) {
-      call(
+      use #(client, page) <- result.try(call(
         client,
         request.thread_get(account_id, chunk, request.call_id),
         decode.threads,
-      )
+      ))
+      let returned = list.map(page.0, fn(thread) { thread.id })
+      use Nil <- result.map(only_requested(chunk, returned))
+      #(client, page)
     }),
   )
   let #(_, state) = first
   #(client, #(list.flat_map([first, ..rest], fn(page) { page.0 }), state))
+}
+
+/// A get's `list` holds only ids the chunk asked for (RFC 8620 § 5.1): an
+/// object outside the window would break I3.
+fn only_requested(
+  requested: List(String),
+  returned: List(String),
+) -> Result(Nil, Error) {
+  let requested = set.from_list(requested)
+  case list.all(returned, set.contains(requested, _)) {
+    True -> Ok(Nil)
+    False -> Error(error.Decode("list"))
+  }
+}
+
+/// Every id a get asked for comes back in `list` or `notFound` (RFC 8620
+/// § 5.1), so no message drops out of the window silently.
+fn all_answered(
+  requested: List(String),
+  returned: List(String),
+  not_found: List(String),
+) -> Result(Nil, Error) {
+  let answered = set.from_list(list.append(returned, not_found))
+  case list.all(requested, set.contains(answered, _)) {
+    True -> Ok(Nil)
+    False -> Error(error.Decode("notFound"))
+  }
 }
 
 /// The distinct thread ids of `messages`, in first-seen order (A8).

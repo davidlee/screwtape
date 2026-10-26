@@ -904,3 +904,83 @@ pub fn summary_values_test() {
     is_read_only: True,
   ))
 }
+
+// ---------------------------------------------------------------- PHASE-05 review
+
+/// Review F2: every requested id comes back in `list` or `notFound` (RFC 8620
+/// § 5.1). A chunk answered without one of its ids would drop that message
+/// silently; the run fails instead, and the store stands. Catches a run that
+/// trusts `list`.
+pub fn email_get_missing_id_fails_test() {
+  let script = [
+    inbox_step(),
+    page(["e1", "e2"], "qs-1", 0, 2, None),
+    emails(emails_of(["e1"]), "es-1", []),
+  ]
+  use store, run <- run_sync(spec(script), seeded())
+
+  expect_calls(run, methods(script))
+  expect_unchanged(store, run, error.Decode("notFound"))
+}
+
+/// Review F2: an id the chunk did not ask for is outside the window; storing it
+/// would break I3. Catches a run that stores whatever `list` holds.
+pub fn email_get_unrequested_id_fails_test() {
+  let script = [
+    inbox_step(),
+    page(["e1"], "qs-1", 0, 1, None),
+    emails(emails_of(["e1", "e9"]), "es-1", []),
+  ]
+  use store, run <- run_sync(spec(script), seeded())
+
+  expect_calls(run, methods(script))
+  expect_unchanged(store, run, error.Decode("list"))
+}
+
+/// Review F3: a server that ignores `limit` and answers more ids than the
+/// window still wants does not grow the window past `max_messages`: the run
+/// keeps the first ids and stops (I4). Catches a run that collects whole pages.
+pub fn paging_oversized_page_is_cut_to_the_window_test() {
+  let script = [
+    inbox_step(),
+    page(ids("e", 1, 5), "qs-1", 0, 50, None),
+    emails(emails_of(ids("e", 1, 3)), "es-1", []),
+    threads(threads_of(emails_of(ids("e", 1, 3))), "ts-1"),
+  ]
+  let spec = Spec(..spec(script), bounds: bounds(Some(3)))
+  use _store, run <- run_sync(spec, None)
+
+  expect_calls(run, methods(script))
+  id_lists(run, EmailGet) |> should.equal([ids("e", 1, 3)])
+  summary(run).messages |> should.equal(3)
+}
+
+/// Review F7: an empty page ends phase 1 even when `total` says more remain,
+/// and the empty window commits. Catches a run that relies on `total` alone
+/// (it would page until `max_pages`).
+pub fn paging_empty_page_stops_test() {
+  let script = [
+    inbox_step(),
+    page([], "qs-1", 0, 50, None),
+    emails([], "es-1", []),
+    threads([], "ts-1"),
+  ]
+  use _store, run <- run_sync(spec(script), None)
+
+  expect_calls(run, methods(script))
+  summary(run).messages |> should.equal(0)
+}
+
+/// Review F7: a server whose pages never advance (the same ids at position 0)
+/// cannot hold the run: `max_pages` ends it. Catches a paging loop bounded only
+/// by `total` or by new ids.
+pub fn paging_non_advancing_position_hits_max_pages_test() {
+  let stuck = page(["e1", "e2"], "qs-1", 0, 50, Some(2))
+  let script = [inbox_step(), stuck, stuck, stuck]
+  let spec =
+    Spec(..spec(script), bounds: sync.Bounds(..bounds(Some(10)), max_pages: 3))
+  use store, run <- run_sync(spec, seeded())
+
+  expect_calls(run, methods(script))
+  expect_unchanged(store, run, error.LimitExceeded("max_pages"))
+}
