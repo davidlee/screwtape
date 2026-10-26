@@ -9,17 +9,19 @@
 //// The happy path drives one `local_jmap` over real TLS to the session and the
 //// `Mailbox/get`, with a config file and a credentials directory written under
 //// `temp`: no module is stubbed, so the run is the production path end to end.
+////
+//// The config file, credentials directory and stderr-line helpers live in
+//// `support/cli_fixture`, shared with the token-leak suite (PHASE-10, T5a).
 
-import gleam/bit_array
 import gleam/dynamic/decode
 import gleam/json
 import gleam/list
-import gleam/option.{type Option, None, Some}
-import gleam/result
+import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
 import screwtape/cli
+import support/cli_fixture
 import support/jmap_fixture
 import support/local_jmap
 import support/subprocess
@@ -55,60 +57,6 @@ fn credentials_env(dir: String) {
   }
 }
 
-/// A valid configuration document (the shape `config_test` generates), written
-/// with `gleam_json` so no path needs escaping.
-fn config_text(session_url: String, ca_file: Option(String)) -> String {
-  let fields = [
-    #("session_url", json.string(session_url)),
-    #("credential_name", json.string("fastmail")),
-    #("store_path", json.string("/tmp/screwtape-cli-test/mail.sqlite3")),
-    #(
-      "window",
-      json.object([
-        #("mailboxes", json.array(["inbox"], json.string)),
-        #("max_age_days", json.int(30)),
-        #("max_messages", json.int(2000)),
-      ]),
-    ),
-    #("max_body_bytes", json.int(262_144)),
-    #("max_pages", json.int(20)),
-    #("max_total_bytes", json.int(268_435_456)),
-    #("request_timeout_ms", json.int(30_000)),
-  ]
-  let fields = case ca_file {
-    None -> fields
-    Some(path) -> list.append(fields, [#("ca_file", json.string(path))])
-  }
-  json.object(fields) |> json.to_string
-}
-
-/// A fresh temp directory holding a config file with `text`, named
-/// `<dir>/config.json`; returns the directory and the path.
-fn config_dir(prefix: String, text: String) -> #(String, String) {
-  let dir = temp.dir(prefix)
-  let path = dir <> "/config.json"
-  temp.write(path, bit_array.from_string(text))
-  #(dir, path)
-}
-
-/// A fresh temp directory holding the credential file `fastmail`.
-fn credential_dir(secret: String) -> String {
-  let dir = temp.dir("cli-credentials")
-  temp.write(dir <> "/fastmail", bit_array.from_string(secret <> "\n"))
-  dir
-}
-
-/// The error line as a decoded document's `error` field, so a case does not
-/// depend on the exact line layout.
-fn error_kind(line: String) -> Result(String, Nil) {
-  case json.parse(line, using: decode.dynamic) {
-    Error(_) -> Error(Nil)
-    Ok(document) ->
-      decode.run(document, decode.at(["error"], decode.string))
-      |> result.map_error(fn(_) { Nil })
-  }
-}
-
 /// One failing outcome: nothing on stdout, exactly one stderr JSON line naming
 /// `kind`, and the given exit code.
 fn expect_failure(
@@ -120,7 +68,7 @@ fn expect_failure(
   outcome.stdout |> should.equal(None)
   outcome.stderr |> list.length |> should.equal(1)
   let assert [line] = outcome.stderr
-  error_kind(line) |> should.equal(Ok(kind))
+  cli_fixture.error_kind(line) |> should.equal(Ok(kind))
   line
 }
 
@@ -170,7 +118,8 @@ pub fn unreadable_config_exits_two_test() {
 }
 
 pub fn invalid_config_exits_two_test() {
-  let #(dir, path) = config_dir("cli-bad-config", "{\"session_url\":")
+  let #(dir, path) =
+    cli_fixture.config_dir("cli-bad-config", "{\"session_url\":")
   let outcome = cli.run(["--config", path, "sync"], no_env)
   temp.remove_dir(dir)
 
@@ -184,7 +133,10 @@ pub fn invalid_config_exits_two_test() {
 /// (a manual run from a shell) is a `Credential` failure, exit 1.
 pub fn no_credentials_directory_exits_one_test() {
   let #(dir, path) =
-    config_dir("cli-no-cred-env", config_text(unused_session_url, None))
+    cli_fixture.config_dir(
+      "cli-no-cred-env",
+      cli_fixture.config_text(unused_session_url, None),
+    )
   let outcome = cli.run(["--config", path, "sync"], no_env)
   temp.remove_dir(dir)
 
@@ -199,7 +151,10 @@ pub fn no_credentials_directory_exits_one_test() {
 pub fn missing_credential_file_exits_one_test() {
   let credentials = temp.dir("cli-missing-credential")
   let #(dir, path) =
-    config_dir("cli-missing-cred", config_text(unused_session_url, None))
+    cli_fixture.config_dir(
+      "cli-missing-cred",
+      cli_fixture.config_text(unused_session_url, None),
+    )
   let outcome =
     cli.run(["--config", path, "sync"], credentials_env(credentials))
   temp.remove_dir(dir)
@@ -222,11 +177,14 @@ pub fn sync_envelope_test() {
         local_jmap.reply(200, jmap_fixture.text("mailbox_get.json")),
       ]
     })
-  let credentials = credential_dir("SENTINEL-cli-0123456789")
+  let credentials = cli_fixture.credential_dir("SENTINEL-cli-0123456789")
   let #(dir, path) =
-    config_dir(
+    cli_fixture.config_dir(
       "cli-sync",
-      config_text(local_jmap.url(server, "/session"), Some(server.ca_path)),
+      cli_fixture.config_text(
+        local_jmap.url(server, "/session"),
+        Some(server.ca_path),
+      ),
     )
 
   let outcome =
@@ -265,7 +223,10 @@ pub fn sync_envelope_test() {
 pub fn shipment_sync_without_credentials_exits_one_test() {
   let shipment = unwrap(subprocess.shipment_dir())
   let #(dir, path) =
-    config_dir("cli-run-no-cred-env", config_text(unused_session_url, None))
+    cli_fixture.config_dir(
+      "cli-run-no-cred-env",
+      cli_fixture.config_text(unused_session_url, None),
+    )
   let record =
     unwrap(
       subprocess.run_env(
