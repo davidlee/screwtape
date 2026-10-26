@@ -34,6 +34,8 @@ import gleam/result
 import gleam/string
 import screwtape/error.{type Error, Decode, JmapMethod, JmapRequest}
 import screwtape/jmap/request.{core_capability, mail_capability}
+import screwtape/model.{type UtcDate}
+import screwtape/normalise
 
 /// The location of a whole document, for JSON that does not parse at all.
 const root = "$"
@@ -91,6 +93,7 @@ const path_fields = [
   "name",
   "role",
   "type",
+  "receivedAt",
 ]
 
 /// The parts of the JMAP session the scope uses.
@@ -115,9 +118,19 @@ pub type MailboxSummary {
   MailboxSummary(id: String, name: String, role: Option(String))
 }
 
+/// A JMAP `UTCDate` field. Text that does not parse fails here, so it surfaces
+/// as `Decode(path)` naming the field (DEC-021).
+pub fn utc_date() -> decode.Decoder(UtcDate) {
+  use raw <- decode.then(decode.string)
+  case normalise.utc_date(raw) {
+    Ok(date) -> decode.success(date)
+    Error(Nil) -> decode.failure(model.UtcDate(raw: "", ms: 0), "UTCDate")
+  }
+}
+
 /// Decode a JMAP session document.
 pub fn session(text: String) -> Result(Session, Error) {
-  use raw <- result.try(decode_document(text, raw_session_decoder()))
+  use raw <- result.try(document(text, raw_session_decoder()))
   use _ <- result.try(check_https(raw.api_url))
   use account_id <- result.try(mail_account(raw))
   use limits <- result.try(core_limits(raw.capabilities))
@@ -156,7 +169,7 @@ pub fn method_responses(
   text: String,
   calls: List(#(String, String)),
 ) -> Result(List(MethodResponse), Error) {
-  use entries <- result.try(decode_document(
+  use entries <- result.try(document(
     text,
     decode.at(["methodResponses"], decode.list(decode.dynamic)),
   ))
@@ -341,10 +354,9 @@ fn method_problem_type(type_: String) -> String {
 
 // Paths.
 
-fn decode_document(
-  text: String,
-  decoder: decode.Decoder(a),
-) -> Result(a, Error) {
+/// Decode a JSON document with `decoder`. Every failure leaves through the
+/// path choke point below, so no document text reaches the `Error`.
+pub fn document(text: String, decoder: decode.Decoder(a)) -> Result(a, Error) {
   case json.parse(text, using: decode.dynamic) {
     Error(_) -> Error(Decode(root))
     Ok(dynamic) -> decode_at(dynamic, decoder, "")

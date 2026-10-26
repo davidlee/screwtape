@@ -9,6 +9,7 @@
 //// `Decode(path)` paths name a fixed location and never quote the input: the
 //// assertions here are on the exact path strings.
 
+import gleam/dynamic/decode as gleam_decode
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
@@ -16,6 +17,7 @@ import gleeunit
 import gleeunit/should
 import screwtape/error
 import screwtape/jmap/decode
+import screwtape/model
 import support/jmap_fixture
 
 pub fn main() -> Nil {
@@ -231,4 +233,29 @@ pub fn mailboxes_mistyped_field_test() {
 
 fn json_pair(name: String, value: String) -> String {
   "\"" <> name <> "\":" <> value
+}
+
+// `normalise.utc_date` through `decode.document`: TEXT is not a date, the
+// field path is the error, and a fractional UTCDate keeps its raw text with
+// sub-millisecond digits dropped.
+
+fn received_at_decoder() -> gleam_decode.Decoder(model.UtcDate) {
+  use date <- gleam_decode.field("receivedAt", decode.utc_date())
+  gleam_decode.success(date)
+}
+
+pub fn received_at_valid_fractional_utc_date_test() {
+  let assert Ok(date) =
+    decode.document(
+      "{\"receivedAt\":\"2024-02-29T23:59:59.1234Z\"}",
+      received_at_decoder(),
+    )
+
+  date.raw |> should.equal("2024-02-29T23:59:59.1234Z")
+  date.ms |> should.equal(1_709_251_199_123)
+}
+
+pub fn received_at_invalid_utc_date_is_a_decode_error_test() {
+  decode.document("{\"receivedAt\":\"not a date\"}", received_at_decoder())
+  |> should.equal(Error(error.Decode("receivedAt")))
 }

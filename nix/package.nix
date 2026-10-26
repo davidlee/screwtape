@@ -4,6 +4,7 @@
   lib,
   beamPackages,
   buildGleamApplication,
+  just,
   doCheck ? false,
 }:
 buildGleamApplication {
@@ -19,7 +20,8 @@ buildGleamApplication {
         ../manifest.toml
         ../src
       ]
-      ++ lib.optional doCheck ../test
+      # The check also runs `just check-imports`, so it needs the justfile.
+      ++ lib.optionals doCheck [../test ../justfile]
     );
   };
 
@@ -28,10 +30,13 @@ buildGleamApplication {
   rebar3Package = beamPackages.rebar3WithPlugins {plugins = [beamPackages.pc];};
 
   inherit doCheck;
+  nativeCheckInputs = [just];
   # Runs after buildPhase, so build/erlang-shipment is the shipment under test.
+  # `just check-imports` is the I5/I6 structural check (PHASE-03/EX-6).
   checkPhase = ''
     runHook preCheck
     export HOME="$TMPDIR"
+    just check-imports
     gleam test
     runHook postCheck
   '';
