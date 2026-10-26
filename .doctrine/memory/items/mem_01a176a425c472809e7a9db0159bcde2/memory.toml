@@ -1,0 +1,47 @@
+memory_uid = "mem_01a176a425c472809e7a9db0159bcde2"
+memory_key = "mem.fact.gleam.decode-dict-key-in-path"
+schema_version = 1
+lifespan = "semantic"
+memory_type = "fact"
+status = "active"
+title = "decode.dict copies server map keys into decode error paths"
+summary = "gleam_stdlib decode.dict puts a failing map key verbatim into DecodeError.path"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = ["src/screwtape/jmap/decode.gleam"]
+globs = ["src/screwtape/jmap/**"]
+commands = []
+tags = ["gleam", "security"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "078ccb044821b8570836b935a568548a840bea87"
+ref_name = "refs/heads/main"
+checkout_state_id = "1c57c4ffafa40689a7623620c1267f608e2181c3a1aff09aba28a3b5e8855df3"
+base_commit = "54e028e6cfe3c6c21bacd8a8d619151571b501fb"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "high"
+weight = 0
+
+[[source]]
+kind = "commit"
+ref = "54e028e"
+
