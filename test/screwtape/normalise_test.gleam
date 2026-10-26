@@ -174,6 +174,15 @@ pub fn utc_date_fractional_truncates_to_milliseconds_test() {
   )
 }
 
+/// RFC 3339 § 5.7's leap second is accepted; it is the instant the next day's
+/// midnight names.
+pub fn utc_date_accepts_leap_second_test() {
+  normalise.utc_date("2016-12-31T23:59:60Z")
+  |> should.equal(
+    Ok(model.UtcDate(raw: "2016-12-31T23:59:60Z", ms: 1_483_228_800_000)),
+  )
+}
+
 /// `--since` at midnight is inclusive: the first instant of a day with a
 /// fractional part is strictly after the day's plain midnight.
 pub fn utc_date_midnight_fraction_is_after_midnight_test() {
@@ -193,6 +202,11 @@ pub fn utc_date_rejects_non_utc_and_invalid_test() {
     "2026-01-01 00:00:00Z",
     "2026-01-01T00:00:00Zjunk",
     "2026-01-01T00:00:00.Z",
+    "2026-01-01T00:00:00.123xZ",
+    "2026-01-01T00:00:00.123 junkZ",
+    "2026-01-01T00:00:00.123ZZ",
+    "2026-01-01T00:00:00.123Z9Z",
+    "2016-12-31T23:59:61Z",
     "2026-01-01t00:00:00Z",
     "2026-01-01T00:00:00z",
   ]

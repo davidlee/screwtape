@@ -107,6 +107,7 @@ pub fn utc_date(raw: String) -> Result(model.UtcDate, Nil) {
 fn parse_fields(
   raw: String,
 ) -> Result(#(Int, Int, Int, Int, Int, Int, Int), Nil) {
+  // Case-sensitive: RFC 8620 § 1.4 requires uppercase `T` and `Z`.
   case string.to_graphemes(raw) {
     [
       y1,
@@ -174,8 +175,8 @@ fn digit_value(grapheme: String) -> Result(Int, Nil) {
 }
 
 /// The fraction's milliseconds: its first three digits, right-padded with
-/// zeros; digits past the third are dropped, never rounded. A timestamp with
-/// no fraction contributes zero milliseconds.
+/// zeros; characters past the third are dropped only when they are digits,
+/// never rounded. A timestamp with no fraction contributes zero milliseconds.
 fn fraction_millis(rest: List(String)) -> Result(Int, Nil) {
   case rest {
     ["Z"] -> Ok(0)
@@ -192,6 +193,7 @@ fn fraction_millis(rest: List(String)) -> Result(Int, Nil) {
 }
 
 fn millis_from_digits(digits: List(String)) -> Result(Int, Nil) {
+  use _ <- result.try(digits_only(digits))
   case digits {
     [] -> Error(Nil)
     [first, second, third, ..] -> {
@@ -212,14 +214,25 @@ fn millis_from_digits(digits: List(String)) -> Result(Int, Nil) {
   }
 }
 
-/// A leap second (60) is rejected: the model keeps whole milliseconds only.
+fn digits_only(graphemes: List(String)) -> Result(Nil, Nil) {
+  case graphemes {
+    [] -> Ok(Nil)
+    [grapheme, ..rest] ->
+      case digit_value(grapheme) {
+        Ok(_) -> digits_only(rest)
+        Error(Nil) -> Error(Nil)
+      }
+  }
+}
+
+/// A leap second (60) is accepted (RFC 3339 § 5.7); 61 is not.
 fn valid_time(hour: Int, minute: Int, second: Int) -> Bool {
   hour >= 0
   && hour <= 23
   && minute >= 0
   && minute <= 59
   && second >= 0
-  && second <= 59
+  && second <= 60
 }
 
 /// Days from 1970-01-01 to `year`-`month`-`day`, or `Error` when the date is
@@ -401,6 +414,8 @@ fn body_step(
       truncated_by: None,
       is_encoding_problem: value.is_encoding_problem,
       conversion_failed: conversion_failed,
+      // Design § 5.2 fetches Email/get with maxBodyValueBytes = max_body_bytes,
+      // so the per-message bound is also the fetch cap recorded on each part.
       max_body_value_bytes: max_body_bytes,
     )
 

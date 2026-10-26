@@ -2,6 +2,10 @@
 //// cannot do I/O — invariant I5 — and that no source outside the JMAP request
 //// builder names a JMAP method — invariant I6.
 ////
+//// Accepted residual for I6: the literal scan sees whole literals only, so a
+//// concatenated method name is not caught; the closed `Method` type and opaque
+//// `Invocation` are the primary guard.
+////
 //// Not shipped: this lives under `test/` and is run by `just check-imports`.
 //// The rules are pure and take their sources and a resolver as arguments, so
 //// the tests can feed fixtures without touching the tree; only `main` reads
@@ -29,6 +33,10 @@ const erl_beam_path = "build/dev/erlang/screwtape/ebin/screwtape_html_ffi.beam"
 const request_path = "src/screwtape/jmap/request.gleam"
 
 const ffi_module = "screwtape_html_ffi"
+
+/// Denied even when the module's package is allowed: `gleam/io` writes to
+/// stdout/stderr, so a governed module must not reach it.
+const denied_modules = ["gleam/io"]
 
 /// Where an import goes: a module of this project, or another package.
 pub type Origin {
@@ -180,9 +188,13 @@ fn check_imports(
           False -> Ok(ForbiddenImport(rule.path, module, Local))
         }
       Ok(Package(package)) ->
-        case list.contains(rule.packages, package) {
-          True -> Error(Nil)
-          False -> Ok(ForbiddenImport(rule.path, module, Package(package)))
+        case list.contains(denied_modules, module) {
+          True -> Ok(ForbiddenImport(rule.path, module, Package(package)))
+          False ->
+            case list.contains(rule.packages, package) {
+              True -> Error(Nil)
+              False -> Ok(ForbiddenImport(rule.path, module, Package(package)))
+            }
         }
     }
   })

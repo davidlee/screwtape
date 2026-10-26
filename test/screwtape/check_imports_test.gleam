@@ -72,7 +72,7 @@ const ffi_imports = [
 /// gleam_erlang even though it starts with `gleam/` (RV-001 F-24).
 fn resolve(module: String) -> Result(Origin, Nil) {
   case module {
-    "gleam/option" | "gleam/string" | "gleam/list" ->
+    "gleam/option" | "gleam/string" | "gleam/list" | "gleam/io" ->
       Ok(Package("gleam_stdlib"))
     "gleam/erlang/process" -> Ok(Package("gleam_erlang"))
     "htmgrrrl" -> Ok(Package("htmgrrrl"))
@@ -183,6 +183,22 @@ pub fn convert(html: String) -> Result(String, Nil) {
   descriptions(with_source(sources(), html_text_path, html_text), erlang())
   |> should.equal([
     "src/screwtape/html_text.gleam: import htmgrrrl (package htmgrrrl) is not allowed here",
+  ])
+}
+
+pub fn html_text_importing_gleam_io_is_a_violation_test() {
+  let html_text =
+    "import gleam/io
+import screwtape/html_sax
+
+pub fn convert(html: String) -> Result(String, Nil) {
+  let _ = html
+  Ok(\"\")
+}
+"
+  descriptions(with_source(sources(), html_text_path, html_text), erlang())
+  |> should.equal([
+    "src/screwtape/html_text.gleam: import gleam/io (package gleam_stdlib) is not allowed here",
   ])
 }
 

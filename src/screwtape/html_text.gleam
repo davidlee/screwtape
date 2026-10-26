@@ -61,21 +61,10 @@ fn start(acc: Acc, name: String, attributes: List(#(String, String))) -> Acc {
   case acc.skip_depth > 0 {
     True -> skip_start(acc, name)
     False ->
-      case skips_content(acc, name) {
+      case is_skipped(name) {
         True -> Acc(..acc, skip_depth: 1)
         False -> start_tag(acc, name, attributes)
       }
-  }
-}
-
-/// Whether this start tag begins content to drop. `head` normally does, but
-/// htmerl sometimes inserts one after leading text and puts that text's
-/// following nodes inside it; a head that opens after output has started is
-/// such an insertion, and its remaining contents still belong to the text.
-fn skips_content(acc: Acc, name: String) -> Bool {
-  case name {
-    "head" -> acc.chunks == []
-    _ -> is_skipped(name)
   }
 }
 
@@ -259,10 +248,7 @@ fn is_block(name: String) -> Bool {
 }
 
 fn is_skipped(name: String) -> Bool {
-  list.contains(
-    ["script", "style", "head", "title", "noscript", "template"],
-    name,
-  )
+  list.contains(["script", "style", "title", "noscript", "template"], name)
 }
 
 /// Drop an unterminated trailing tag, the shape a byte-truncated document often

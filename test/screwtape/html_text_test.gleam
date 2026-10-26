@@ -126,6 +126,23 @@ pub fn style_and_head_contents_dropped_test() {
   |> should.equal("hi")
 }
 
+pub fn leading_style_then_text_keeps_text_test() {
+  text_of("<style>p{}</style>\nHello") |> should.equal("Hello")
+}
+
+pub fn leading_script_then_text_keeps_text_test() {
+  text_of("<script>x</script>Hello") |> should.equal("Hello")
+}
+
+pub fn leading_style_then_text_with_br_test() {
+  text_of("<style>p{}</style>Hello<br>world") |> should.equal("Hello\nworld")
+}
+
+pub fn literal_less_than_survives_test() {
+  text_of("3 < 5 and 4 > 2") |> should.equal("3 < 5 and 4 > 2")
+  text_of("x < y and more") |> should.equal("x < y and more")
+}
+
 pub fn template_and_noscript_dropped_test() {
   text_of("<p>a</p><template><p>t</p></template><noscript>n</noscript><p>b</p>")
   |> should.equal("a\nb")
