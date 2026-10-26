@@ -2,7 +2,7 @@ slice = "SL-001"
 date = "2026-10-26"
 
 [hashes]
-".doctrine/slice/001/design.md" = "48cacea5e6c896f48eda624fab65190691624220f8861fa78cefca764ce8ec8e"
-".doctrine/slice/001/plan.md" = "bef96b6034791e91e06637e6fea5aca8182f84f8fae8b2b3fc4f1db60e7e5f7b"
-".doctrine/slice/001/plan.toml" = "e4a85fc5c8d5cb0a2c58d7c4cd82dbb01a86d2836a4c5b1e5735491bb9eccde4"
+".doctrine/slice/001/design.md" = "52ab362aa563af7d9c295db4531a4fd2707d07860b34c7a4b56243a4104ac09b"
+".doctrine/slice/001/plan.md" = "499acd21bfeb606be1ff3291454006d9e4cbfa3c4e7114bb758134ef91a62e60"
+".doctrine/slice/001/plan.toml" = "1871fb7ba2fa49b7d3dfcd82e503ab65f371cbe61ab3a2f5e003d4c524ba07ae"
 ".doctrine/slice/001/slice-001.md" = "6e7894d8ab335bb98d32946c2f02d219b8bb794256565af94ccf8b130b01e283"
