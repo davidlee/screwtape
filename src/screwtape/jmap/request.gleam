@@ -12,10 +12,11 @@ import gleam/function
 import gleam/json
 import gleam/list
 
-/// The capabilities every request declares in `using`.
-const core_capability = "urn:ietf:params:jmap:core"
+/// The capabilities every request declares in `using`. They are the same URNs
+/// `decode` reads the session under, so they live here once.
+pub const core_capability = "urn:ietf:params:jmap:core"
 
-const mail_capability = "urn:ietf:params:jmap:mail"
+pub const mail_capability = "urn:ietf:params:jmap:mail"
 
 /// The JMAP methods of the scope, and no others.
 pub type Method {

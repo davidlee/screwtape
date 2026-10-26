@@ -14,6 +14,13 @@
 //// to end, so "absent" does not pass because nothing ran; VA-1 (below) shows
 //// the sentinel would be seen if it leaked.
 ////
+//// Three cases put the sentinel in the server's own text. A 500 whose problem
+//// document's `type` is the sentinel: the type is not one of RFC 8620 § 3.6.1's
+//// four, so the status stands (`http`, `status_500`). A method-level error whose
+//// `type` is the sentinel: it is not in RFC 8620 § 3.6.2 / § 5's set, so it
+//// becomes the fixed `"unknown"`. A 200 session whose `primaryAccounts` is keyed
+//// by the sentinel: the `Decode` path names the map, not the key.
+////
 //// The crash cases are DEC-019's reading of EX-5's "a crash forced inside the
 //// client": spike T0 found no HTTP- or token-shaped crash reachable in the built
 //// client on OTP 28.5 (httpc validates neither headers nor responses, and
@@ -114,6 +121,18 @@ pub fn session_500_test() {
   |> run_failing_scenario
 }
 
+/// A 500 whose problem document carries the sentinel as its `type`: not one of
+/// RFC 8620 § 3.6.1's types, so the status stands and no server text is kept.
+pub fn session_500_sentinel_type_test() {
+  scenario(
+    "session-500-sentinel-type",
+    fixed_reply(500, "{\"type\":\"" <> sentinel <> "\"}"),
+    "http",
+    "\"reason\":\"status_500\"",
+  )
+  |> run_failing_scenario
+}
+
 /// The reply's last byte is withheld and the config's timeout is short: the
 /// transport gives up, which is `Http("timeout")` and no request data.
 pub fn session_timeout_test() {
@@ -140,6 +159,27 @@ pub fn session_malformed_json_test() {
   |> run_failing_scenario
 }
 
+/// A 200 session whose `primaryAccounts` map is keyed by the sentinel: the
+/// path names the map, never the key.
+pub fn session_sentinel_key_test() {
+  let script = fn(base_url: String) {
+    let body =
+      jmap_fixture.session(base_url <> "/api")
+      |> string.replace(
+        "{\"urn:ietf:params:jmap:mail\":\"acct-1\"}",
+        "{\"" <> sentinel <> "\":5}",
+      )
+    [local_jmap.reply(200, body)]
+  }
+  scenario(
+    "session-sentinel-key",
+    script,
+    "decode",
+    "\"path\":\"primaryAccounts\"",
+  )
+  |> run_failing_scenario
+}
+
 /// Session fine, then a method-level `["error", ...]`: the method it is
 /// attributed to and its problem type, not the arguments the server sent.
 pub fn method_error_test() {
@@ -150,6 +190,29 @@ pub fn method_error_test() {
     ]
   }
   scenario("method-error", script, "jmap_method", "\"method\":\"Mailbox/get\"")
+  |> run_failing_scenario
+}
+
+/// A method-level error whose `type` is the sentinel: not in RFC 8620
+/// § 3.6.2 / § 5's set, so the fixed `"unknown"` stands in for it.
+pub fn method_error_sentinel_type_test() {
+  let script = fn(base_url: String) {
+    [
+      session_document(base_url),
+      local_jmap.reply(
+        200,
+        "{\"methodResponses\":[[\"error\",{\"type\":\""
+          <> sentinel
+          <> "\"},\"c0\"]]}",
+      ),
+    ]
+  }
+  scenario(
+    "method-error-sentinel-type",
+    script,
+    "jmap_method",
+    "\"type\":\"unknown\"",
+  )
   |> run_failing_scenario
 }
 

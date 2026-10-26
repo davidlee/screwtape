@@ -9,6 +9,7 @@
 //// `Decode(path)` paths name a fixed location and never quote the input: the
 //// assertions here are on the exact path strings.
 
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
@@ -79,6 +80,34 @@ pub fn session_malformed_json_test() {
   decode.session("{\"apiUrl\":") |> should.equal(Error(error.Decode("$")))
 }
 
+/// A map keyed by server data is not a path segment: the path names the map.
+pub fn session_path_names_the_map_not_a_server_key_test() {
+  let text =
+    bent(
+      "session.json",
+      "\"urn:ietf:params:jmap:mail\":\"acct-1\"",
+      "\"SENTINEL-KEY\":5",
+    )
+
+  decode.session(text) |> should.equal(Error(error.Decode("primaryAccounts")))
+}
+
+/// The core limits constrain what a request may ask for, so a non-positive
+/// value is a document we cannot use.
+pub fn session_nonpositive_core_limits_test() {
+  [
+    #("maxObjectsInGet", "\"maxObjectsInGet\":1000", "0"),
+    #("maxObjectsInGet", "\"maxObjectsInGet\":1000", "-1"),
+    #("maxCallsInRequest", "\"maxCallsInRequest\":32", "0"),
+    #("maxCallsInRequest", "\"maxCallsInRequest\":32", "-5"),
+  ]
+  |> list.each(fn(c) {
+    let replacement = "\"" <> c.0 <> "\":" <> c.2
+    decode.session(bent("session.json", c.1, replacement))
+    |> should.equal(Error(error.Decode("capabilities." <> c.0)))
+  })
+}
+
 pub fn problem_document_test() {
   decode.problem(jmap_fixture.text("problem_not_request.json"))
   |> should.equal(Ok(not_request))
@@ -89,14 +118,56 @@ pub fn problem_without_type_test() {
   decode.problem("not json") |> should.equal(Error(Nil))
 }
 
+/// Only the four request-level types of RFC 8620 § 3.6.1 are carried; a
+/// server's own `type` string never becomes an `Error`.
+pub fn problem_carries_each_request_level_type_test() {
+  [
+    "urn:ietf:params:jmap:error:unknownCapability",
+    "urn:ietf:params:jmap:error:notJSON",
+    not_request,
+    "urn:ietf:params:jmap:error:limit",
+  ]
+  |> list.each(fn(type_) {
+    decode.problem("{\"type\":\"" <> type_ <> "\"}")
+    |> should.equal(Ok(type_))
+  })
+}
+
+pub fn problem_rejects_a_type_outside_the_rfc_set_test() {
+  decode.problem("{\"type\":\"SENTINEL-TYPE\"}")
+  |> should.equal(Error(Nil))
+}
+
+/// A method-level `type` in the RFC 8620 § 3.6.2 / § 5 set is the server's
+/// value.
+pub fn method_error_keeps_a_known_type_test() {
+  let text =
+    "{\"methodResponses\":[[\"error\",{\"type\":\"serverUnavailable\"},\"c0\"]]}"
+
+  decode.method_responses(text, [#("c0", "Mailbox/get")])
+  |> should.equal(Error(error.JmapMethod("Mailbox/get", "serverUnavailable")))
+}
+
+/// A method-level `type` outside that set is the fixed `"unknown"`, never the
+/// server's text.
+pub fn method_error_maps_an_unknown_type_test() {
+  let text =
+    "{\"methodResponses\":[[\"error\",{\"type\":\"SENTINEL-TYPE\"},\"c0\"]]}"
+
+  decode.method_responses(text, [#("c0", "Mailbox/get")])
+  |> should.equal(Error(error.JmapMethod("Mailbox/get", "unknown")))
+}
+
 pub fn method_error_carries_the_request_method_test() {
   let result =
     decode.method_responses(jmap_fixture.text("method_error.json"), [
       #("c0", "Mailbox/get"),
     ])
 
+  // The fixture's `type` is a request-level URN, not a method-level one, so the
+  // fixed `"unknown"` stands in for it.
   result
-  |> should.equal(Error(error.JmapMethod("Mailbox/get", not_request)))
+  |> should.equal(Error(error.JmapMethod("Mailbox/get", "unknown")))
 }
 
 pub fn method_error_with_unknown_call_test() {

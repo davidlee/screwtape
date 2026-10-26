@@ -283,13 +283,44 @@ pub fn session_and_call_decode_test() {
   body |> should.equal(json.to_string(jmap_request.body([invocation()])))
 }
 
-/// A method-level error names the method that was sent, not the call id.
+/// The budget is bytes, not characters: a body whose UTF-8 text is longer in
+/// bytes than in characters spends its byte size, so `remaining` is the budget
+/// less `string.byte_size`, which a character count could not produce.
+pub fn budget_is_charged_in_bytes_test() {
+  let session_body = jmap_fixture.text("session.json")
+  let call_body =
+    string.replace(
+      jmap_fixture.text("mailbox_get.json"),
+      "\"Inbox\"",
+      "\"Ä–日本\"",
+    )
+  call_body
+  |> string.byte_size
+  |> should.not_equal(string.length(call_body))
+  let max_total_bytes =
+    string.byte_size(session_body) + string.byte_size(call_body) + 500
+  let fixture =
+    fixture_send.start([get(200, session_body), post(200, call_body)])
+
+  let assert Ok(client_) = open_session(fixture, max_total_bytes)
+  let assert Ok(#(client_, _)) = client.call(client_, [invocation()])
+
+  client.remaining(client.budget_of(client_))
+  |> should.equal(
+    max_total_bytes
+    - string.byte_size(session_body)
+    - string.byte_size(call_body),
+  )
+}
+
+/// A method-level error names the method that was sent, not the call id. The
+/// fixture's type is not in RFC 8620 § 3.6.2's set, so it is `"unknown"`.
 pub fn method_error_is_jmap_method_test() {
   let #(_, client_) =
     with_session([post(200, jmap_fixture.text("method_error.json"))])
 
   client.call(client_, [invocation()])
-  |> expect_error(error.JmapMethod("Mailbox/get", not_request))
+  |> expect_error(error.JmapMethod("Mailbox/get", "unknown"))
 }
 
 // ---------------------------------------------------------------- statuses

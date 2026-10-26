@@ -2,12 +2,19 @@
 //// (PHASE-10, D6; design § 5.2).
 ////
 //// A failure is either `JmapRequest` — a session without the mail capability,
-//// or an `apiUrl` that is not `https` — or `JmapMethod(method, type)` for a
-//// method-level error, or `Decode(path)`. `path` names a location built only
-//// from fixed field names and list indices: never a document key, never a field
-//// value, never any of the input text. Where a location passes through a map
-//// keyed by server data (`accounts`, `capabilities`), the path names the map
-//// only.
+//// an `apiUrl` that is not `https`, or an RFC 8620 § 3.6.1 problem document —
+//// or `JmapMethod(method, type)` for a method-level error, or `Decode(path)`.
+//// `path` names a location built only from fixed field names and list indices:
+//// never a document key, never a field value, never any of the input text.
+//// Where a location passes through a map keyed by server data (`accounts`,
+//// `capabilities`), the path names the map only.
+////
+//// `path` and its `render` are the one choke point for that rule: a segment
+//// that is neither a list index nor one of the fixed field names this module
+//// decodes ends the path there, so a server-chosen key can never be appended.
+//// Later decoders extend the fixed set with the fields they decode; until they
+//// do, a path deeper than this module's own field names stops at the last one
+//// it knows.
 ////
 //// Paths are relative to the value the decoder was handed: `session` and
 //// `method_responses` start at the document root (`"apiUrl"`), while
@@ -26,16 +33,65 @@ import gleam/option.{type Option, None}
 import gleam/result
 import gleam/string
 import screwtape/error.{type Error, Decode, JmapMethod, JmapRequest}
-
-pub const mail_capability = "urn:ietf:params:jmap:mail"
-
-pub const core_capability = "urn:ietf:params:jmap:core"
+import screwtape/jmap/request.{core_capability, mail_capability}
 
 /// The location of a whole document, for JSON that does not parse at all.
 const root = "$"
 
 /// The method name that marks an error entry in `methodResponses`.
 const error_method = "error"
+
+/// The request-level problem types of RFC 8620 § 3.6.1: the only `type` values
+/// a problem document may contribute to an `Error`.
+const request_problem_types = [
+  "urn:ietf:params:jmap:error:unknownCapability",
+  "urn:ietf:params:jmap:error:notJSON",
+  "urn:ietf:params:jmap:error:notRequest",
+  "urn:ietf:params:jmap:error:limit",
+]
+
+/// The method-level problem types of RFC 8620 § 3.6.2 and § 5: the only `type`
+/// values a method error may contribute to an `Error`.
+const method_problem_types = [
+  "serverUnavailable",
+  "serverFail",
+  "serverPartialFail",
+  "unknownMethod",
+  "invalidArguments",
+  "invalidResultReference",
+  "forbidden",
+  "accountNotFound",
+  "accountNotSupportedByMethod",
+  "accountReadOnly",
+  "requestTooLarge",
+  "cannotCalculateChanges",
+  "stateMismatch",
+  "anchorNotFound",
+  "unsupportedSort",
+  "unsupportedFilter",
+  "tooManyChanges",
+]
+
+/// The field names this module's decoders can place in a path. A segment that
+/// is neither one of them nor a list index comes from the document — a map key
+/// the server chose — and ends the path. A decoder added later extends this set
+/// with the fields it decodes.
+const path_fields = [
+  "apiUrl",
+  "primaryAccounts",
+  "capabilities",
+  "accounts",
+  "maxObjectsInGet",
+  "maxCallsInRequest",
+  "isReadOnly",
+  "methodResponses",
+  "state",
+  "list",
+  "id",
+  "name",
+  "role",
+  "type",
+]
 
 /// The parts of the JMAP session the scope uses.
 pub type Session {
@@ -75,15 +131,20 @@ pub fn session(text: String) -> Result(Session, Error) {
   ))
 }
 
-/// An RFC 7807 problem document's `type`, or `Error(Nil)` for anything else.
+/// An RFC 8620 § 3.6.1 problem document's `type`, or `Error(Nil)` for anything
+/// else: a document that does not parse, one with no `type`, or a `type`
+/// outside that fixed set. A server's own text never becomes an `Error` (I1).
 pub fn problem(text: String) -> Result(String, Nil) {
-  case json.parse(text, using: decode.dynamic) {
-    Error(_) -> Error(Nil)
-    Ok(dynamic) ->
-      case decode.run(dynamic, decode.at(["type"], decode.string)) {
-        Ok(type_) -> Ok(type_)
-        Error(_) -> Error(Nil)
-      }
+  use dynamic <- result.try(
+    json.parse(text, using: decode.dynamic) |> result.replace_error(Nil),
+  )
+  use type_ <- result.try(
+    decode.run(dynamic, decode.at(["type"], decode.string))
+    |> result.replace_error(Nil),
+  )
+  case list.contains(request_problem_types, type_) {
+    True -> Ok(type_)
+    False -> Error(Nil)
   }
 }
 
@@ -169,9 +230,21 @@ fn mail_account(raw: RawSession) -> Result(String, Error) {
 fn core_limits(
   capabilities: Dict(String, Dynamic),
 ) -> Result(#(Int, Int), Error) {
-  case dict.get(capabilities, core_capability) {
-    Error(Nil) -> Error(Decode("capabilities"))
-    Ok(core) -> decode_at(core, core_decoder(), "capabilities")
+  use #(max_objects_in_get, max_calls_in_request) <- result.try(
+    case dict.get(capabilities, core_capability) {
+      Error(Nil) -> Error(Decode("capabilities"))
+      Ok(core) -> decode_at(core, core_decoder(), "capabilities")
+    },
+  )
+  // Both limits bound what a request may ask for, so a non-positive value
+  // would make every request invalid.
+  case max_objects_in_get > 0 {
+    False -> Error(Decode("capabilities.maxObjectsInGet"))
+    True ->
+      case max_calls_in_request > 0 {
+        False -> Error(Decode("capabilities.maxCallsInRequest"))
+        True -> Ok(#(max_objects_in_get, max_calls_in_request))
+      }
   }
 }
 
@@ -250,8 +323,19 @@ fn method_error(
     prefix <> "[1]",
   ))
   case list.find(calls, fn(call) { call.0 == call_id }) {
-    Ok(#(_, method)) -> Error(JmapMethod(method:, type_: type_))
+    Ok(#(_, method)) ->
+      Error(JmapMethod(method:, type_: method_problem_type(type_)))
     Error(Nil) -> Error(Decode(path(prefix, ["2"])))
+  }
+}
+
+/// A method-level problem type: the server's value when it is in RFC 8620
+/// § 3.6.2 / § 5's set, else the fixed `"unknown"`, so a server's text cannot
+/// reach an `Error` (I1).
+fn method_problem_type(type_: String) -> String {
+  case list.contains(method_problem_types, type_) {
+    True -> type_
+    False -> "unknown"
   }
 }
 
@@ -287,8 +371,10 @@ fn failure(errors: List(decode.DecodeError), prefix: String) -> Error {
 }
 
 /// Join a fixed prefix with the decode error's segments. Segments that read as
-/// an integer are list indices (`[2]`); the rest are fields (`.id`). The
-/// decoder itself produces the segments; none of them is a document value.
+/// an integer are list indices (`[2]`); a segment in `path_fields` is a field
+/// (`.id`); any other segment comes from the document and ends the path
+/// here, naming the enclosing map. The fixed prefix is the decoder's own, never
+/// a document value.
 fn path(prefix: String, segments: List(String)) -> String {
   let text = prefix <> render(segments)
   let text = case string.starts_with(text, ".") {
@@ -302,10 +388,16 @@ fn path(prefix: String, segments: List(String)) -> String {
 }
 
 fn render(segments: List(String)) -> String {
-  list.fold(segments, "", fn(acc, segment) {
-    case int.parse(segment) {
-      Ok(index) -> acc <> "[" <> int.to_string(index) <> "]"
-      Error(Nil) -> acc <> "." <> segment
-    }
-  })
+  case segments {
+    [] -> ""
+    [segment, ..rest] ->
+      case int.parse(segment) {
+        Ok(index) -> "[" <> int.to_string(index) <> "]" <> render(rest)
+        Error(Nil) ->
+          case list.contains(path_fields, segment) {
+            True -> "." <> segment <> render(rest)
+            False -> ""
+          }
+      }
+  }
 }
