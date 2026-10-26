@@ -1,10 +1,11 @@
 //// The normalised model (PHASE-03; design § 5.3): one record per store table,
 //// the values `normalise` produces and `store` writes.
 ////
-//// Pure data. This module imports only `gleam_stdlib` (invariant I5, enforced
-//// by `just check-imports`).
+//// Pure data, and the pure rules over it. This module imports only
+//// `gleam_stdlib` (invariant I5, enforced by `just check-imports`).
 
-import gleam/option.{type Option}
+import gleam/list
+import gleam/option.{type Option, Some}
 
 /// A JMAP `UTCDate`, kept twice: the raw text for provenance, and Unix epoch
 /// milliseconds as the key for sorting and filtering (RV-001 F-17). Sub-
@@ -149,6 +150,20 @@ pub type Attachment {
 /// window.
 pub type Thread {
   Thread(id: String, email_ids: List(String))
+}
+
+/// The mailboxes a window entry names: those whose role is `entry`; if none,
+/// those whose name is exactly `entry`; else none. Role beats name.
+pub fn mailboxes_matching(
+  mailboxes: List(Mailbox),
+  entry: String,
+) -> List(Mailbox) {
+  let by_role =
+    list.filter(mailboxes, fn(mailbox) { mailbox.role == Some(entry) })
+  case by_role {
+    [_, ..] -> by_role
+    [] -> list.filter(mailboxes, fn(mailbox) { mailbox.name == entry })
+  }
 }
 
 /// Everything one run commits, replacing the store's previous rows.

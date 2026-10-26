@@ -1,8 +1,9 @@
 //// Turn JMAP Email objects into the normalised model (PHASE-03; design § 5.1,
 //// § 5.5), converting HTML bodies and enforcing the per-message body bound.
 ////
-//// Pure. This module imports only `gleam_stdlib`, `screwtape/model` and
-//// `screwtape/html_text` (invariant I5, enforced by `just check-imports`), so
+//// Pure. This module imports only `gleam_stdlib`, `screwtape/model`,
+//// `screwtape/html_text` and `screwtape/utf8` (invariant I5, enforced by
+//// `just check-imports`), so
 //// it cannot do I/O. It therefore cannot build an `Error` either: the input
 //// records below are what `jmap/decode` produces, and a timestamp that does
 //// not parse fails there, as `Decode(path)` (DEC-021).
@@ -15,6 +16,7 @@ import gleam/result
 import gleam/string
 import screwtape/html_text
 import screwtape/model.{type UtcDate}
+import screwtape/utf8
 
 /// The Email properties the model needs (RFC 8621 § 4.1), as decoded.
 pub type Email {
@@ -435,7 +437,7 @@ fn body_step(
             bodies: [server_cut(body, value.is_truncated), ..fold.bodies],
           )
         False -> {
-          let prefix = utf8_prefix(text, remaining)
+          let prefix = utf8.prefix(text, remaining)
           BodyFold(
             stored_bytes: fold.stored_bytes + string.byte_size(prefix),
             is_cut: True,
@@ -501,48 +503,6 @@ fn server_cut(body: model.Body, is_truncated: Bool) -> model.Body {
 /// Mark a body cut by the per-message bound; our cut wins over the server's.
 fn limit_cut(body: model.Body) -> model.Body {
   model.Body(..body, is_truncated: True, truncated_by: Some(model.MessageLimit))
-}
-
-/// The longest prefix of `text` whose UTF-8 byte size is at most `budget`, cut
-/// between codepoints so no sequence is split.
-fn utf8_prefix(text: String, budget: Int) -> String {
-  text
-  |> string.to_utf_codepoints
-  |> keep_codepoints(budget, [])
-  |> string.from_utf_codepoints
-}
-
-fn keep_codepoints(
-  codepoints: List(UtfCodepoint),
-  remaining: Int,
-  kept: List(UtfCodepoint),
-) -> List(UtfCodepoint) {
-  case codepoints {
-    [] -> list.reverse(kept)
-    [codepoint, ..rest] -> {
-      let width = utf8_width(string.utf_codepoint_to_int(codepoint))
-      case width <= remaining {
-        True -> keep_codepoints(rest, remaining - width, [codepoint, ..kept])
-        False -> list.reverse(kept)
-      }
-    }
-  }
-}
-
-/// A codepoint's width in UTF-8 bytes.
-fn utf8_width(codepoint: Int) -> Int {
-  case codepoint < 0x80 {
-    True -> 1
-    False ->
-      case codepoint < 0x800 {
-        True -> 2
-        False ->
-          case codepoint < 0x1_0000 {
-            True -> 3
-            False -> 4
-          }
-      }
-  }
 }
 
 /// The ordering contract: received milliseconds, then message id (RV-001

@@ -168,12 +168,9 @@ fn resolve_mailboxes(
 ) -> Result(List(String), Error) {
   window
   |> list.try_map(fn(entry) {
-    let by_role = list.filter(mailboxes, fn(m) { m.role == Some(entry) })
-    let by_name = list.filter(mailboxes, fn(m) { m.name == entry })
-    case by_role, by_name {
-      [_, ..], _ -> Ok(by_role)
-      [], [_, ..] -> Ok(by_name)
-      [], [] -> Error(error.Config("unknown_mailbox"))
+    case model.mailboxes_matching(mailboxes, entry) {
+      [] -> Error(error.Config("unknown_mailbox"))
+      matches -> Ok(matches)
     }
   })
   |> result.map(fn(matches) {

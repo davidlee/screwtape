@@ -19,6 +19,8 @@ pub fn main() -> Nil {
 
 const model_path = "src/screwtape/model.gleam"
 
+const utf8_path = "src/screwtape/utf8.gleam"
+
 const html_text_path = "src/screwtape/html_text.gleam"
 
 const normalise_path = "src/screwtape/normalise.gleam"
@@ -49,9 +51,19 @@ const normalise_source =
   "import gleam/list
 import screwtape/html_text
 import screwtape/model
+import screwtape/utf8
 
 pub fn normalise(x: String) -> String {
   x
+}
+"
+
+const utf8_source =
+  "import gleam/string
+
+pub fn prefix(text: String, budget: Int) -> String {
+  let _ = budget
+  text
 }
 "
 
@@ -79,6 +91,7 @@ fn resolve(module: String) -> Result(Origin, Nil) {
     "screwtape/model"
     | "screwtape/html_text"
     | "screwtape/html_sax"
+    | "screwtape/utf8"
     | "screwtape/error" -> Ok(Local)
     _ -> Error(Nil)
   }
@@ -87,6 +100,7 @@ fn resolve(module: String) -> Result(Origin, Nil) {
 fn sources() -> List(#(String, String)) {
   [
     #(model_path, model_source),
+    #(utf8_path, utf8_source),
     #(html_text_path, html_text_source),
     #(normalise_path, normalise_source),
     #(html_sax_path, html_sax_source),
@@ -168,6 +182,21 @@ pub type Message {
   descriptions(with_source(sources(), model_path, model), erlang())
   |> should.equal([
     "src/screwtape/model.gleam: local import screwtape/error is not allowed here",
+  ])
+}
+
+pub fn utf8_importing_a_local_module_is_a_violation_test() {
+  let utf8 =
+    "import screwtape/model
+
+pub fn prefix(text: String, budget: Int) -> String {
+  let _ = budget
+  text
+}
+"
+  descriptions(with_source(sources(), utf8_path, utf8), erlang())
+  |> should.equal([
+    "src/screwtape/utf8.gleam: local import screwtape/model is not allowed here",
   ])
 }
 
