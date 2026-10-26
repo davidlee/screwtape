@@ -1,0 +1,46 @@
+memory_uid = "mem_01a17721a26977e1ba77f92ae87cf49b"
+memory_key = "mem.fact.sqlite.esqlite-readonly-uri"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "esqlite (via sqlight) honours file: URIs; read-only open facts"
+summary = "sqlight.open accepts file:<path>?mode=ro; missing file -> Cantopen (14); ro write -> 8; ro WAL reader creates -wal/-shm; Latin-1 filenames; dump/close hide leaked transactions"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = ["src/screwtape/store.gleam", "test/support/store_dump.gleam"]
+globs = ["test/screwtape/*store*"]
+commands = []
+tags = ["sqlite"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "9c6ad4b54918066e85fb5ccfc3a1d5e48b2ee3ba"
+ref_name = "refs/heads/main"
+checkout_state_id = "8e0a1e756c12bbee43a5a3719337dd64c131d7170b175c9e9167425bf84841d2"
+base_commit = "8e9bd03944b19dd713ad035b72d7c2f42d49010b"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "medium"
+weight = 0
+
+[[source]]
+kind = "slice"
+ref = "SL-001"
+

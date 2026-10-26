@@ -6,9 +6,10 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · PHASE-03 completed at f1d6289; slice status started; next PHASE-04
+fresh-as-of: 2026-10-26 · PHASE-04 completed; slice status started; next PHASE-05
 
 ### Produced
+- PHASE-04: store (schema v1 = migration chain `[schema_v1]`, write_snapshot/_with, open_reader/read/select, close_*); test support store_dump (in-process logical dump incl. user_version), snapshot_fixture (full/broken); store_test (16 tests)
 - PHASE-03 (75dd306, f1d6289): model, html_sax + screwtape_html_ffi (catch boundary), html_text, normalise (utc_date, body bound, compare_received), decode.document + utc_date; test/check_imports (+ beam-import FFI rule) in `just check` and checks.gleam-test; DEC-020, DEC-021; ASM-002 validated; CHR-002
 - PHASE-10 (a482012..54e028e): error, credential (control-byte rejection), config, file, jmap/request, jmap/decode, jmap/client (Budget), cli, main; test support fixture_send, jmap_fixture, cli_fixture, local_jmap.start_with/reply, temp.write, subprocess.run_env; I1 token_leak_test (VT-2); DEC-019; RV-002 concluded as waived (1fc3923)
 - PHASE-02: screwtape_http.erl (production Send), jmap/client types, test/support local_jmap (+ local_tls_ffi serve/2), transport_test; memory mem.fact.erlang.httpc-reason-shapes
@@ -32,7 +33,9 @@ fresh-as-of: 2026-10-26 · PHASE-03 completed at f1d6289; slice status started; 
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: PHASE-04 store (then 05 → 06 → 07 → 09; 08 independent)
+- Next: PHASE-05 sync orchestration (then 06 → 07 → 09; 08 independent)
+- PHASE-05/06 inherit (PHASE-04): sync writes through `store.write_snapshot` (I2 dump checks via `support/store_dump.dump`, also for the I1 sentinel); read verbs query via `store.read` + `store.select`; I8 test (PHASE-06/EX-2) needs a second connection committing mid-read — `store_dump` cannot see connection state
+- Operator note (2026-10-26): a read-only JMAP key is provisioned in 1Password — relevant to the live-run/deployment phase (PHASE-09), not used yet
 - PHASE-05 inherits (PHASE-03): the Email/get decoder builds `normalise.Email` (DEC-021) and must add its field names to `decode.path_fields`; sync calls `normalise.message(email, email_state, max_body_bytes)`; `--since` filter (PHASE-06) compares received_at_ms ≥ midnight ms
 - Reconcile: design § 9 I5 row and § 5.1 module table per DEC-020 (html_text imports screwtape/html_sax, not htmgrrrl; html_sax + screwtape_html_ffi are the catch boundary); design § 5.5 'Parse failure' also covers a parser crash; § 9 I5 row: gleam/io denied within gleam_stdlib, FFI rule is the beam import table, I6 literal scan is whole-literal only; CHR-002 upstream htmerl report (operator)
 - PHASE-05 inherits: `decode.path_fields` must grow with each new decoder (else paths truncate at the last known field); check a response's method name against its call (PHASE-10 review F8, deferred); a digits-only server map key still renders as `[n]` (accepted: digits only)
@@ -46,6 +49,14 @@ fresh-as-of: 2026-10-26 · PHASE-03 completed at f1d6289; slice status started; 
 - RFC-020 OQ-2, OQ-5, OQ-6, OQ-10, OQ-11
 - Research host checks 8 and 9: not run
 - CHR-001: swap the quotient pin to a published tag
+
+## PHASE-04 evidence
+
+- Probes (2026-10-26, orch erl against esqlite): `file:<p>?mode=ro` honoured (INSERT → 8 READONLY); missing file ro → 14 CANTOPEN; `PRAGMA user_version` inside a rolled-back `BEGIN IMMEDIATE` reverts. The nix check sandbox has no sqlite3 CLI (`nativeCheckInputs = [just]`), so `.dump` is the in-process `test/support/store_dump` (phase sheet D1).
+- Gate 225 passed; `nix flake check` gleam-test: check-imports ok, 225 passed.
+- Negative controls (orch, each reverted by copy, never git): (a) migrate-on-open → both `pending_migration` tests fail (EX-3); (b) forward-only loop (refusal removed) → `newer_schema…` fails (EX-4); (c) autocommit writes (no BEGIN/COMMIT) → 4 rollback tests fail (EX-2); (d) `foreign_keys=OFF` → `foreign_keys_refuse_a_dangling_mailbox` fails (EX-1); (e) write-path rollback removed → `a_failed_write_leaves_the_writer_usable` fails; (f) reader without `mode=ro` → missing-store and read-only tests fail (EX-5).
+- VT-4 is lexical over `store.gleam` plus the schema tests; `busy_timeout` 5 s and `BEGIN IMMEDIATE` have no automated test (review F3/F4 accepted): the reviewer's probe saw a lock-blocked write fail `write_failed` after ≈5 s, dump unchanged, writer reusable.
+- PHASE-04 review (pi `review`, deepseek-flash max, unanchored; timed out, continued with a request ceiling; $0.06). F1 accepted: `open_writer` sets WAL before the version check, so a non-WAL newer store flips to WAL — design § 5.2 puts WAL at open; I2/I10 are defined on dump + user_version; every store we meet is WAL. F2 fixed: rollback was hidden by close → reuse test. F3/F4 accepted (above). F5 fixed: `read` rolls back on a failed COMMIT. F6 accepted: a non-Latin-1 path is `open_failed` (esqlite Latin-1 filename), never a wrong write. F7 doc'd in store_dump. F8 fixed: missing-store test asserts no file is created.
 
 ## PHASE-03 evidence
 
@@ -152,3 +163,4 @@ Inquiry ids (`inq-N`) are the design run's; `doctrine design show 1`.
 - Next pass: an Opus reviewer as raiser (operator's choice) verifies the round-3 dispositions and attacks the redesign (user-unit hardening and credentials, loss of network-online ordering, module-eval-only I7 evidence, F-4 and F-16 premises changed by the redesign).
 - RV-001 pass 4 (2026-10-26): Opus subagent as raiser. Verified F-12, F-13, F-17, F-19..F-24, F-26 (reading inets source and running transient user units). Raised F-27 (I7 jail clause: same-uid jails launched from HOME see the store), F-28 (ProtectHome missing), F-29 (httpc option placement, zero budget), F-30 (@external), F-31 (leftovers). Operator ruled F-27: conditional I7 plus ~/flakes IMP-042, no gate. All five disposed fix-now.
 - RV-001 route backfill (2026-10-26): the lock gate refused ten verified severe findings without a route; the Opus raiser reopened them, the responder re-disposed with routes (control F-1, F-9, F-14, F-15; review F-2, F-3, F-10, F-11, F-16; F-4 aligned), and the raiser re-verified. Then locked.
+- Orchestration (2026-10-26, PHASE-04): orch = Opus; pi deepseek-flash. T2 test support $0.05, T3 contract tests $0.04, T4 store $0.07, review $0.05 + continuation $0.002 (wall-clock timeout). Operator: quotient execution is strictly sequential for now — the two T2/T3 runs queued, not parallel. pi got wrong: T3 claimed a ro open cannot read beside a live WAL writer (false; comment fixed) and could not express foreign_keys (orch added a behavioural FK test); T4 needed no fixes; the reviewer spent its budget on probes in a $TMPDIR copy and timed out before answering. Brief tuning: give reviewers a hard 'answer by' with a request ceiling; name the negative controls in the test brief.
