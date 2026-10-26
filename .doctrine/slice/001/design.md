@@ -474,7 +474,11 @@ invariant I6. Every request carries
 
   If the session has no mail capability, that is `Error.JmapRequest`.
 - **`Mailbox/get`** with `ids: null`, which fetches every mailbox and returns
-  the Mailbox `state`.
+  the Mailbox `state`. The same request also carries `Email/get` and
+  `Thread/get`, each with `ids: []`. They fetch no objects and return the
+  Email and Thread `state` before phase 1 begins (ISS-001). A server whose
+  `maxCallsInRequest` is below 3 refuses the request, and the run fails
+  with `Error.JmapRequest`.
 - **Phase 1, ids** (RV-001 F-10, F-11). The run pages `Email/query`
   requests that fetch ids only:
   - The filter is `{"operator":"OR","conditions":[{"inMailbox":…}, …]}`,
@@ -510,14 +514,20 @@ query-and-get request would. That is the price of fetching each message
 once, and of a membership list consistent with its `queryState`.
 
 For each type, `type_state` records the **earliest** state observed in the
-run:
+run. All three come from the first request, the one that carries
+`Mailbox/get`:
 
 - `Mailbox`, from `Mailbox/get`;
-- `Email`, from the first `Email/get`;
-- `Thread`, from the first `Thread/get`.
+- `Email`, from the empty `Email/get`;
+- `Thread`, from the empty `Thread/get`.
 
 By RFC 8620 §5.2, `/changes` from the earliest state covers everything that
-changed during the run.
+changed during the run. The Email and Thread states must precede phase 1.
+A state taken from a phase-2 `Email/get` would already include mail that
+arrived after the last query page, and the stored id list would lack it, so
+`/changes` from that state would never report it (ISS-001). Taking the
+state early has a harmless cost: mail that arrives during the run is
+reported again by M2's first `/changes` and stored again.
 
 <!-- doctrine:section sec-7 -->
 ### 5.3 Data, State & Ownership
@@ -641,8 +651,9 @@ sequenceDiagram
   CLI->>SY: run(client, writer, window, now)
   SY->>CL: session
   CL->>FM: GET session_url
-  SY->>CL: Mailbox/get
+  SY->>CL: Mailbox/get + Email/get [] + Thread/get [] (one request)
   CL->>FM: POST apiUrl
+  CL-->>SY: mailboxes; Mailbox, Email and Thread states
   loop phase 1: id pages (≤ max_pages, ≤ 3 attempts)
     SY->>CL: Email/query (ids only)
     CL->>FM: POST apiUrl
@@ -1050,7 +1061,9 @@ ceiling:
   - a server-clamped limit;
   - an unknown mailbox name;
   - an empty window commits;
-  - `type_state` holds the earliest state of each type.
+  - `type_state` holds the earliest state of each type: the states of the
+    first request, not those of any later `Email/get` or `Thread/get`
+    (ISS-001).
 - **cli:**
   - argv parsing and its usage errors (exit 2);
   - one JSON document on stdout per verb, and JSON-line diagnostics on

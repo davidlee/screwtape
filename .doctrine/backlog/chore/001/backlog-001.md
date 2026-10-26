@@ -51,9 +51,9 @@ Prerequisite for SL-001: the repo has no flake.
 - **Open:**
   - **The quotient input is pinned to a local commit,**
     `git+file:///home/david/dev/quotient?rev=dc46a9e`. The builder is not in
-    `v0.3.1`, so this repo only evaluates on this host. Swap the input to a
-    github tag once quotient publishes one, then rebuild, then re-run
-    `quotient allow` if the identities change.
+    `v0.3.1`, so this repo only evaluates on this host. The swap to a
+    published tag moved to CHR-003 (2026-10-26); SL-001 accepts the
+    host-local pin (PHASE-09/EN-3).
   - **The gateway model set is read from `"${agents}/gateway.nix"`,** an
     internal file of the agents flake, because `mkJailedAgents` exports
     `piGatewayConfig` but not the models. Design improvement: have the agents

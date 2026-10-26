@@ -7,8 +7,9 @@ authored in the TOML. Use this for the plan's rationale and sequencing.
 
 ## Overview
 
-Ten phases. Eight build this repo bottom-up, from packaging to the
-deployment module. One does the out-of-repo satan work. The last deploys
+Eleven phases. Eight build this repo bottom-up, from packaging to the
+deployment module. PHASE-11 fixes ISS-001, a sync-state race found in
+PHASE-05's review. One does the out-of-repo satan work. The last deploys
 through `~/flakes` and runs the live acceptance.
 
 ```text
@@ -27,6 +28,8 @@ PHASE-05 sync orchestration                    (extends F-1; needs PHASE-02/10's
 PHASE-06 read verbs                            (RV-001 F-15)
                              ▼
 PHASE-07 Home Manager module + package + README
+                             ▼
+PHASE-11 Email/Thread state before phase 1     (ISS-001; supersedes part of PHASE-05/EX-4)
                              ▼
 PHASE-09 deployment + live acceptance          (ASM-004, ASM-005, OQ-A)
 
@@ -122,6 +125,14 @@ fail F-14's assertion directly).
   oversized 503), after exactly one request.
 
 ## Notes
+
+- **PHASE-11 (added 2026-10-26).** PHASE-05's review found that the Email
+  and Thread `type_state`, taken from the first phase-2 get, can postdate
+  mail missing from the stored id list (ISS-001). The operator chose a new
+  phase over reopening PHASE-05, so PHASE-05's evidence stays true for what
+  it built. PHASE-11/EX-1 supersedes PHASE-05/EX-4's Email and Thread
+  sources; PHASE-05's ids and text are unchanged. It runs before PHASE-09,
+  so the deployed binary carries the fix.
 
 - **Parallelism.** PHASE-08 is file-disjoint from this repo and can run
   alongside any phase. Every other phase is serial.

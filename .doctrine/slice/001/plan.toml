@@ -224,6 +224,27 @@ specs        = []
 requirements = []
 
 [[phase]]
+id        = "PHASE-11"
+name      = "Email and Thread state before phase 1 (ISS-001)"
+objective = "Take the Email and Thread type_state from Email/get and Thread/get with ids: [], sent in the Mailbox/get request before phase 1 (design § 5.2 as amended for ISS-001, run revision 118), so M2's /changes from the stored state reports mail that arrives mid-sync. Supersedes PHASE-05/EX-4's sources for Email and Thread; its query_state half stands."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-05 exit criteria hold, and the design is relocked with the ISS-001 amendment (§§ 5.2, 5.4, 9; run revision 118)." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "The first request after the session carries three calls with distinct call ids: Mailbox/get (ids: null), Email/get (ids: []) and Thread/get (ids: []). type_state's Email and Thread rows hold the states of those two responses, never those of a phase-2 Email/get or Thread/get; Mailbox is unchanged. Each message's email_state is still the state of the chunk that delivered it." },
+  { id = "EX-2", text = "The empty-window special case (PHASE-05 A9) is gone: an empty phase-1 list sends no further Email/get or Thread/get, and the run commits all three states from the first request." },
+  { id = "EX-3", text = "I2: a method error on the first request's Email/get or Thread/get, or an answer missing one of the three responses, fails the run with .dump and PRAGMA user_version unchanged." },
+  { id = "EX-4", text = "The I1 sentinel suite (PHASE-10/EX-5, PHASE-05/EX-7) passes over the new first request; `just check` is green, including check-imports (I5, I6); `nix flake check` passes." },
+]
+verification = [
+  { id = "VT-1", expects = "first-request states differ from the phase-2 states, and type_state stores the first-request ones; the test fails the PHASE-05 implementation; the recorded first request holds the three calls with ids null, [] and []", test_file = "test/screwtape/sync_test.gleam", keywords = ["type_state", "earliest", "first_request", "ISS-001"], waived = false },
+  { id = "VT-2", expects = "empty window: no Email/get or Thread/get after the first request; commits with all three states", test_file = "test/screwtape/sync_test.gleam", keywords = ["empty_window", "first_request"], waived = false },
+  { id = "VT-3", expects = "a method error on either empty get, or a missing response, leaves .dump and user_version unchanged", test_file = "test/screwtape/sync_test.gleam", keywords = ["inject", "first_request", "dump", "user_version"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
 id        = "PHASE-08"
 name      = "satan op-unjailed check and RFC-020 drafts"
 objective = "The out-of-repo governance work in ~/dev/satan: the check-jails regression guard for 1Password paths (DEC-013) and the RFC-020 revision drafts (DEC-015)."
