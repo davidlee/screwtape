@@ -533,15 +533,16 @@
       "locked": {
         "lastModified": 1792855530,
         "narHash": "sha256-nwdcCU2lgXZ+C3kINjPBh33EW7W9U0ZCjRI8Vibh2dc=",
+        "owner": "davidlee",
+        "repo": "quotient",
         "rev": "dc46a9e02fda5c73da6c986a0a5ebf3cb3e5ef4d",
-        "revCount": 115,
-        "type": "git",
-        "url": "file:///home/david/dev/quotient"
+        "type": "github"
       },
       "original": {
+        "owner": "davidlee",
+        "repo": "quotient",
         "rev": "dc46a9e02fda5c73da6c986a0a5ebf3cb3e5ef4d",
-        "type": "git",
-        "url": "file:///home/david/dev/quotient"
+        "type": "github"
       }
     },
     "root": {

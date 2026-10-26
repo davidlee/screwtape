@@ -9,10 +9,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     jail-nix.follows = "agents/jail-nix";
-    # The form-family builder (quotient SL-003) is not on a published tag yet:
-    # pinned to the local commit until one is (CHR-001).
+    # The form-family builder (quotient SL-003), pinned to the commit the
+    # forms were built against; a published tag is CHR-003.
     quotient = {
-      url = "git+file:///home/david/dev/quotient?rev=dc46a9e02fda5c73da6c986a0a5ebf3cb3e5ef4d";
+      url = "github:davidlee/quotient/dc46a9e02fda5c73da6c986a0a5ebf3cb3e5ef4d";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     doctrine.url = "github:davidlee/doctrine";
