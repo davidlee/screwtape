@@ -1,9 +1,9 @@
 id = 1
 slug = "m1-mirror"
 title = "Screwtape M1: Gleam JMAP mirror, full bounded sync"
-status = "design"
+status = "plan"
 created = "2026-10-25"
-updated = "2026-10-25"
+updated = "2026-10-26"
 tags = ["belphegor", "mail", "jmap", "gleam"]
 
 [relationships]
@@ -16,19 +16,68 @@ intent = "scope-relevant"
 
 [[selector]]
 selector = "test/**"
-intent = "scope-relevant"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
 
 [[selector]]
 selector = "gleam.toml"
-intent = "scope-relevant"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
 
 [[selector]]
 selector = "flake.nix"
-intent = "scope-relevant"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
 
 [[selector]]
 selector = "README.md"
-intent = "scope-relevant"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
+
+[[selector]]
+selector = "manifest.toml"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
+
+[[selector]]
+selector = "src/screwtape.gleam"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
+
+[[selector]]
+selector = "src/screwtape/**"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
+
+[[selector]]
+selector = "src/screwtape_ffi.erl"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
+
+[[selector]]
+selector = "nix/package.nix"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
+
+[[selector]]
+selector = "nix/module.nix"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
+
+[[selector]]
+selector = "justfile"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
+
+[[selector]]
+selector = "src/screwtape_http.erl"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact"
+
+[[selector]]
+selector = "nix/**"
+intent = "design-target"
+note = "SL-001 plan PHASE-07 (module-eval check)"
 
 # STRUCTURAL relations are uniform `[[relation]]` rows, never a typed
 # `[relationships]` axis. Slices carry no typed STRUCTURAL

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 11
+slug = "screwtape-cli-five-verbs-hand-matched-argv-versioned-json-on-stdout-exit-012"
+title = "Screwtape CLI: five verbs, hand-matched argv, versioned JSON on stdout, exit 0/1/2"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "SL-001 needs sync plus human read verbs; OQ-11 may make CLI JSON the M3 contract."
+choice = 'Verbs: sync (service-only, run by the screwtape user unit; RV-001 F-18); mailboxes; list [--mailbox] [--since] [--from] [--unread] [--limit <=500, default 50] [--offset]; read <id> [--max-bytes]; thread <id>. Hand-matched argv. stdout one JSON document in a {"version":1,...} envelope; stderr JSON-line diagnostics. Exit 0/1/2. The module-installed wrapper only adds --config (DEC-017).'
+alternatives = ["clip or glint parsing"]
+rationale = "Minimal dependencies; the version envelope keeps the CLI usable as a contract."
+consequences = ["The wrapper is a one-line shell script"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

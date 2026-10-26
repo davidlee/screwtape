@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 3
+slug = "human-reads-of-the-screwtape-store-go-through-a-sudo-u-screwtape-re-exec-the-operator-is-not-in-the"
+title = "Human reads of the Screwtape store go through a sudo -u screwtape re-exec; the operator is not in the store's group"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "A dedicated uid only hides the store if the read path is itself gated. Group membership would reopen access to every unjailed process running as the operator."
+choice = "Read verbs (mailboxes, list, read, thread) re-exec themselves under `sudo -u screwtape` when not already running as the store owner (llm-gateway DEC-050 precedent). The operator is not added to any store group. Only the owner uid ever opens the SQLite file. M3 consumer access is decided at M3, by that consumer's own unit configuration."
+alternatives = ["a read group with the operator as member", "defer; plain manual sudo -u with no re-exec"]
+rationale = "Keeps the store closed to the operator uid's processes; avoids cross-uid SQLite WAL/-shm permission problems; leaves RFC-020 OQ-11 open (CLI JSON works through sudo; versioned views would need a read group granted to the M3 unit only)."
+consequences = ["sudo drops the environment, so read verbs must not depend on caller env beyond argv; configuration is baked into the deployed wrapper", "A sudoers rule decides whether reads prompt; that is host configuration in ~/flakes", "OQ-11 gains a constraint: either contract form must be reachable from a different uid"]
+decided_by = "operator (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = ["DEC-017"]   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

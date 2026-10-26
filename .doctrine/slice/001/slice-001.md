@@ -22,9 +22,23 @@ Operator decisions this slice builds on, all from 2026-10-26 and recorded in
 RFC-020:
 
 - Gleam on BEAM.
-- SQLite, under `~/.local/state/screwtape/`.
-- The token is read from an `op://` reference when the unit starts. No token
-  file exists.
+- SQLite, in Screwtape's own state directory.
+- The token's source is 1Password, with no cleartext token file.
+
+**Amended in design (2026-10-26, DEC-001, DEC-004, DEC-016, DEC-017).** The research showed that
+resolving `op://` when the unit starts prompts on every run. So instead:
+
+- The operator provisions the token once per rotation into a user-scoped
+  encrypted systemd credential (`op read | systemd-creds encrypt --user`,
+  the llm-gateway pattern at user scope).
+- A Home Manager `systemd --user` unit, running as the operator, loads it
+  with `LoadCredentialEncrypted=`.
+- The store sits in that unit's 0700 `StateDirectory`, under the `$HOME`
+  that the operator's jails shadow.
+- Humans read it directly; the wrapper only supplies `--config`.
+  (DEC-016 and DEC-017 superseded an earlier dedicated-uid and `sudo -u`
+  design: the operator's uid already reaches the same mail, and the jail is
+  the boundary.)
 - M1 and M2 (incremental sync) stay separate.
 - Emacs has no part in it.
 - SATAN will consume Screwtape through an explicit, versioned contract (form
@@ -39,8 +53,9 @@ Prerequisite: CHR-001, the flake bootstrap (devshell, checks, quotient forms).
      - session discovery;
      - `Mailbox/get`;
      - `Email/query`;
-     - `Email/get` with `fetchTextBodyValues` / `fetchHTMLBodyValues` and
-       `maxBodyValueBytes`;
+     - `Email/get` with `fetchTextBodyValues` and `maxBodyValueBytes`. An
+       HTML-only message presents its HTML in `textBody` (RFC 8621 §4.1.4),
+       so `fetchHTMLBodyValues` is not needed (design § 5.2);
      - `Thread/get`.
 
      It is not a general-purpose client and offers no pass-through for
@@ -65,24 +80,36 @@ Prerequisite: CHR-001, the flake bootstrap (devshell, checks, quotient forms).
      - `sync`, the verb the unit runs;
      - read verbs over the store for humans: `mailboxes`, `list`, `read`,
        `thread`.
-   - **The token** reaches the process only through its environment. It never
-     appears in argv, logs, errors or the store, and tests assert this.
+   - **The token** reaches the process only as a file in
+     `$CREDENTIALS_DIRECTORY` (DEC-001, DEC-012). It never appears in argv,
+     logs, errors or the store, and tests assert this.
    - **The flake package output** (CHR-001 provides the devshell, checks and
      forms).
+   - **A Home Manager module** (`homeManagerModules.default`, DEC-004)
+     providing:
+     - the options: `op://` ref, window and bounds, timer;
+     - the `systemd --user` oneshot service plus timer with hardening
+       (DEC-016);
+     - the JSON config file (DEC-009);
+     - the provisioning command (`op read | systemd-creds encrypt --user`);
+     - a `screwtape` wrapper that adds `--config` (DEC-011, DEC-017).
 2. **Deployment in `~/flakes`:**
-   - the package input;
-   - a oneshot user service plus timer that resolves the `op://` reference at
-     start (`op run`, after the jailed-agents precedent in
-     `~/flakes/agents/README.md`);
-   - the state directory.
+   - the `screwtape` input;
+   - a feature whose `homeManager` key imports the module and sets the ref
+     and window;
+   - optionally, lingering for the operator, so the timer runs while logged
+     out;
+   - host facts in `SATAN.md`.
 3. **satan:**
    - a `check-jails` assertion (satan's `justfile` and `flake.nix` checks,
      where `check-jails` lives) that the `op` wrapper and the 1Password app's
-     sockets reach no jail that holds model output. The abstract socket is
-     included (RFC-020 D3; research finding 2).
-   - update RFC-020 with settled findings;
-   - add Screwtape to SPEC-002 (satan's context spec) if design says it
-     belongs there.
+     sockets, or a directory above one, are bound into no jail that holds
+     model output (DEC-013). It is a regression guard for known paths, not
+     proof of NF-004. The abstract socket rests on 1Password's GID check
+     (ASM-003, unvalidated; satan RSK-021 owns the negative probe).
+   - drafts of RFC-020 revisions (D3, OQ-4, D7 row 10, the OQ-7 drift) for the
+     operator to commit (DEC-015);
+   - the SPEC-002 entry is deferred to M3 (DEC-015).
 
 ## Non-Goals
 
@@ -101,10 +128,12 @@ Prerequisite: CHR-001, the flake bootstrap (devshell, checks, quotient forms).
 
 ## Affected surface
 
-- This repo: `gleam.toml`, `src/**`, `test/**`, `flake.nix`, `README.md`.
-- `~/flakes`: package input, the `features/` unit and timer.
-- `~/dev/satan`: `justfile` and `flake.nix` (the `check-jails` assertion), `.doctrine/rfc/020/`, and possibly
-  `.doctrine/spec/tech/002/`.
+- This repo: `gleam.toml`, `manifest.toml`, `src/**`, `test/**`, `flake.nix`
+  (package, checks, `homeManagerModules`), `nix/**`, `README.md`.
+- `~/flakes`: the `screwtape` input, a feature with a `homeManager` key,
+  `SATAN.md`.
+- `~/dev/satan`: `justfile` and `flake.nix` (the `check-jails` assertion), and
+  `.doctrine/rfc/020/` (drafts only).
 
 ## Risks, assumptions, open questions
 
@@ -119,20 +148,17 @@ Prerequisite: CHR-001, the flake bootstrap (devshell, checks, quotient forms).
   - request caps (`maxObjectsInGet`, `maxCallsInRequest`) and rate limits;
   - `Email/queryChanges` support, which matters for M2 but shapes the schema
     now.
-- **1Password in a timer (RFC-020 OQ-4, unverified):**
-  - Can a non-interactive user unit resolve a ref through the desktop
-    integration?
-  - What happens when the app is locked? The assumption is that the run fails
-    loudly and the previous store stands.
-  - Does the integration authorise each calling process?
-- **Assumption:** the user unit runs as `david` (implied by `op://`, RFC-020
-  D3).
-- **Risk:** plaintext mail on disk is readable by unjailed processes running
-  as `david` (RFC-020 D3). It is accepted for M1 and must be stated in the
-  README.
-- **Live run:** one read-only sync against the real account. It needs a
-  read-only token created by the operator in Fastmail, with its `op://` ref
-  supplied.
+- **1Password in a timer (RFC-020 OQ-4).** This was settled in design: `op`
+  leaves the run-time path (DEC-001).
+- **Packaging risk:** the esqlite NIF must build offline (ASM-001), so plan
+  phase 1 is a spike (DEC-005).
+- **Risk:** mail is plaintext on disk, readable by the operator's uid and
+  root, as the operator's existing Gnus and Thunderbird copies are; jails
+  don't see it (DEC-016). The README must state this.
+- **Live run:** one read-only sync against the real account. It needs:
+  - a read-only token, created by the operator in Fastmail;
+  - its `op://` ref;
+  - one provisioning run.
 
 ## Verification / closure intent
 
@@ -158,9 +184,10 @@ Prerequisite: CHR-001, the flake bootstrap (devshell, checks, quotient forms).
 ## Summary
 
 Screwtape M1 is a Gleam (BEAM) oneshot that mirrors a bounded window of
-Fastmail mail into SQLite, using a read-only token resolved from 1Password at
-start. It has a human JSON CLI and is deployed as a user timer from
-`~/flakes`.
+Fastmail mail into SQLite. It uses a read-only token, provisioned from
+1Password into an encrypted systemd credential. It has a human JSON CLI, and
+runs as a hardened `systemd --user` timer under the operator's uid. The module ships
+from this repo, and `~/flakes` enables it.
 
 ## Follow-Ups
 

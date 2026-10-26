@@ -1,0 +1,34 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 2
+slug = "htmgrrrls-event-api-suffices-for-a-text-extraction-fold"
+title = "htmgrrrl's event API suffices for a text-extraction fold"
+record_kind = "assumption"
+status = "held"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+claim = "htmgrrrl 1.0.1 exposes SAX events (start/end element with attributes, characters, entity-decoded) sufficient for the inq-10 fold."
+confidence = "medium"
+basis = "external-source"
+validation_plan = "Read the htmgrrrl API and write the first html_text tests early in the plan."
+validated_by    = ""
+validated_on    = ""
+invalidated_by  = ""
+invalidated_on  = ""
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

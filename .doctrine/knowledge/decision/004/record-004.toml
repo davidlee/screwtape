@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 4
+slug = "screwtapes-flake-exports-a-nixos-module-flakes-only-enables-and-configures-it"
+title = "Screwtape's flake exports a Home Manager module; ~/flakes only enables and configures it"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Screwtape is a systemd --user unit (DEC-016), so it needs a Home Manager module. Precedents: attrd exports a Home Manager module from its own repo; ~/flakes features carry a homeManager key."
+choice = "screwtape's flake exports homeManagerModules.default providing options (enable, package, op ref, sync window and bounds, timer schedule), the user oneshot service, the timer, hardening, the generated config, the screwtape read wrapper, and screwtape-provision wrapping op read | systemd-creds encrypt --user. ~/flakes adds the screwtape input (nixpkgs.follows), a feature with a homeManager key enabling it, and host facts in SATAN.md."
+alternatives = ["a NixOS module (when the unit was a system unit; DEC-002)", "unit", " timer and provisioning defined inline in ~/flakes (gateway precedent)"]
+rationale = "Unit configuration (bounds, credential id, hardening) changes with the code it configures; keeping them in one repo raises cohesion and lets screwtape test its own module. ~/flakes keeps only host facts."
+consequences = ["screwtape's flake gains a homeManagerModules output and an eval check", "The 1Password ref is a public module option set in ~/flakes"]
+decided_by = "operator (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

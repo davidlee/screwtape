@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 2
+slug = "screwtape-runs-as-a-nixos-system-unit-under-a-dedicated-static-screwtape-user"
+title = "Screwtape runs as a NixOS system unit under a dedicated static `screwtape` user"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "With op out of the run-time path (DEC-001), RFC-020 D3's objection to a dedicated uid (it would need a service-account bootstrap token) no longer holds (research finding 7)."
+choice = "A oneshot system service plus timer, User=Group=screwtape (isSystemUser), StateDirectory=screwtape mode 0700, UMask 0077, gateway-style hardening (ProtectSystem=strict, ProtectHome, PrivateTmp, PrivateDevices, NoNewPrivileges, empty CapabilityBoundingSet, RestrictAddressFamilies AF_UNIX/AF_INET/AF_INET6, SystemCallFilter=@system-service), TimeoutStartSec bounding a run."
+alternatives = ["systemd --user oneshot running as the operator"]
+rationale = "Hides the plaintext store from the operator uid's unjailed processes, closing RFC-020 D3's plaintext-store gap; host+tpm2 encrypted credentials are system-scoped, matching the llm-gateway precedent."
+consequences = ["Deployed as a nixos feature, not homeManager", "Store path comes from StateDirectory ($STATE_DIRECTORY), satisfying SPEC-002 NF-006", "Human and M3 reads need a sanctioned path (DEC for inq-3)"]
+decided_by = "operator (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = ["DEC-016"]   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

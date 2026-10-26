@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 8
+slug = "screwtape-sync-is-fetch-all-then-one-transaction-replacing-the-accounts-rows"
+title = "Screwtape sync is fetch-all-then-one-transaction replacing the account's rows"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "A failed sync must leave the previous store intact, and repeated full syncs must replace, not duplicate."
+choice = "Two-phase fetch: phase 1 pages Email/query ids under one queryState (restart up to twice, else QueryUnstable); phase 2 Email/get each unique id once (RV-001 F-10, F-11). Then one write: BEGIN IMMEDIATE; apply pending migrations; delete every row of every data table; insert the snapshot; COMMIT. Any failure means nothing, schema included, changes. WAL; readers use one read transaction per verb (RV-001 F-15); sync is service-only so runs never overlap (RV-001 F-18)."
+alternatives = ["build a temp database and rename it over the store"]
+rationale = "Atomic and simple; migrations apply in place; memory is bounded by max_total_bytes."
+consequences = ["M1 store is a snapshot of the window: mail leaving the window disappears"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

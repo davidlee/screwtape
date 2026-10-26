@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 16
+slug = "screwtape-runs-as-a-home-manager-systemd-user-oneshot-under-the-operators-uid-with-the-store-in-its"
+title = "Screwtape runs as a Home Manager systemd --user oneshot under the operator's uid, with the store in its 0700 StateDirectory"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-26"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-002 put Screwtape under a dedicated system uid to hide the store from the operator's unjailed processes. The operator's threat model (2026-10-26): jails are the safety boundary; unjailed processes running as the operator are trusted. Those processes already reach the same mail (Gnus ~/Mail and ~/News, the Thunderbird profile) and likely a full-access Fastmail session (the Fastmail flatpak's data directory). The operator's jails shadow $HOME with a bind under the agents user. systemd 256+ supports user-scoped encrypted credentials (systemd-creds --user), which defeats DEC-002's reason for rejecting a user unit. The operator would drop Screwtape if the separate uid added much friction."
+choice = "A Home Manager systemd --user oneshot service plus timer, running as the operator. StateDirectory=screwtape resolves to ~/.local/state/screwtape, mode 0700, UMask 0077, so the store sits inside the $HOME that jails shadow. The token is a user-scoped credential (systemd-creds encrypt --user) loaded with LoadCredentialEncrypted=. Hardening is the subset that works in a user unit (ASM-005). Lingering, so the timer runs while logged out, is a host decision in ~/flakes."
+alternatives = ["a NixOS system unit under a dedicated screwtape uid (DEC-002)", "a NixOS system unit with User= set to the operator and the store in /var/lib"]
+rationale = "Against jails, the boundary is the $HOME shadow plus 0700, and it holds. Against the operator's own processes, a separate uid adds little: the mail and a stronger credential are already reachable. Dropping it removes the sudo wrapper, the sudoers rule and the VM test of that boundary, and lets the operator open the store directly. A system unit with User= set to the operator would put the store in /var/lib, outside the shadowed $HOME."
+consequences = ["Supersedes DEC-002", "The decrypted token is readable by the operator's processes while a run is live (in $XDG_RUNTIME_DIR/credentials) - accepted under this threat model", "The flake exports homeManagerModules.default (DEC-004)", "Human reads need no sudo (DEC-017)", "The timer runs only while the user manager runs unless lingering is enabled"]
+decided_by = "operator (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = ["DEC-002"]   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

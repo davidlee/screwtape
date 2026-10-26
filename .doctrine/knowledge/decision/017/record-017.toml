@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 17
+slug = "human-reads-open-the-screwtape-store-directly-as-the-operator-no-sudo-re-exec"
+title = "Human reads open the Screwtape store directly as the operator; no sudo re-exec"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-26"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-016 runs Screwtape as the operator, so the store is owned by the operator's uid."
+choice = "Read verbs open the store read-only as the caller. The Home Manager module installs a screwtape wrapper that only adds --config <generated path>. No sudo, no sudoers rule, no re-exec."
+alternatives = ["sudo -u screwtape re-exec with an authenticating sudoers rule (DEC-003)"]
+rationale = "With no uid boundary there is nothing for a re-exec to cross; it would be friction without protection."
+consequences = ["Supersedes DEC-003", "The NOPASSWD question disappears", "M3 consumers running as the operator read the store directly; OQ-11's two contract forms both remain possible"]
+decided_by = "operator (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = ["DEC-003"]   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

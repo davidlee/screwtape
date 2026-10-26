@@ -1,0 +1,34 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 5
+slug = "systemd-user-units-run-the-beam-under-the-planned-hardening-and-load-user-scoped-encrypted"
+title = "systemd user units run the BEAM under the planned hardening and load user-scoped encrypted credentials"
+record_kind = "assumption"
+status = "held"
+created = "2026-10-26"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+claim = "Under systemd 262's user manager, the screwtape oneshot runs the BEAM with NoNewPrivileges, PrivateTmp, ProtectSystem=strict, ProtectHome=tmpfs, RestrictAddressFamilies, SystemCallFilter=@system-service, LimitCORE=0, UMask=0077 and MemoryMax=; and systemd-creds encrypt --user produces a credential that LoadCredentialEncrypted= in the user unit decrypts."
+confidence = "medium"
+basis = "external-source"
+validation_plan = "Partly checked by the RV-001 round-3 reviewer with transient user units running sh and a dummy credential (2026-10-26): each key takes effect except that ProtectSystem=strict leaves HOME and XDG_RUNTIME_DIR writable (hence ProtectHome=tmpfs, F-28); StateDirectory and LoadCredentialEncrypted work with ProtectHome=tmpfs; systemd-creds encrypt --user works unprivileged; the credential id must match the encrypt-time name; %E expands. Remaining: the real BEAM under these keys, and whether user-scoped credentials are TPM-bound. Deployment phase: provision, start, read the journal; relax only a failing key, recording which."
+validated_by    = ""
+validated_on    = ""
+invalidated_by  = ""
+invalidated_on  = ""
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

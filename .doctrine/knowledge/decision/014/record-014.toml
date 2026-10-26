@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 14
+slug = "screwtape-error-model-one-error-type-type-string-only-diagnostics"
+title = "Screwtape error model: one Error type, type-string-only diagnostics"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Tests cover auth/API errors, malformed responses, limits and missing messages; diagnostics must not leak token or mail content."
+choice = "Error variants: Config, Credential, Http (timeout, connect, TLS, status), Auth (401/403), RateLimited, JmapRequest, JmapMethod, Decode (path), LimitExceeded (max_pages | max_total_bytes), QueryUnstable, Store (incl. no_snapshot, schema_mismatch). Each renders as one stderr JSON line with type strings only. main's guard maps any crash to a generic internal error with the OTP logger silenced (RV-001 F-1). notFound ids are skipped and counted."
+alternatives = ["free-text error messages including response bodies"]
+rationale = "Diagnosable without leaking content; maps cleanly to exit codes (DEC for inq-11)."
+consequences = []
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

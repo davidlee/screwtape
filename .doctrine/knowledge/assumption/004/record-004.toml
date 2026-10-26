@@ -1,0 +1,34 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 4
+slug = "screwtape-m1-serves-one-fastmail-account"
+title = "Screwtape M1 serves one Fastmail account"
+record_kind = "assumption"
+status = "held"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+claim = "The read-only token's session exposes one mail account, used as primaryAccounts[urn:ietf:params:jmap:mail]; account_id keys exist for safety, not multi-account sync."
+confidence = "high"
+basis = "operator-judgement"
+validation_plan = "Live acceptance run records the session's accounts."
+validated_by    = ""
+validated_on    = ""
+invalidated_by  = ""
+invalidated_on  = ""
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

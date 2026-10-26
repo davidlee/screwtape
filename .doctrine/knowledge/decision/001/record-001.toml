@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 1
+slug = "screwtape-token-custody-provision-once-into-systemd-creds-load-with-loadcredentialencrypted"
+title = "Screwtape token custody: provision once into systemd-creds, load with LoadCredentialEncrypted"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "op:// at unit start prompts on every timer run (SL-001 research P10); approving while locked unlocks the vault (P3)."
+choice = "The operator provisions the Fastmail read-only token once per rotation: op read --no-newline <ref> piped into systemd-creds encrypt --user --name=fastmail (a user-scoped credential, DEC-016), staged and moved into ~/.config/credstore.encrypted/screwtape.fastmail only if both succeed. The user unit loads it with LoadCredentialEncrypted=; Screwtape reads $CREDENTIALS_DIRECTORY/fastmail."
+alternatives = ["op:// resolved at unit start (RFC-020 D3 as written)", "token resolved once per login into a 0600 tmpfs file", "1Password service account"]
+rationale = "No run-time prompt, no cleartext file, no bootstrap secret; 1Password stays source of truth; reuses the proven llm-gateway mechanism (~/flakes features/agents/gateway.nix, gateway/llm-gateway credentials)."
+consequences = ["Token reaches Screwtape as a credentials-directory file, not an environment variable: SL-001 scope amendment", "op leaves the run-time path; RFC-020 OQ-4 host tests 3-7 no longer gate design", "RFC-020 D3 needs revising (operator assent)"]
+decided_by = "operator (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

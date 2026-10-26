@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 6
+slug = "screwtape-module-layout-pure-core-one-injected-http-seam"
+title = "Screwtape module layout: pure core, one injected HTTP seam"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "SL-001 needs a thin, non-general JMAP client (no library exists, research finding 6) and fixture-driven tests without real credentials."
+choice = "Modules: screwtape (main: silence logger, guard, argv -> cli.run -> halt); cli (-> config, sync, store, render, screwtape_http); sync (effectful orchestration -> jmap/client, normalise, store); jmap/client (-> jmap/request, jmap/decode, credential) taking an injected Send = fn(Request(String), Int) -> Result(Response(String), HttpFailure), the Int being the remaining byte cap; production Send is screwtape_http.erl, a synchronous FFI over OTP httpc passing max_body_size = the cap for every status, autoretry 0 and autoredirect false (gleam_httpc exposes neither option; RV-001 F-12, F-19, F-20); normalise (pure, -> model, html_text); store (sqlight: writer/reader opens, snapshot write, read transactions); pure: html_text, model, jmap/request (closed Method type), jmap/decode, config parsing."
+alternatives = ["one module per JMAP method", "generic JMAP client"]
+rationale = "One effect seam lets tests replay fixtures with no HTTP server; pure modules carry most logic; matches brief §7 jmap/model/reader/cli boundaries with few cohesive modules."
+consequences = ["No pass-through for arbitrary JMAP requests", "Wormwood may later reuse jmap and model as a library (RFC-020 D6)"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

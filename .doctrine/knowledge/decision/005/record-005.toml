@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 5
+slug = "screwtape-packaging-is-proven-by-a-walking-skeleton-spike-as-plan-phase-1"
+title = "Screwtape packaging is proven by a walking-skeleton spike as plan phase 1"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "esqlite is a C NIF built via rebar3 pc; nix-gleam documents the pc override but an offline nix flake check build is unproven (research finding 3). A spike is code, so it cannot run before an approved plan."
+choice = "Plan phase 1 is a walking skeleton: a Gleam project using sqlight, gleam_httpc and an FFI halt, built by nix-gleam (rebar3 with pc) as an erlang-shipment, with gleam test running offline under nix flake check. It also checks stdout flushing on halt and CA certificates (TLS handshake outside the sandbox). Fallback 1: ESQLITE_USE_SYSTEM against nixpkgs sqlite; fallback 2: stop and consult."
+alternatives = ["spike during design", "escript export"]
+rationale = "Settles the riskiest unknown before any domain code depends on it; an escript cannot load a NIF .so from its archive."
+consequences = ["Design commits to sqlight contingent on ASM (sqlight builds offline)", "manifest.toml pins esqlite"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

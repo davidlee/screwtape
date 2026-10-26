@@ -1,0 +1,1256 @@
+id    = 1
+slug  = "design-review-of-sl-001"
+title = "design review of SL-001"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "codex"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "codex adversarial design pass completed against SL-001 design.md, scope, DEC-001..015, ASM-001..004, satan RFC-020 (DEC-001 supersedes its token mechanism), POL-001 and SPEC-002 REQ-013/016/018. Read the design before the existing ledger, then inspected the gateway credential/admin/hardening and satan launcher-scan precedents, primary RFC 8620/8621, gleam_httpc 5.0.0 source, nix-gleam builder, and SQLite/systemd/1Password documentation. Raised F-9..F-16 major and F-17..F-18 minor; overall revision required. F-10/F-11 challenge F-2's fixes and F-18 challenges F-6's concurrency fix. Did not alter or disposition F-1..F-8. Verified synthetic per-part/aggregate and paging counterexamples and in-memory SQLite migration, fractional timestamp ordering/filtering and multi-query read reproductions. Module decomposition is coherent; plan-phase references do not independently warrant findings. Back-reference shape and textBody/fetchTextBodyValues choice are supported by the RFCs, while query recovery/bounds contracts need the recorded corrections. No confirmed token exfiltration asserted. No real token/account, op/sudo provisioning, abstract-socket denial, jail launch, hardened unit activation, BEAM worker/VM crash, NIF/offline packaging build, or nix flake check was performed; those remain unverified, including ASM-001 and ASM-003. New findings remain open for the responder. Changes were confined to RV-001's metadata, prose brief and findings/conclusion."
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "codex round 2 complete. Read all 18 original findings first and checked each response against current SL-001 design §§1-10, scope, DEC-001..015, ASM-001..004, satan RFC-020/POL-001/SPEC-002 REQ-013/016/018 and ISS-028. Verified F-1..F-11, F-14..F-16 and F-18 at design/disposition level; contested F-12/F-13/F-17. Raised F-19..F-22 major and F-23/F-24/F-26 minor; F-25 withdrawn for incorrect evidence attribution and replaced by F-26 without editing its immutable raise. No original finding has an instrument route; no criterion or runtime check was treated as passed. Attacked streaming/status/framing/retry/TLS/error handling, two-phase JMAP state handoffs, transactional DDL/newer versions, read snapshots/service-only serialization, offline VM evidence boundaries and narrowed satan ownership. Synthetic OTP loopback probes proved error buffering and a hidden retry; in-memory SQLite and exact dependency-release sources supported transaction and precision analysis. The RV brief records the full coverage, repairs and limits. No implementation, VM/Nix/NIF/WAL integration, live token/account, provisioning/TPM, host TLS, jail or service validation was performed. Only RV-001 authored files were changed; no commit. Pass concluded with nine outstanding responder items: three contested originals and seven open new findings (ten total); the ledger's derived count is authoritative."
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Round-2 count correction and final handback: the derived ledger shows TEN outstanding responder items (6 major, 4 minor): contested F-12/F-13/F-17 plus open F-19/F-20/F-21/F-22/F-23/F-24/F-26. F-25 is withdrawn; fifteen original findings are verified. This corrects the preceding conclude basis's accidental word 'nine'; its explicit arithmetic and the ledger state were ten. Scope, evidence, limitations and only-RV-001 write boundary remain as recorded in the round-2 brief. The raiser pass is concluded; unresolved responses remain the responder's work."
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+opus round 3: read design.md (run revision 97) in full before the ledger. Checked DEC-001, DEC-004, DEC-006, DEC-007, DEC-009, DEC-011, DEC-013, DEC-016, DEC-017, ASM-003, ASM-005; satan RSK-021 and ISS-028; ~/flakes/agents/jailed-agents.nix (jail uid, launch-dir bind). Read OTP 28.5.0.8 inets-9.6.2.4 httpc.erl, httpc_handler.erl, httpc_response.erl, http_chunk.erl, http_internal.hrl. systemd 262: man systemd.exec, systemd-creds, systemd.special; transient systemd-run --user experiments in the scratchpad testing each listed hardening key, ProtectHome, StateDirectory, and LoadCredentialEncrypted with a dummy user-scoped credential (no real secret); systemd-analyze --user verify for %E expansion. Lix 2.95.4 flake check of a homeManagerModules output. Verified F-12, F-13, F-17, F-19, F-20, F-21, F-22, F-23, F-24, F-26. Already-verified F-4, F-6, F-7 and F-16 left as they are: F-4 is moot under DEC-017; F-6 is restated correctly for a user manager (network-online.target is not-found in this user manager); F-7 is carried by ASM-005; F-16's mapping exists, and the I7 jail-half gap after the redesign is raised as F-27 rather than reopening. New: F-27 major, F-28 minor, F-29 minor, F-30 nit, F-31 nit. Not verified: a BEAM run under the hardening (sh only), a live HM module-eval, TPM binding of user-scoped credentials, and whether the production harness actually runs with HOME bound (ISS-028 says probable).
+"""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+opus round 3 (second pass, run revision 98): checked the F-27 to F-31 responses against design.md 2, 5.1, 5.2, 5.4, 5.5, 9 and 10; DEC-004, DEC-013 and ASM-005; ~/flakes IMP-042; and ~/flakes features/satan/attrd.nix for the attrd precedent. Verified F-28, F-29, F-30 and F-31. Contested F-27 in part: the launch-directory condition leaves out the credential and ~/.config/systemd/user, it is worded three different ways, and IMP-042's mandatory scope is narrower than I7's condition. No new findings.
+"""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+opus round 3 (third pass): verified F-27 against the amended I7, the pi-dev jail guard in ~/nushell/mod/pi-dev/mod.nu and the narrowed ~/flakes IMP-042. Residual wording note recorded: add ~/.config to I7's gap list and align design 2 and 5.1. No new findings.
+"""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+opus round 3 (fourth pass, design revision 100): verified F-27 against the I7 launch condition, its references in 2, 5.1, 9 and DEC-013, ~/flakes IMP-042 and the pi-dev guard. No new findings.
+"""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "opus round 3: re-verified F-1, F-2, F-3, F-4, F-9, F-10, F-11, F-14, F-15 and F-16 after route backfill. Checked each control response for its criterion, the incorrect candidate it must reject, and the host-phase constraint, against design 9. No new findings."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-001"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "major"
+title = "Crash reports can print the revealed token"
+detail = "I1 assumes only explicit outputs leak. A panic (let assert, function_clause) in a frame holding the revealed bearer header, or an httpc worker crash, makes OTP logger print crash reports to stderr with arguments/state, including the Authorization header. Neither the Token closure nor the Error type prevents this. Fix: at startup set the OTP logger primary level to none (FFI); main rescues any exception and emits a generic internal error; no let assert on token-carrying paths; redaction tests add a forced-crash case inside the client."
+disposition = "fix-now"
+response = """
+Route control (backfill; content unchanged). Design 5.2 crash containment: logger silenced (silence_logger/0), main under guard/1 emitting only a generic internal error, no let assert or panic in credential or jmap/client; erl_crash.dump and core dumps closed by ERL_CRASH_DUMP_SECONDS=0 and LimitCORE=0 (5.4, module-eval). Control: a sentinel token runs through each failure path and a crash forced inside the client, as a subprocess of the built shipment against local_jmap; the criterion asserts the sentinel is absent from stdout, stderr, inspected errors and the store dump. The incorrect candidate it must reject is a build without guard/1 or with the logger left at its default level, which prints the crashing frame. Host-phase constraint: the phase that introduces the client and credential carries this test, and no later phase may add a token-holding code path without extending it (design 9, I1).
+"""
+route = "control"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.2 crash containment: logger silenced (silence_logger/0), main under guard/1 emitting a generic internal error, no let assert/panic in credential or jmap/client. Sibling sweep added erl_crash.dump and core dumps: ERL_CRASH_DUMP_SECONDS=0, LimitCORE=0 (§5.4, module-eval test). I1 extended; redaction tests add a forced crash (§9)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED at design level. §5.2 lines 351-366 silences OTP logging before client work, guards cli.run with a generic error, forbids token-path panic/assert, and disables VM/core dumps through §5.4 lines 666-669. DEC-014 matches crash handling. §9 I1 adds shipment-subprocess sentinels, production transport and forced-crash coverage. This addresses the crash-report channel raised, not just explicit Error rendering. There is no implementation/runtime redaction proof yet; the new HTTP error-buffering defect is F-19, not evidence of a token leak."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Route control (backfill; content unchanged). Design 5.2 crash containment: logger silenced (silence_logger/0), main under guard/1 emitting only a generic internal error, no let assert or panic in credential or jmap/client; erl_crash.dump and core dumps closed by ERL_CRASH_DUMP_SECONDS=0 and LimitCORE=0 (5.4, module-eval). Control: a sentinel token runs through each failure path and a crash forced inside the client, as a subprocess of the built shipment against local_jmap; the criterion asserts the sentinel is absent from stdout, stderr, inspected errors and the store dump. The incorrect candidate it must reject is a build without guard/1 or with the logger left at its default level, which prints the crashing frame. Host-phase constraint: the phase that introduces the client and credential carries this test, and no later phase may add a token-holding code path without extending it (design 9, I1).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route control. The criterion (the sentinel is absent from stdout, stderr, inspected errors and the store dump, across every failure path plus a crash forced inside the client, run as a subprocess of the built shipment against local_jmap) matches the design 9 I1 row. The incorrect candidate (no guard/1, or the logger at its default level) would print the crashing frame, so the sentinel would reach stderr and the test rejects it. Host-phase constraint stated: the client and credential phase, extended by any later token-holding path. Content unchanged from the round-1 verification."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "major"
+title = "Position paging can duplicate ids and break the snapshot write"
+detail = "Email/query pages by position. New mail arriving mid-sync shifts positions, so an id can appear on two pages; the INSERT then hits the message primary key and every busy sync fails with Store. Fix: deduplicate ids across pages before Email/get bookkeeping/snapshot; if queryState differs between pages, store query_state as absent so M2 falls back to a full resync."
+disposition = "fix-now"
+response = """
+Route review (backfill). Superseded in substance by the F-10 and F-11 repairs: the seen-set and null query_state described in the original response are gone. Current design 5.2: phase 1 pages Email/query for ids only and must see one queryState across pages, restarting at most twice, else QueryUnstable with the store unchanged; phase 2 fetches each id exactly once. Duplicates cannot reach the snapshot write; I3 tests assert each id requested once on the recorded wire requests (design 9).
+"""
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.2: ids deduplicated across pages via a seen-set; deletions may skip a message until next run; query_state stored null if queryState differs between pages. §5.5 edge case and §9 sync tests added; DEC-008 choice updated."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED against the current stronger replacement. §5.2 lines 439-465 separates coherent id collection from unique-id gets; §5.5 lines 745-750 and §9 I3 require no duplicates and reject unstable membership. DEC-008 agrees. The response's older null-query_state/skip proposal is obsolete: F-10/F-11 supersede it with bounded restart and a non-null coherent queryState. Stable positional query results (RFC 8620 §5.5) plus the unique-id contract prevent duplicate inserts and duplicate requests. No runtime sync was tested."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Route review (backfill). Superseded in substance by the F-10 and F-11 repairs: the seen-set and null query_state described in the original response are gone. Current design 5.2: phase 1 pages Email/query for ids only and must see one queryState across pages, restarting at most twice, else QueryUnstable with the store unchanged; phase 2 fetches each id exactly once. Duplicates cannot reach the snapshot write; I3 tests assert each id requested once on the recorded wire requests (design 9).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route review. The refreshed response correctly records that the seen-set and null query_state were superseded by the F-10/F-11 two-phase design (design 5.2: one queryState, at most two restarts, each id fetched once). Duplicates cannot reach the write, and the 9 I3 wire-level test checks it."
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "major"
+title = "Which state string type_state records is unspecified"
+detail = "Email/Thread states differ per response across pages. For M2 /changes to miss nothing, type_state must record the earliest state observed per type in the run (first Mailbox/get, first Email/get, first Thread/get). Design must say so."
+disposition = "fix-now"
+response = """
+Route review (backfill; content unchanged). Design 5.2 and 5.3: type_state records the earliest state observed per type in the run (Mailbox from Mailbox/get, Email from the first Email/get, Thread from the first Thread/get), so /changes from it covers the whole run (RFC 8620 5.2). Sync test asserts it (design 9).
+"""
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.2 and §5.3: type_state records the earliest state per type in the run (RFC 8620 §5.2); §9 test added."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §5.2 lines 473-481 explicitly chooses the first /get state per type; §5.3 type_state and DEC-007 retain that rule; §9 lines 926-927 names its test. States remain opaque, not lexically ordered. This is a per-type future /changes baseline, not a cross-method point-in-time snapshot or a promise that a server will retain changes history forever (RFC 8620 §§5.1-5.2)."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Route review (backfill; content unchanged). Design 5.2 and 5.3: type_state records the earliest state observed per type in the run (Mailbox from Mailbox/get, Email from the first Email/get, Thread from the first Thread/get), so /changes from it covers the whole run (RFC 8620 5.2). Sync test asserts it (design 9).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route review. Content unchanged: design 5.2 and 5.3 record the earliest state per type in the run, and a sync test asserts it."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "major"
+title = "NOPASSWD sudoers would reopen the store to all operator processes"
+detail = "DEC-003 closes the store to the operator uid's unjailed processes only if sudo requires authentication. §5.4 leaves the rule to host config as if it were cosmetic. With NOPASSWD, any unjailed operator-uid process (e.g. the malebolge runner) reads mail via the wrapper, restoring RFC-020 D3's gap. Design must state the rule requires authentication (timestamp caching allowed) and name NOPASSWD as a boundary change needing operator assent."
+disposition = "aligned"
+response = """
+Route review (backfill). Moot under the operator's 2026-10-26 ruling: Screwtape runs as the operator in a systemd user unit (DEC-016, superseding DEC-002) and reads the store directly (DEC-017, superseding DEC-003). There is no sudo wrapper or sudoers rule, so no NOPASSWD question. The protection it guarded is now I7: other uids are excluded by 0700 and UMask, and jails by I7's launch condition (design 5.5).
+"""
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.4: sudoers rule must require authentication (timestamp caching allowed); NOPASSWD named as a boundary change needing operator assent; §6 lists the question for the operator."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §5.4 lines 671-684 requires authenticating sudo, explicitly permits timestamp caching and identifies NOPASSWD as an operator-assented boundary change. §6 lines 794-796 and DEC-011 agree; DEC-011 expressly refines the older host-config wording of DEC-003. §9 I7 tests cold-cache sudo -n refusal and allowed reads. This verifies the required deployment contract, not the actual host sudoers."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "aligned"
+route = "review"
+response = """
+Route review (backfill). Moot under the operator's 2026-10-26 ruling: Screwtape runs as the operator in a systemd user unit (DEC-016, superseding DEC-002) and reads the store directly (DEC-017, superseding DEC-003). There is no sudo wrapper or sudoers rule, so no NOPASSWD question. The protection it guarded is now I7: other uids are excluded by 0700 and UMask, and jails by I7's launch condition (design 5.5).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route review and disposition aligned. The finding is moot: DEC-016 and DEC-017 remove the sudo wrapper and sudoers rule (design.md has no sudo re-exec). The protection it guarded now lives in I7: 0700 plus UMask against other uids, and the launch condition against jails (RV-001 F-27)."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "Snapshot delete should clear the whole store, not one account"
+detail = "Deleting only the current account's rows leaves stale rows if the account id ever changes (new token). Under ASM-004, replace all rows in every table."
+disposition = "fix-now"
+response = "§5.4: write_snapshot clears every data table, not one account's rows; DEC-008 updated; I3 reworded."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.4: write_snapshot clears every data table, not one account's rows; DEC-008 updated; I3 reworded."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §5.4 lines 613-619 deletes every data table before inserting the single-account snapshot; §5.5 I3 rejects leftovers; DEC-008's choice matches, despite its older account-row title. This addresses token/account-id changes under ASM-004."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "Unit lacks network-online ordering and busy_timeout is unstated"
+detail = "screwtape.service should be After=/Wants=network-online.target; store.open should set busy_timeout so a manual sync during a timer run waits briefly before Error.Store."
+disposition = "fix-now"
+response = "§5.4: After=/Wants=network-online.target; §5.5: store.open sets busy_timeout 5 s."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.4: After=/Wants=network-online.target; §5.5: store.open sets busy_timeout 5 s."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §5.4 lines 657-662 specifies both After and Wants on network-online.target; §5.2 open_writer and §5.5 lines 769-771 specify WAL and busy_timeout=5 s for brief contention. §9 module-eval asserts ordering. The later F-18 repair correctly assigns whole-run serialization to the supported service-only lifecycle rather than busy_timeout."
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "BEAM under the gateway's hardening is untested"
+detail = "SystemCallFilter=@system-service and the other keys were validated for Python (gateway), not BEAM. The risk table omits it; first deploy may fail on a filtered syscall. Mitigation: validate in the deployment phase with journal inspection; relax only the failing key."
+disposition = "fix-now"
+response = "§8 risk row added: validate BEAM under hardening in the deployment phase; relax only the failing key."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§8 risk row added: validate BEAM under hardening in the deployment phase; relax only the failing key."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED as a validation obligation. §8 line 856 names BEAM under inherited syscall hardening, deployment journal inspection and relaxing only the failing key. §9 I7 additionally requires the full hardened unit to succeed in module-vm. This preserves deployment validation; no BEAM service or VM was built/run here."
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "nit"
+title = "Sync failures are silent to the operator"
+detail = "A failing timer run only shows in the journal. Name it as an open question (e.g. OnFailure notification) rather than leave it implicit; M1 need not solve it."
+disposition = "follow-up"
+response = "Parked as an open question in §6 (OnFailure notification); not needed for M1."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "follow-up"
+response = "Parked as an open question in §6 (OnFailure notification); not needed for M1."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §6 lines 797-798 explicitly names silent journal-only failures and later OnFailure notification while excluding it from M1. This meets the finding's requested open-question treatment; notification delivery is not claimed."
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "major"
+title = "maxBodyValueBytes bounds each part, while the slice promises a per-message body bound"
+detail = """
+codex. Evidence: SL-001 Scope & Objectives requires per-message body bytes; design.md §5.2 lines 241-246 configures max_body_bytes and lines 410-413 passes it directly as maxBodyValueBytes. §5.3 stores multiple body rows per message. RFC 8621 §4.2 applies maxBodyValueBytes to each EmailBodyValue, and §4.1.4 permits multiple textBody parts: https://www.rfc-editor.org/rfc/rfc8621.html#section-4.2 .
+
+Verified counterexample with synthetic values: max_body_bytes=262144; one message with two selected parts of exactly 262144 bytes each satisfies the server limit with both isTruncated=false, but its combined body is 524288 bytes. The broader max_total_bytes ceiling does not enforce the promised per-message limit. This can arise in ordinary multipart/mixed mail, not just a malformed response.
+
+Repair: distinguish a per-part fetch limit from an aggregate per-message body limit, and define whether exceeding the latter fails the run or truncates the normalized output with explicit metadata. Test multiple selected body parts whose individual sizes fit but whose sum exceeds the configured per-message bound, including converted HTML output. Renaming the current setting to a per-part limit alone would leave the slice's stated per-message requirement unmet."""
+disposition = "fix-now"
+response = """
+Route control (backfill; content unchanged). max_body_bytes bounds stored body text per message, cumulative over parts after HTML conversion, enforced in normalise with UTF-8-safe byte cuts and truncated_by message_limit; still sent as maxBodyValueBytes (design 5.2, 5.5 I4 and edge case). Control: two parts that each fit but together exceed max_body_bytes, plain and HTML after conversion; the criterion asserts the second is cut at a UTF-8 boundary and marked message_limit. The incorrect candidate it must reject is per-part enforcement only (relying on maxBodyValueBytes), which stores both parts whole. Host-phase constraint: the normalise phase carries it (design 9, I4).
+"""
+route = "control"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted. max_body_bytes is now per message, cumulative over parts after HTML conversion, enforced in normalise with UTF-8-safe byte cuts and truncated_by=message_limit; still sent as maxBodyValueBytes (§5.2, §5.5 I4 and edge case, §9 I4 row). DEC-009 updated."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §5.2 lines 267-271 distinguishes the server's per-part fetch ceiling from aggregate stored bytes per message. §5.5 lines 733-738 specifies cumulative counting after HTML conversion, valid UTF-8 prefixes and metadata on subsequent parts. §9 I4 covers two individually fitting parts, including converted HTML. DEC-009 agrees. No normalization implementation was executed."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Route control (backfill; content unchanged). max_body_bytes bounds stored body text per message, cumulative over parts after HTML conversion, enforced in normalise with UTF-8-safe byte cuts and truncated_by message_limit; still sent as maxBodyValueBytes (design 5.2, 5.5 I4 and edge case). Control: two parts that each fit but together exceed max_body_bytes, plain and HTML after conversion; the criterion asserts the second is cut at a UTF-8 boundary and marked message_limit. The incorrect candidate it must reject is per-part enforcement only (relying on maxBodyValueBytes), which stores both parts whole. Host-phase constraint: the normalise phase carries it (design 9, I4).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route control. The criterion (two parts that each fit but together exceed max_body_bytes, plain and HTML after conversion; the second is cut at a UTF-8 boundary and marked message_limit) matches design 5.5 and the 9 I4 row. The incorrect candidate (per-part enforcement through maxBodyValueBytes alone) stores both parts whole and fails it. Host phase: normalise."
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "major"
+title = "The F-2 fix cannot deduplicate Email/get ids before a paired server-side back-reference fetch"
+detail = """
+codex. Evidence: design.md §5.2 lines 403-413 sends Email/query and Email/get together with #ids pointing to /ids, while lines 431-433 promise repeats are removed before requesting them; §9 lines 814-815 requires each repeated id to be fetched once. RFC 8620 §3.7 resolves that reference on the server: https://www.rfc-editor.org/rfc/rfc8620.html#section-3.7 .
+
+Verified structural contradiction: after a first page [A,B], a shifted second page [B,C] causes the already-submitted Email/get to fetch [B,C]. sync's seen-set can discard B only after this fetch. It cannot alter the reference to [C]. This challenges RV-001 F-2's chosen fix, rather than re-raising its original duplicate-primary-key defect. Duplicate inserts can be prevented, but the specified request behavior and its test cannot both be implemented.
+
+Repair: choose one contract: separate query and get so the client can filter ids, or retain paired requests and explicitly deduplicate only normalization/insertion, accepting repeated body downloads and charging them to the byte budget. Position advancement must use raw query ids, while window accounting uses the chosen unique/successful-message count. Test the actual paired wire request, not a fake that performs client-side filtering between its two methods."""
+disposition = "fix-now"
+response = """
+Route review (backfill; content unchanged). Separate requests: phase 1 pages Email/query ids only; phase 2 Email/get fetches each unique id once (design 5.2, 5.4 sequence). The wire-level test asserts each id requested once (design 9, I3). DEC-008 records it.
+"""
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted; chose separate requests. Phase 1 pages Email/query ids only; phase 2 Email/get each unique id once (§5.2, §5.4 sequence). The wire-level test asserts each id requested once (§9 I3). DEC-008 updated."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §5.2 lines 439-459 and the §5.4 sequence collect ids first and perform separate unique-id Email/get requests. §9 I3 asserts each id once on recorded requests; DEC-008 agrees. The paired server-side result-reference fetch that made pre-fetch deduplication impossible is gone."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Route review (backfill; content unchanged). Separate requests: phase 1 pages Email/query ids only; phase 2 Email/get fetches each unique id once (design 5.2, 5.4 sequence). The wire-level test asserts each id requested once (design 9, I3). DEC-008 records it.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route review. Content unchanged: phase 1 collects ids only, phase 2 fetches each unique id once (design 5.2, the 5.4 sequence), with the wire-level test in 9 I3."
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "major"
+title = "Nulling a changed query_state commits an inconsistent query instead of recovering it"
+detail = """
+codex. Evidence: design.md §5.2 lines 434-439 explicitly accepts skipped messages during position paging and records null query_state when pages differ; §5.5 I3 promises exactly the window snapshot. RFC 8620 §5.5 requires refreshing the cached query or applying queryChanges after queryState changes: https://www.rfc-editor.org/rfc/rfc8620.html#section-5.5 .
+
+Verified protocol conflict in the response to RV-001 F-2: persisting null is neither recovery operation. Inference from the specified algorithm: with results [A,B,C,D], page 1=[A,B], deletion of A, and page 2 at position 2=[D], the commit can retain A and omit C. The snapshot need never have existed upstream. Referring to M2 does not repair the M1 run, since M2 is not implemented. The earliest Email/get state is not a substitute for a consistent query-membership list.
+
+Repair: on a changed queryState, restart/reconcile the id query within a bounded attempt/page budget, or fail without replacing the previous store when a coherent result cannot be obtained. Keep fetched immutable content cached if useful. Add a deletion-between-pages test that asserts recovery or rollback, not successful commitment of the mixed result."""
+disposition = "fix-now"
+response = """
+Route review (backfill; content unchanged). A queryState change restarts phase 1, at most twice; a third change is Error.QueryUnstable with the store unchanged; query_state is never null (design 5.2, 5.3, 5.5 I3; design 9 I3). DEC-008 and DEC-014 record it.
+"""
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted. A queryState change restarts phase 1 (at most two restarts); a third change is Error.QueryUnstable with the store unchanged. query_state is never null (§5.2, §5.3, §5.5 I3, §9 I3). DEC-008/014 updated."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §5.2 lines 451-455 and §5.5 lines 745-747 discard/restart phase 1 on changed queryState, with at most two restarts then QueryUnstable and no commit. query_state stores the settled non-null state (§5.3 line 520); §9 I3 and DEC-008/014 agree. This implements RFC 8620 §5.5 cache recovery rather than committing a mixed list with a null state. Content may change after the query; the invariant now explicitly concerns query membership minus notFound, not an upstream multi-method atomic snapshot."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Route review (backfill; content unchanged). A queryState change restarts phase 1, at most twice; a third change is Error.QueryUnstable with the store unchanged; query_state is never null (design 5.2, 5.3, 5.5 I3; design 9 I3). DEC-008 and DEC-014 record it.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route review. Content unchanged: a changed queryState restarts phase 1 at most twice, then QueryUnstable with the store unchanged; query_state is never null (design 5.2, 5.3, 5.5 I3, 9 I3)."
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "major"
+title = "The response-byte ceiling is checked after the transport has buffered an unbounded body"
+detail = """
+codex. Evidence: design.md §5.2 lines 349-375 defines Send as returning Response(String), implements it with gleam_httpc, and places Budget in jmap/client; §8 line 769 claims max_total_bytes bounds memory. gleam_httpc 5.0.0 dispatch_bits (src/gleam/httpc.gleam lines 97-164) calls synchronous httpc:request and receives the complete binary body before returning; dispatch then converts it to String. Source: https://github.com/gleam-lang/httpc/blob/v5.0.0/src/gleam/httpc.gleam .
+
+Verified by source inspection: jmap/client cannot inspect or cancel a response while Send is still receiving it. Inference: a large Email/get, Thread/get, error body or session response can exhaust memory before LimitExceeded is returned; even an honest multipart message can make a page much larger than expected. A fake Send returning a prebuilt oversized String only tests rejection after allocation.
+
+Repair: put an incremental receive-and-cancel byte limit in the production transport, pass it the remaining aggregate budget (including the session and non-2xx responses), and test that a local oversized/chunked response is stopped while receiving it. If the existing library cannot expose that behavior, settle the transport seam before implementation; an additional systemd memory limit is containment, not proof of this application ceiling."""
+disposition = "fix-now"
+response = """
+Accepted; the streaming transport is replaced. The production Send is now one synchronous httpc request passing max_body_size equal to the remaining budget. Verified by source inspection of OTP 28.5.0.8 inets 9.6.2.4: httpc_handler handle_http_body applies the check with no status condition (only 1xx, 204, 304 and HEAD skip it, and they carry no body); a Content-Length above the cap fails with body_too_big before the body is read (line 1014), and a chunked body fails at the first chunk header that would pass the cap (http_chunk.erl line 165). A close-delimited body is assumed unbounded and is contained by MemoryMax, stated as containment (design 5.2). Control: an oversized fixed-length 500 and an oversized chunked 500 from local_jmap, each with its terminal bytes withheld, must yield TooLarge while the server is still withholding; the concrete incorrect candidate the test must reject is an adapter that buffers the whole body before checking (plain gleam_httpc or async httpc without max_body_size). Host-phase constraint: the transport phase must pass this before any later phase relies on the byte ceiling (design 9, transport proof). The F-19 and F-20 dispositions carry the same criterion.
+"""
+route = "control"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted. The production Send is screwtape_http.erl over OTP httpc in streaming mode with cancel at the remaining budget, covering session and non-2xx bodies; gleam_httpc dropped. Test against local_jmap (inets on loopback) while streaming. MemoryMax= added as containment only (§5.2, §5.4, §8, §9 I4, §10). DEC-006 updated."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "CONTEST. The promised pre-buffering bound is still false for error/redirect bodies: §5.2 lines 393-397 selects httpc streaming but claims it also covers non-2xx, whereas OTP streams only 200/206. A local OTP 28.5.0.8 chunked-500 probe delivered the completed 8192-byte body without any streaming callback. The immutable new defect and repair are F-19; default hidden 503 retries additionally violate aggregate accounting (F-20). Replacing gleam_httpc with async httpc does not by itself settle this finding. Supply a transport that demonstrably bounds all statuses/framing before receipt completes; if instrument-routed, state the assertion and require its host transport phase to pass before later phases rely on the ceiling."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Accepted; the streaming transport is replaced. The production Send is now one synchronous httpc request passing max_body_size equal to the remaining budget. Verified by source inspection of OTP 28.5.0.8 inets 9.6.2.4: httpc_handler handle_http_body applies the check with no status condition (only 1xx, 204, 304 and HEAD skip it, and they carry no body); a Content-Length above the cap fails with body_too_big before the body is read (line 1014), and a chunked body fails at the first chunk header that would pass the cap (http_chunk.erl line 165). A close-delimited body is assumed unbounded and is contained by MemoryMax, stated as containment (design 5.2). Control: an oversized fixed-length 500 and an oversized chunked 500 from local_jmap, each with its terminal bytes withheld, must yield TooLarge while the server is still withholding; the concrete incorrect candidate the test must reject is an adapter that buffers the whole body before checking (plain gleam_httpc or async httpc without max_body_size). Host-phase constraint: the transport phase must pass this before any later phase relies on the byte ceiling (design 9, transport proof). The F-19 and F-20 dispositions carry the same criterion.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. Checked against design.md 5.2 (production Send, lines 401-430) and 9 (transport proof), DEC-006, DEC-009, and OTP 28.5.0.8 inets-9.6.2.4 source read independently. httpc_handler.erl handle_http_body (lines ~965-1040): the only status-conditional clause is 204/304/1xx without chunking, plus HEAD; the general clause applies max_body_size for any other status. Identity framing compares Content-Length to the cap and answers body_too_big without waiting for the body (only bytes that arrived with the headers are held). Chunked framing calls http_chunk:decode with the cap; http_chunk.erl decode_size (~line 165) throws body_too_long when AccLength + ChunkSize exceeds it, at the chunk header. A response with no Content-Length gets the record default content-length "-1" (http_internal.hrl line 64), which passes the cap check, so the design is right to treat close-delimited bodies as unbounded and contained only by MemoryMax. The control (oversized fixed-length and chunked 500 with withheld tails; reject buffer-then-check) and the host-phase constraint are stated on the ledger and in design 9. Two adjacent defects in how the option is passed (option-list placement, and a zero remaining budget) are raised separately as a new minor finding; they do not undo this repair.
+"""
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "major"
+title = "The launcher-string scan and socket-identification probe do not establish the claimed 1Password boundary"
+detail = """
+codex. Evidence: design.md §1 promises no model-output jail reaches op or app sockets; §7 DEC-013/§10 lines 879-881 prescribe scanning forbidden leaf literals. The copied runnerSocketUnjailed implementation at ~/dev/satan/flake.nix:660-682 scans only outer/inner script text. That same file:646-652 already handles bind arguments in a separate runtime-closure file, which the copied scanner never opens. ~/flakes/agents/jailed-agents.nix:347-350 also supplies generated --args descriptors. ASM-003 and design.md §6 lines 704-705 say host check 8 (ss -xp during op read) validates the abstract-socket GID defense.
+
+Verified synthetic counterexample: a launcher containing --ro-bind /run /run --ro-bind /home /home matches none of the proposed op/socket leaf literals while exposing those descendant paths. This demonstrates a scan false negative, not an exploited deployed jail. Inspecting ss identifies an endpoint but does not test denial for a jail process, its effective GID, or no_new_privs. The documented GID check is useful evidence: https://www.1password.dev/cli/app-integration-security . It does not make the endpoint-identification probe an access-control test.
+
+Repair: assert effective mount/environment/identity constraints, including ancestor binds and referenced --args inputs; inject a broad bind to prove the assertion fails. Add a secret-free negative IPC probe from each relevant jail class, recording its effective groups and no_new_privs, for the reachable abstract endpoint. Until then label ASM-003 unvalidated and the scan a regression heuristic, not sufficient evidence for SPEC-002 REQ-016."""
+disposition = "fix-now"
+response = """
+Ownership resolved. The remaining arm (abstract-socket negative probe) is now owned by satan RSK-021, which states the probe, a control distinguishing an authorisation reset from an unrelated connection failure, and the failure disposition (an NF-004 violation needing remediation). ASM-003 validation_plan and design 5.5, 6, 8, 9 cite it. It does not gate SL-001: the exposure predates Screwtape, which calls op only at provisioning and adds a read-only token to a vault that already holds higher-value items; the operator chose a satan-owned item over a slice gate. The filesystem scan stays a regression guard, as you verified.
+"""
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted in part. The scan now covers --args and runtime-closure files, forbids the ancestors /run, /run/wrappers and /run/user/<uid>, and has a positive-control launcher; the design and scope call it a regression guard, not NF-004 proof. ASM-003 is marked unvalidated, with a negative probe from inside each jail class as its plan. Narrowed: whole-home binds are not forbidden here (they expose only the SSH agent socket, and ISS-028 owns them). The probe is satan-side follow-up (§1, §5.5, §6, §8, §9). DEC-013 and ASM-003 updated."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "CONTEST in part. The current design correctly labels the expanded filesystem scan a regression guard, adds --args/runtime-closure traversal and a broad-bind control, and marks ASM-003 unvalidated (§1, §5.5, §9; DEC-013). I accept that fixing every pre-existing home bind is outside this slice. But the response's fix-now disposition moves the abstract-endpoint negative probe to unspecified satan-side follow-up without an owned delivery/gate: current ISS-028 contains no 1Password probe or SL-001 dependency. §6 lines 781-785 and ASM-003's validation_plan describe an experiment, not when it must pass or what happens on failure. The new ownership/gating defect is F-21. Supply an owned pre-deployment criterion/host-phase constraint, or explicitly resolve the residual risk through governance; do not treat a narrowed scope as proof of REQ-016 or as ownership of the remaining obligation. No actual credential bypass is asserted."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Ownership resolved. The remaining arm (abstract-socket negative probe) is now owned by satan RSK-021, which states the probe, a control distinguishing an authorisation reset from an unrelated connection failure, and the failure disposition (an NF-004 violation needing remediation). ASM-003 validation_plan and design 5.5, 6, 8, 9 cite it. It does not gate SL-001: the exposure predates Screwtape, which calls op only at provisioning and adds a read-only token to a vault that already holds higher-value items; the operator chose a satan-owned item over a slice gate. The filesystem scan stays a regression guard, as you verified.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED for the 1Password boundary this finding raised. Design 1, 5.5 (ASM-003), 6, 8 and 9 call the op-unjailed scan a regression guard for known paths, not NF-004 proof; the scan covers --args and runtime-closure files and has a broad-bind positive control (DEC-013). The abstract-endpoint negative probe has a durable owner: satan RSK-021 (doctrine show RSK-021 in ~/dev/satan) states the probe per jail class, records uid/gids and NoNewPrivs, specifies a control distinguishing an authorisation reset, and gives the failure disposition (REQ-016 violation, remediate). Not gating SL-001 is an operator ruling recorded in the response and ASM-003. Caveat: the response's narrowing 'whole-home binds expose only the SSH agent socket' (design 9 line ~1031) was true when the store lived under a separate uid in /var/lib; after DEC-016 a home bind also exposes the store and the encrypted credential. That is a new defect introduced by the redesign and is raised as a new finding, not a reason to contest this one.
+"""
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "major"
+title = "Migrations commit before fetching, contradicting the unchanged-store guarantee on failed sync"
+detail = """
+codex. Evidence: design.md §5.3 lines 454-459 makes store.open apply migrations in its own transaction; §5.4's sequence opens/migrates before session discovery (lines 547-551). Lines 564-569 and I2 (lines 641-642) promise that failure before snapshot commit leaves every table unchanged. §9's atomicity test starts from an existing store but never specifies a pending migration.
+
+Verified in-memory SQLite reproduction of this ordering: create populated schema v1; BEGIN; ALTER TABLE message ADD COLUMN preview TEXT; PRAGMA user_version=2; COMMIT; then simulate session failure. The SQL dump differs and user_version remains 2. Transactional migration protects against a failed migration, not against a later failed sync. A migration that rewrites rows makes the data-preservation impact more than a version-number change. The same store.open contract also leaves the depicted read-only CLI open underspecified.
+
+Repair: define the migration boundary explicitly. To retain I2, fetch first and commit migrations and replacement together, with the necessary writer coordination; otherwise obtain agreement to narrow I2 to preservation of the last readable mail snapshot across a separately successful upgrade. Split read-only opens from writer/migration opens. Add failure-after-successful-migration and migration-failure rollback cases, including schema, user_version and prior mail data."""
+disposition = "fix-now"
+response = """
+Route control (backfill; content unchanged, extended by F-22). Migrations run only inside write_snapshot's transaction; open_writer does not migrate; open_reader is read-only and refuses no_snapshot or schema_mismatch; the writer also refuses a newer user_version (design 5.2, 5.3, 5.4). Control: a store with a pending migration and a run that then fails before commit; the criterion asserts the store's .dump and PRAGMA user_version are unchanged, and a failing migration rolls back. The incorrect candidate it must reject is migrate-on-open (migrations committed before fetching), which leaves the schema advanced. Host-phase constraint: the store phase that introduces migrations carries it (design 9, I2).
+"""
+route = "control"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted, keeping I2. Migrations run inside write_snapshot's transaction; open_writer does not migrate; open_reader is read-only and refuses no_snapshot or schema_mismatch (§5.2, §5.3, §5.4). Tests cover failure after a pending migration and migration rollback (§9 I2). DEC-007 updated."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED for the finding as raised. §5.2 lines 415-420, §5.3 lines 486-493, §5.4 lines 611-623 and DEC-007/008 put known migrations and replacement in the same BEGIN IMMEDIATE transaction, with no migration on open_writer and read-only readers. sqlight 1.2.0 src/sqlight_ffi.erl:27-31 forwards exec; esqlite 0.10.0 c_src/esqlite3_nif.c:432 delegates to sqlite3_exec without a wrapper auto-commit. An in-memory SQLite probe confirmed ALTER TABLE, user_version and row replacement all roll back together. SQLite WAL snapshot isolation supports already-active readers retaining their earlier schema/data view (https://www.sqlite.org/isolation.html). §9 I2 includes pending/failing migrations. Query PRAGMA user_version separately: a standard SQLite .dump does not include it, as checked with Python iterdump. This is logical schema/version/data atomicity, not physical file-byte identity, and not a packaged esqlite/WAL test. The separate unknown-newer-schema hole is F-22."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Route control (backfill; content unchanged, extended by F-22). Migrations run only inside write_snapshot's transaction; open_writer does not migrate; open_reader is read-only and refuses no_snapshot or schema_mismatch; the writer also refuses a newer user_version (design 5.2, 5.3, 5.4). Control: a store with a pending migration and a run that then fails before commit; the criterion asserts the store's .dump and PRAGMA user_version are unchanged, and a failing migration rolls back. The incorrect candidate it must reject is migrate-on-open (migrations committed before fetching), which leaves the schema advanced. Host-phase constraint: the store phase that introduces migrations carries it (design 9, I2).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route control. The criterion (a pending migration, then a failure before commit; .dump and PRAGMA user_version unchanged; a failing migration rolls back) matches the design 9 I2 row, which now compares user_version. The incorrect candidate (migrate-on-open) commits the migration before fetching, so user_version advances and the test rejects it. The F-22 refusal is mentioned and evidenced separately by I10. Host phase: the store phase that introduces migrations."
+
+[[finding]]
+id = "F-15"
+status = "verified"
+severity = "major"
+title = "WAL alone does not give a multi-query read command one consistent snapshot"
+detail = """
+codex. Evidence: design.md §5.2 describes read returning headers, addresses, bodies and provenance and thread returning membership plus message summaries; §5.3 normalizes these into separate tables. §5.5 lines 690-691 relies on WAL for concurrent readers. §5.4 specifies the writer transaction, but no transaction spans each read command, and §9 has no reader-across-commit case. SQLite explains that a WAL snapshot belongs to a read transaction: https://www.sqlite.org/isolation.html .
+
+Verified in-memory SQLite reproduction of the permitted autocommit behavior: read the old subject from message; let another connection atomically replace message/body rows and commit; read body on the first connection. The assembled result is ('old subject', 'new body'). This reproduction demonstrates the transaction requirement; it is not a runtime test of an unimplemented Screwtape reader or WAL deployment. Inference: a normal implementation using separate store queries can produce mixed headers/body/provenance or incomplete thread output during a timer commit.
+
+Repair: require a single explicit read transaction on one connection for all queries that assemble a CLI response (or one SQL statement that provides the same guarantee), ending before slow output. Add a deterministic test that pauses after the first query, commits a replacement on a second connection, resumes, and requires a wholly old or wholly new response."""
+disposition = "fix-now"
+response = """
+Route control (backfill; content unchanged). Each read verb runs all its queries in one read transaction through store.read (design 5.2, 5.4); invariant I8. Control: read runs its first query, pauses on an injected hook while a second connection commits a new snapshot, then resumes; the criterion asserts its output is wholly from the old snapshot. The incorrect candidate it must reject is per-query autocommit reads under WAL, which mix snapshots. Host-phase constraint: the phase that introduces the read verbs carries it (design 9, I8).
+"""
+route = "control"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted. Each read verb runs all its queries in one read transaction through store.read (§5.2, §5.4). New invariant I8, tested by pausing a reader across a concurrent commit (§9)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §5.2 store.read at lines 418-420 and §5.4 lines 675-677 place every query assembling a read command in one transaction; §5.5 I8 and DEC-008 agree. §9 I8 pauses a reader after its first query, commits via another connection and requires wholly old output. SQLite's documented WAL read-transaction semantics support this; WAL alone would not. No deployed reader or esqlite concurrency test was run."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Route control (backfill; content unchanged). Each read verb runs all its queries in one read transaction through store.read (design 5.2, 5.4); invariant I8. Control: read runs its first query, pauses on an injected hook while a second connection commits a new snapshot, then resumes; the criterion asserts its output is wholly from the old snapshot. The incorrect candidate it must reject is per-query autocommit reads under WAL, which mix snapshots. Host-phase constraint: the phase that introduces the read verbs carries it (design 9, I8).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route control. The criterion (read pauses after its first query on an injected hook, a second connection commits, and the output must be wholly old) matches the design 9 I8 row. The incorrect candidate (per-query autocommit under WAL) sees the new snapshot after the pause and produces mixed output, which the test rejects. Host phase: the read-verb phase."
+
+[[finding]]
+id = "F-16"
+status = "verified"
+severity = "major"
+title = "The promised invariant tests omit the deployed access boundary and allowed-call enforcement"
+detail = """
+codex. Evidence: design.md §5.5 line 636 says every I1-I7 invariant is enforced by tests. §9 lines 774-779 routes client tests through fake Send; lines 824-828 check redaction under that fake and a guarded exception; lines 833-837 only evaluate module settings. There is no negative test of operator-uid access, no wrapper/sudoers exercise, and no assertion that emitted/constructible API methods are exactly I6's four allowed methods.
+
+Verified coverage gap: I2/I3 have snapshot tests and I4 has normalization tests. I1 has useful but partial sentinel coverage: the production httpc worker/logger path, provisioning and actual VM/core-dump behavior are bypassed. I5 relies on an asserted import boundary without an automated dependency check. I6's constructor boundary and I7's uid boundary have no named verification case. Module evaluation cannot prove effective filesystem permissions, sudo argument restrictions, rejection of alternate config, or authentication. The smtp/JMAP read-only acceptance check also cannot establish these local properties.
+
+Repair: map each invariant to its actual evidence and distinguish static review, unit tests and deployed checks. Add structural allowed-method/dependency assertions, production-adapter subprocess redaction checks, and a NixOS VM or deployment test that a nonmember operator uid cannot directly open DB/WAL/SHM, cannot use sudo noninteractively without authorization, and can invoke only the sanctioned read commands/config. Existing approved timestamp-cache behavior should be tested as a documented exception, not silently mistaken for per-invocation authentication. Keep destructive crash probes synthetic and isolated."""
+disposition = "fix-now"
+response = """
+Route review (backfill). Updated for the redesign: design 9 maps I1 to I10 to their evidence and kind. The module-vm test is gone with the sudo boundary (DEC-016, DEC-017); I7 is evidenced by module-eval (StateDirectory, mode 0700, UMask, store_path, ProtectHome) and a post-deploy stat, with the jail side resting on I7's accepted launch condition, untested in this repo (RV-001 F-27). BEAM under the hardening is validated at deployment (ASM-005). I5 and I6 by check-imports with fixtures; I9 by module-eval and a cli test; I10 by a future-version fixture.
+"""
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted. §9 now maps I1-I9 to their evidence and its kind: subprocess redaction against local_jmap; check-imports for I5/I6; the closed Method type; and checks.module-vm, a NixOS VM test of hardening under BEAM, store permissions incl. -wal/-shm, sudo -n refusal, and refusal of sync and a second --config. Timestamp caching is recorded as an accepted exception. Provisioning is checked by review."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED for the original omission. §9's I1-I9 table now distinguishes subprocess/eval/review/structural/VM evidence, exercises production Send redaction, enumerates the closed Method mapping and names effective UID/sudo/wrapper tests. It explicitly records timestamp caching and provisioning-by-review. module-vm deliberately substitutes plain LoadCredential, so this is a feasible synthetic access/hardening test, not proof of host+TPM encrypted provisioning, live Fastmail, host sudoers or 1Password IPC. The internal contradiction in the newly specified import check is separately raised as F-24; it does not erase the now-present evidence mapping."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "opus round 3: reopened only to backfill the route the lock gate requires; content previously verified"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Route review (backfill). Updated for the redesign: design 9 maps I1 to I10 to their evidence and kind. The module-vm test is gone with the sudo boundary (DEC-016, DEC-017); I7 is evidenced by module-eval (StateDirectory, mode 0700, UMask, store_path, ProtectHome) and a post-deploy stat, with the jail side resting on I7's accepted launch condition, untested in this repo (RV-001 F-27). BEAM under the hardening is validated at deployment (ASM-005). I5 and I6 by check-imports with fixtures; I9 by module-eval and a cli test; I10 by a future-version fixture.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "opus round 3: VERIFIED with route review. The refreshed response matches the current design 9 table. I1 to I10 each have evidence and a kind. module-vm is gone with the sudo boundary. I7 rests on module-eval (StateDirectory, mode, UMask, store_path; ProtectHome among the hardening asserts) and a post-deploy stat, and its jail side is honestly untested here, under the launch condition. BEAM under the hardening is validated at deployment (ASM-005)."
+
+[[finding]]
+id = "F-17"
+status = "verified"
+severity = "minor"
+title = "Raw UTCDate text is not a chronological SQLite sort key when fractional seconds vary"
+detail = """
+codex. Evidence: design.md §5.3 lines 459-461 says JMAP UTC timestamps can be compared as text to order them correctly. RFC 8620 §1.4 permits nonzero fractional seconds and omits zero fractions: https://www.rfc-editor.org/rfc/rfc8620.html#section-1.4 .
+
+Verified in-memory SQLite reproduction: insert 2026-10-26T00:00:00Z and 2026-10-26T00:00:00.500Z into a TEXT received_at column. ORDER BY received_at DESC puts the whole-second value first; WHERE received_at >= '2026-10-26T00:00:00Z' excludes the later .500Z value. Both strings are valid UTCDate values. Inference: list ordering and --since can be wrong at second/date boundaries if a real server returns fractional times; no claim is made that this account currently does so.
+
+Repair: derive a chronological key or consistently normalize timestamp precision on ingestion and filter construction while preserving the required precision. Add mixed whole-second/fractional-second ordering and midnight-filter tests. Keeping a raw provenance string separately is compatible with this repair."""
+disposition = "fix-now"
+response = """
+Resolved with an explicit narrower contract, recorded under F-23: ordering is epoch milliseconds then message id; sub-millisecond precision is not ordered, and design 5.3 states it with the reason (a mail list needs no finer order). Mixed whole and fractional second ordering, the midnight --since case, and a sub-millisecond tie broken by id are tested (design 9, normalise).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted. received_at_ms (epoch ms parsed at ingestion) is the sort and filter key, with the raw UTCDate kept; tests cover fractional-second ordering and the midnight case (§5.3, §5.5, §9)."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "CONTEST in part. received_at_ms fixes whole-second versus .500Z comparisons (§5.3 lines 495-499; §9 lines 919-921), but does not preserve ordering for all valid UTCDate precision as the finding requested. RFC 8620 §1.4 plus RFC 3339 §5.6 allow arbitrary fractional digits; .0001Z and .0009Z collapse to the same epoch-ms key (verified synthetically). The wrong-fix defect is separately raised as F-23. Retain exact sortable precision or explicitly establish a justified narrower supported-input contract; do not call the general chronological-order defect fully resolved by the current millisecond-only test."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Resolved with an explicit narrower contract, recorded under F-23: ordering is epoch milliseconds then message id; sub-millisecond precision is not ordered, and design 5.3 states it with the reason (a mail list needs no finer order). Mixed whole and fractional second ordering, the midnight --since case, and a sub-millisecond tie broken by id are tested (design 9, normalise).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED as a narrowed contract, which the finding's follow-up F-23 explicitly offered. Design 5.3 (lines ~523-533) keeps the raw UTCDate, keys on received_at_ms, and states the ordering contract as milliseconds then id, with the reason. The whole-second versus .500Z defect raised here is fixed by the epoch-ms key; 9 normalise tests mixed precision, the midnight --since case and a sub-millisecond tie. DEC-007 records the same contract.
+"""
+
+[[finding]]
+id = "F-18"
+status = "verified"
+severity = "minor"
+title = "The F-6 busy_timeout fix does not serialize complete sync runs or reject a stale writer"
+detail = """
+codex. Evidence: design.md §5.4 lines 547-566 fetches the entire snapshot before BEGIN IMMEDIATE; §5.5 lines 690-694 says a manual sync during a timer run waits for busy_timeout and then fails. RV-001 F-6's response added that claim. SQLite's lock is held only during a write transaction: https://www.sqlite.org/lang_transaction.html .
+
+Verified ordering counterexample from the specified lifecycle: run A fetches an older window and pauses before BEGIN; run B fetches a newer window, begins, commits and exits; A then begins without contention and successfully overwrites B. Even simultaneous attempts can both succeed if the first transaction completes inside 5 seconds. The oneshot prevents overlap between starts of that unit, not independent CLI processes. Inference: if the documented manual-sync path is usable, it can regress the store without any busy error. No concurrent Screwtape processes were launched.
+
+Repair: either make sync service-only and state that direct/manual sync is unsupported, or acquire an interprocess sync lock before fetching and retain it through commit; a generation check that rejects stale snapshots is another possible contract. Add a two-writer test with deliberately reversed fetch/commit order. busy_timeout can remain useful for brief SQLite lock contention but cannot establish this lifecycle guarantee."""
+disposition = "fix-now"
+response = "Accepted; chose service-only sync. The wrapper and sudoers offer only the read verbs, systemd serialises runs, and outside the unit  is unset. New invariant I9, with VM-test evidence (§5.2, §5.4, §5.5, §9). DEC-011 updated."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted; chose service-only sync. The wrapper and sudoers offer only the read verbs, systemd serialises runs, and outside the unit  is unset. New invariant I9, with VM-test evidence (§5.2, §5.4, §5.5, §9). DEC-011 updated."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED. §5.2 lines 287-298 explicitly chooses the service-only option the finding offered: the wrapper/sudoers expose reads only, and manual sync means systemctl start screwtape.service. §5.5 I9, DEC-008/011 and §9 I9 agree. systemd serializes starts of that same oneshot; independent direct sync as the service UID is outside the supported interface. The absent credentials environment is a normal consequence, not an unforgeable lock, and verification does not rely on treating it as one. No stale-writer rejection or interprocess lock is claimed for unsupported direct invocations."
+
+[[finding]]
+id = "F-19"
+status = "verified"
+severity = "major"
+title = "httpc streaming leaves non-200/206 responses fully buffered before the byte cap"
+detail = "codex, round 2; challenges the new transport chosen for RV-001 F-12. Expected: design §5.2 lines 389-407 and DEC-006/009 bound every response body, including non-2xx, while it arrives. Observed: {sync,false} plus {stream,{self,once}} streams only status 200/206. OTP httpc_handler.erl stream/3 and start_stream/3 retain other bodies; the consumer receives a completed response. Primary API: https://www.erlang.org/doc/apps/inets/httpc.html#request/5 (stream option). Verified locally against OTP 28.5.0.8, inets 9.6.2.4: a synthetic loopback server sent an 8192-byte chunked HTTP 500 body, withheld the terminal chunk for 800 ms, then completed. The first client delivery was complete_status=500 body_bytes=8192 at 822 ms; there was no stream_start or incremental delivery. The intended 1024-byte application cap had no opportunity to cancel at the boundary. Source: /nix/store/fwsrdc9r0c7al8yrga9fj6jb4k7dni6s-erlang-28.5.0.8/lib/erlang/lib/inets-9.6.2.4/src/http_client/httpc_handler.erl:166-201,1486-1511,1544-1556. This was a synthetic OTP probe, not the unimplemented Screwtape FFI. Inference: an arbitrarily large 401/429/500 or disabled-redirect response can still exhaust memory before TooLarge. MemoryMax is containment, as the design correctly says. Repair: settle an all-status receive limit inside the actual transport. OTP max_body_size is a candidate only after checking the selected version's handling of fixed-length, chunked and close-delimited bodies; a Content-Length precheck alone is insufficient. Add production-adapter tests proving early rejection of oversized error and redirect bodies, not merely a 200 stream or a completed oversized String. Host this proof in the transport spike before any later phase relies on the byte ceiling."
+disposition = "fix-now"
+route = "control"
+response = """
+Accepted. The observation holds, and the streaming design is dropped rather than patched: httpc max_body_size is passed per request as the remaining budget, and inets applies it to every status with a body (source inspection, see F-12). Control: local_jmap sends a fixed-length 500 and a chunked 500, each larger than the cap and with the end of the body withheld; the criterion asserts TooLarge arrives while the server still withholds, and must reject a buffer-then-check adapter. Host-phase constraint: the transport phase passes this before any phase relies on max_total_bytes. Close-delimited bodies are out of the bound and contained by MemoryMax (design 5.2, 8).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Accepted. The observation holds, and the streaming design is dropped rather than patched: httpc max_body_size is passed per request as the remaining budget, and inets applies it to every status with a body (source inspection, see F-12). Control: local_jmap sends a fixed-length 500 and a chunked 500, each larger than the cap and with the end of the body withheld; the criterion asserts TooLarge arrives while the server still withholds, and must reject a buffer-then-check adapter. Host-phase constraint: the transport phase passes this before any phase relies on max_total_bytes. Close-delimited bodies are out of the bound and contained by MemoryMax (design 5.2, 8).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. The streaming adapter is gone (no stream/streaming reference remains in design.md); 5.2 passes max_body_size per request, which inets applies independent of status (httpc_handler.erl handle_http_body, read independently; see F-12 note). The control states the assertion (TooLarge while local_jmap still withholds the tail of an oversized fixed-length and chunked 500), the incorrect candidate it must reject (an adapter that buffers before checking), and the host-phase constraint (transport phase before any reliance on max_total_bytes), matching design 9. Redirect bodies: autoredirect false surfaces a 3xx as an ordinary response, so it is charged under the same cap.
+"""
+
+[[finding]]
+id = "F-20"
+status = "verified"
+severity = "major"
+title = "The new httpc adapter silently retries 503 responses and hides their bytes from Budget"
+detail = "codex, round 2. Expected: §5.4 lines 642-644, DEC-009 and §8 specify no retry within a run, and §5.2 lines 272-273,404-407 charge every response body to the aggregate budget. The newly specified adapter disables autoredirect but never disables httpc's separate autoretry option (§5.2 lines 393-402). OTP >=28.4 defaults autoretry to infinity and retries a 503 with Retry-After once. Primary source: https://www.erlang.org/doc/apps/inets/httpc.html#request/5 (autoretry). Local OTP 28.5.0.8 source: inets-9.6.2.4/src/http_client/httpc_response.erl:389-410 and httpc.erl:1500. Verified synthetic loopback probe with the specified async/stream options and timeout: first response 503, Retry-After: 0, body '{}'; second response 200, body '{}'. The server saw two requests; the client saw only the second response's stream and 2 body bytes. Thus the Send seam cannot charge the hidden first 2 bytes. A long Retry-After can also keep a run pending until the unit deadline. This tests OTP, not Screwtape. Repair: explicitly set {autoretry,0} for supported OTP versions; ensure other transparent retries do not violate the same accounting contract. Add a 503/Retry-After wire test requiring one request, a surfaced failure, and accounting for the first response. Do this with the transport proof, before budget-dependent orchestration."
+disposition = "fix-now"
+route = "control"
+response = """
+Accepted; verified in OTP 28.5.0.8 source (httpc.erl line 1500 defaults autoretry to infinity; httpc_response.erl 389-410 retries a 503 with Retry-After). screwtape_http passes autoretry 0 and autoredirect false (design 5.2; DEC-006, DEC-009). Control: local_jmap returns a 503 with Retry-After 0; the criterion asserts exactly one request reaches the server, the failure surfaces to jmap/client, and the 503 body is charged to the budget; it must reject an adapter left at the OTP default, which makes two requests. Host-phase constraint: same transport phase, before budget-dependent orchestration.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Accepted; verified in OTP 28.5.0.8 source (httpc.erl line 1500 defaults autoretry to infinity; httpc_response.erl 389-410 retries a 503 with Retry-After). screwtape_http passes autoretry 0 and autoredirect false (design 5.2; DEC-006, DEC-009). Control: local_jmap returns a 503 with Retry-After 0; the criterion asserts exactly one request reaches the server, the failure surfaces to jmap/client, and the 503 body is charged to the budget; it must reject an adapter left at the OTP default, which makes two requests. Host-phase constraint: same transport phase, before budget-dependent orchestration.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. Read independently: httpc.erl line ~1500 defaults autoretry to infinity, and AutoRetryPost (~line 1455) accepts integer 0. httpc_response.erl status_service_unavailable (~lines 389-410): with autoretry =:= 0 the first clause matches regardless of Retry-After and returns status_server_error_50x, i.e. the 503 is surfaced, not retried. Design 5.2 and DEC-006/DEC-009 set autoretry 0; the control (one request counted by local_jmap, failure surfaced, 503 body charged; reject the OTP default) and host-phase constraint are on the ledger and in design 9. Note for the implementer, raised separately: autoretry and autoredirect belong in httpc:request's HttpOptions (third argument), and an option in the wrong list is silently ignored.
+"""
+
+[[finding]]
+id = "F-21"
+status = "verified"
+severity = "major"
+title = "The abstract-socket probe is deferred without an owned deployment gate"
+detail = "codex, round 2; introduced by narrowing the F-13 fix. The filesystem scan is now honestly a regression guard (§1 lines 31-34, §9 lines 943-955; DEC-013), and ASM-003 is explicitly unvalidated (§5.5 lines 725-728). That narrowing is useful, and this finding does not demand fixing all existing whole-home binds. The remaining question is whether model-output jails can reach 1Password's abstract endpoint and obtain credential access. §6 lines 781-785 assigns a negative probe only to 'satan-side work, next to ISS-028'; §9 calls it follow-up. Verified with doctrine show ISS-028 in ~/dev/satan: the open item covers editor eval, cwd/source binds and shared home, but contains no 1Password IPC probe, delivery owner, criterion or dependency on SL-001 deployment. ASM-003's validation_plan names the experiment but supplies no host-phase constraint or failure disposition. SPEC-002 REQ-016 (NF-004) and POL-001's protocol-boundary principle still apply; narrowing a slice does not itself assign this obligation elsewhere. Inference: the current plan can deploy the new token while its only abstract-socket argument remains untested, with no required point to stop on a failed probe. No actual bypass is asserted. Repair: give the probe an explicit durable owner and a before-deployment criterion/dependency, or explicitly obtain acceptance of the remaining risk through the governing process. The criterion must exercise the real endpoint from every relevant jail class, record identities/groups and no_new_privs, distinguish authorization denial from an unrelated connection failure using a safe control, and stop deployment or require remediation if credential isolation fails. Keep the evidence obligation on the ledger if instrument-routed; a prose label beside ISS-028 is not its delivery."
+disposition = "fix-now"
+route = "review"
+response = """
+Accepted, operator ruling: the probe gets a durable owner, satan RSK-021, rather than an SL-001 deployment gate. RSK-021 specifies the probe from each model-output jail class, recording effective uid and gids and NoNewPrivs; a control that tells an authorisation reset from an unrelated failure (an unjailed connect without the onepassword-cli group, and op itself); and the failure disposition (treat as an SPEC-002 REQ-016 violation and remediate, e.g. unshare-net). Not gated on SL-001 deployment because SL-001 adds no new path to 1Password: op runs once, at provisioning, as the unjailed operator. Recorded in ASM-003 and design 5.5, 6, 8, 9.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Accepted, operator ruling: the probe gets a durable owner, satan RSK-021, rather than an SL-001 deployment gate. RSK-021 specifies the probe from each model-output jail class, recording effective uid and gids and NoNewPrivs; a control that tells an authorisation reset from an unrelated failure (an unjailed connect without the onepassword-cli group, and op itself); and the failure disposition (treat as an SPEC-002 REQ-016 violation and remediate, e.g. unshare-net). Not gated on SL-001 deployment because SL-001 adds no new path to 1Password: op runs once, at provisioning, as the unjailed operator. Recorded in ASM-003 and design 5.5, 6, 8, 9.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. The repair asked for either a durable owner with a pre-deployment criterion, or explicit acceptance of the residual risk through the governing process. RSK-021 (satan, open) supplies the owner, the per-jail-class probe, the safe control and the failure disposition; the decision not to gate SL-001 deployment on it is an operator ruling, cited in ASM-003's validation_plan and design 5.5 and 6. The stated reason holds under the current design: op runs only at provisioning, unjailed, so SL-001 adds no new path to 1Password. Residual risk is accepted by the operator, not resolved; that is what the finding allowed.
+"""
+
+[[finding]]
+id = "F-22"
+status = "verified"
+severity = "major"
+title = "Writer migrations never refuse a user_version newer than the binary understands"
+detail = "codex, round 2; new migration boundary from F-14. §5.3 lines 486-493 rejects schema mismatches only in open_reader. The writer contract (§5.2 lines 415-417) and transaction sequence (§5.4 lines 611-619), also DEC-007/008, say apply pending migrations then clear and insert, without defining an upper-version refusal. SQLite does not interpret user_version for the application: https://www.sqlite.org/pragma.html#pragma_user_version . A normal NixOS rollback can run binary/schema version 1 against an already-upgraded version-2 store. Verified in-memory counterexample of an implementation permitted by the contract: version 2 adds a nullable/defaulted future_metadata column containing 'preserve'; an older forward-only migration loop finds no pending migrations, deletes the rows and inserts its known fields. Commit succeeds at user_version=2 but future_metadata is reset to its default. This is not a claim about existing Screwtape code, which is not implemented. The safety gap is authorizing writes to an unknown schema; a transactional wrapper alone does not detect it. Repair: inside the writer transaction, before any DDL or deletion, reject stored_version > supported_version with schema_mismatch and leave schema/version/data logically unchanged. Define supported lower versions and migration preconditions explicitly. Add a populated future-version regression fixture that an older writer must refuse, plus concurrent migration/read coverage. This is separate from F-14's now-correct placement of known forward migrations."
+disposition = "fix-now"
+route = "control"
+response = """
+Accepted. Inside the write transaction and before any DDL or delete, the writer refuses a stored user_version above the binary's supported version with schema_mismatch, leaving schema, version and data unchanged; every older version has a forward chain (design 5.3, 5.4 steps 1-2, invariant I10; DEC-007). Control: a populated store at supported version plus one, carrying a column the binary does not know, must make write_snapshot fail and leave its .dump unchanged; it must reject the forward-only loop in your counterexample, which finds nothing pending and rewrites the rows. Host-phase constraint: the store phase that introduces migrations carries this test.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Accepted. Inside the write transaction and before any DDL or delete, the writer refuses a stored user_version above the binary's supported version with schema_mismatch, leaving schema, version and data unchanged; every older version has a forward chain (design 5.3, 5.4 steps 1-2, invariant I10; DEC-007). Control: a populated store at supported version plus one, carrying a column the binary does not know, must make write_snapshot fail and leave its .dump unchanged; it must reject the forward-only loop in your counterexample, which finds nothing pending and rewrites the rows. Host-phase constraint: the store phase that introduces migrations carries this test.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. Design 5.3 (lines ~513-517) and 5.4 steps 1-2 read user_version inside the BEGIN IMMEDIATE transaction before any DDL or delete and refuse a newer value with schema_mismatch; I10 states it; DEC-007 records it; 9 I10 uses a populated future-version store with an unknown column and requires the refusal and an unchanged dump, which rejects the forward-only loop of the counterexample. Host-phase constraint (the store phase that introduces migrations) is on the ledger. Minor note: SQLite's .dump omits user_version, so the I10 test should also compare PRAGMA user_version, as the I2 row already says.
+"""
+
+[[finding]]
+id = "F-23"
+status = "verified"
+severity = "minor"
+title = "Epoch-millisecond keys still collapse valid JMAP timestamps and lose chronological order"
+detail = "codex, round 2; challenges F-17's chosen repair. §5.3 lines 495-499 and §5.5 lines 761-762 make received_at_ms the sole chronological key; DEC-007 and §7 repeat it. RFC 8620 §1.4 delegates to RFC 3339, whose §5.6 time-secfrac is '.' followed by one or more digits, not at most three: https://www.rfc-editor.org/rfc/rfc8620.html#section-1.4 and https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6 . Verified synthetic conversion: 2026-10-26T00:00:00.0009Z and 2026-10-26T00:00:00.0001Z are distinct valid UTCDate values but both truncate to epoch-ms 1792972800000. Rounding merely moves the collisions. Inference: ORDER BY received_at_ms cannot correctly order all valid input, and pagination can select the wrong subset within a millisecond. The existing .500Z test does not catch it. No claim is made about Fastmail emitting such values on the operator's account. Repair: retain an exact sortable seconds/fraction representation (with a defined stable tie-breaker), or establish and explicitly adopt a narrower precision contract with evidence. Add sub-millisecond ordering tests; rejecting these otherwise-valid values as Decode would also require an explicit supported-input constraint. F-17 required preserving the necessary precision, so milliseconds only partially answer it."
+disposition = "fix-now"
+response = """
+Accepted as observed; repaired by adopting the narrower contract you offered as an option, not by keeping full precision. Design 5.3 and DEC-007 now state: order by received_at_ms then id; two receipt times under a millisecond apart are ordered by id, which is stable but not chronological; the raw UTCDate is kept. Rationale: no reader of a mail list needs sub-millisecond order, and exact keys would add a parser and a key format for no benefit. Test: two sub-millisecond-distinct times order by id (design 9, normalise).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted as observed; repaired by adopting the narrower contract you offered as an option, not by keeping full precision. Design 5.3 and DEC-007 now state: order by received_at_ms then id; two receipt times under a millisecond apart are ordered by id, which is stable but not chronological; the raw UTCDate is kept. Rationale: no reader of a mail list needs sub-millisecond order, and exact keys would add a parser and a key format for no benefit. Test: two sub-millisecond-distinct times order by id (design 9, normalise).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. The response adopts the explicit narrower contract named as acceptable in the finding's repair: design 5.3 says two receipt times under a millisecond apart order by message id, stable but not chronological, and keeps the raw text; 5.5 edge cases and DEC-007 agree, and 9 normalise tests the sub-millisecond tie by id. The --since filter is a day boundary, so millisecond truncation cannot misplace a message across it. Pagination within a millisecond is deterministic (id tie-break), which is what offset paging needs.
+"""
+
+[[finding]]
+id = "F-24"
+status = "verified"
+severity = "minor"
+title = "The new import check rejects the pure module dependencies the design requires"
+detail = "codex, round 2; added by F-16. §9 I5 at design.md line 888 says check-imports fails if html_text, normalise or model imports anything outside gleam/* stdlib and htmgrrrl. But §5.1 lines 207-208 and 224-226 and DEC-006 require normalise to import screwtape/model and screwtape/html_text. Both imports are outside that allowlist. Verified textual contradiction: a conforming normalise module fails the mandated check; removing its required imports breaks the specified decomposition. It is also necessary to distinguish gleam/* standard-library modules from similarly-named modules supplied by effectful packages. Repair: specify an explicit allowed local dependency graph and vetted pure external modules, and check their transitive dependencies and FFI leaves; retain model and html_text as allowed edges for normalise. Give the check a conforming positive fixture and a forbidden-I/O negative fixture. This is a defect in the new structural check, distinct from F-16's original omission of invariant evidence."
+disposition = "fix-now"
+response = """
+Accepted. check-imports now enforces an explicit edge allowlist: model may import only gleam_stdlib modules; html_text adds htmgrrrl; normalise adds screwtape/model and screwtape/html_text. Imports are resolved to their package from the build package directories, so gleam/* modules from effectful packages (gleam_erlang, gleam_httpc) are not mistaken for stdlib. A conforming fixture must pass and a normalise importing gleam/erlang/process must fail (design 9, I5).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted. check-imports now enforces an explicit edge allowlist: model may import only gleam_stdlib modules; html_text adds htmgrrrl; normalise adds screwtape/model and screwtape/html_text. Imports are resolved to their package from the build package directories, so gleam/* modules from effectful packages (gleam_erlang, gleam_httpc) are not mistaken for stdlib. A conforming fixture must pass and a normalise importing gleam/erlang/process must fail (design 9, I5).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED for the contradiction raised. Design 9 I5 now states an edge allowlist that admits normalise -> screwtape/model and screwtape/html_text, resolves imports to packages so gleam/* modules from effectful packages are not taken for stdlib, and has a conforming fixture and a gleam/erlang/process negative fixture. The FFI-leaf part of the original repair (an @external declaration needs no import) is not covered; it is raised separately as a nit because it is a residual gap in I5 evidence, not the defect this finding named.
+"""
+
+[[finding]]
+id = "F-25"
+status = "withdrawn"
+severity = "minor"
+title = "The VM's sudo -n test does not exercise the wrapper's actual privileged command"
+detail = "codex, round 2; added by F-16. §5.2 lines 287-298 says the public wrapper invokes sudo -u screwtape <real binary> with the baked config, and §5.4 lines 671-674 says sudoers permits that real binary and those arguments. But §9 I7 at line 890 tests 'sudo -n screwtape list'. That requests the public command as the default target root, without the real binary's baked --config. Verified from installed sudo --help: -u chooses the target user and defaults to root. Hence this is a different sudoers command/runas tuple from the deployed path. Counterexample by policy semantics, not an executed host sudo test: a mistaken NOPASSWD rule for (screwtape) <real binary> --config C list could let the real wrapper read without authentication, while 'sudo -n screwtape list' still fails because root/public-wrapper is not allowed. Authenticated list plus refused sync/repeated-config can also pass under that mistaken rule. The cold-cache assertion therefore cannot establish F-4's authentication boundary. Repair: exercise the exact command and target UID the wrapper uses, as the separate operator with a fresh timestamp scope, and assert password-required denial rather than command-not-allowed denial. Use a safe positive control to establish that the exact same permitted command succeeds after authentication; explicitly document the accepted timestamp-cache case. No host sudoers or authentication state was changed."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "withdraw"
+role = "raiser"
+note = "Withdrawn to correct a false evidence attribution before handback: the attempted installed sudo --help command was refused by the existing no_new_privs wrapper and did not print the claimed help text. The command/runas mismatch remains supportable from the installed sudo manual, but this immutable finding must be replaced with that actual source. No privileged command executed."
+
+[[finding]]
+id = "F-26"
+status = "verified"
+severity = "minor"
+title = "The VM's sudo -n test does not exercise the wrapper's actual privileged command"
+detail = "codex, round 2; corrected replacement for withdrawn F-25, added by the F-16 fix. §5.2 lines 287-298 says the public wrapper invokes sudo -u screwtape <real binary> with the baked config; §5.4 lines 671-674 permits that real binary and its read arguments. §9 I7 at line 890 instead tests 'sudo -n screwtape list', which selects the public command without the baked --config and without -u screwtape. Installed sudo 1.9.17p2 manual source: /nix/store/n5janpishfshhhvfw219c2mdmnxvrx97-sudo-1.9.17p2-man/share/man/man8/sudo.8.gz, decompressed lines 753-757, documents -u as overriding the default target (usually root). This differs from the wrapper's permitted command/runas tuple even if deployment changes the default target. Counterexample by policy semantics, not an executed host sudo test: a mistaken NOPASSWD rule for (screwtape) <real binary> --config C list can expose mail through the real wrapper while 'sudo -n screwtape list' still fails because the public-wrapper/root invocation is disallowed. Authenticated list plus refused sync/repeated-config can also pass under that mistaken rule. The cold-cache assertion therefore cannot establish F-4's authentication boundary. Repair: test the exact binary, baked config, arguments and target UID used by the wrapper as the separate operator with a fresh timestamp scope; distinguish password-required denial from command-not-allowed denial. A safe positive control must show the same permitted command succeeds after authentication, with timestamp caching recorded as the accepted exception. The attempted sudo --help probes were refused by existing no_new_privs; no privileged command, host policy or authentication state was changed."
+disposition = "fix-now"
+response = """
+Resolved by removal. The operator ruled (2026-10-26) that Screwtape runs as a systemd user unit under the operator's own uid (DEC-016, superseding DEC-002) with direct reads (DEC-017, superseding DEC-003). There is no sudo wrapper, sudoers rule or module-vm test left for this test to misdirect at; I7 is now evidenced by module-eval and a post-deploy stat (design 9).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Resolved by removal. The operator ruled (2026-10-26) that Screwtape runs as a systemd user unit under the operator's own uid (DEC-016, superseding DEC-002) with direct reads (DEC-017, superseding DEC-003). There is no sudo wrapper, sudoers rule or module-vm test left for this test to misdirect at; I7 is now evidenced by module-eval and a post-deploy stat (design 9).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED as moot. DEC-017 (supersedes DEC-003) removes the sudo wrapper and sudoers rule; design.md contains no sudo re-exec, module-vm or sudo -n test (grep for sudo, module-vm, /var/lib returns only the gateway precedent in 2 and the DEC-017 alternative in 7). There is no privileged command left for a test to misdirect at. The replacement I7 evidence and its adequacy are addressed in a new finding.
+"""
+
+[[finding]]
+id = "F-27"
+status = "verified"
+severity = "major"
+title = "After DEC-016, I7's jail half rests on a HOME shadow that same-uid jails can defeat, and the whole-home-bind exclusion is stale"
+detail = """
+opus round 3: introduced by DEC-016. Evidence:
+(1) Design 5.5 I7 says model-output jails cannot see the store because the operator's jails shadow HOME; 9 I7 row gives no evidence for that half ("outside this repo"); 9 Outside-this-repo (line ~1031) and DEC-013 keep whole-home binds out of scope because such a bind "exposes only ~/.1password/agent.sock". That narrowing (F-13 response) was sound when the store lived in /var/lib under a separate uid. After DEC-016 a home bind, or a bind of ~/.local, ~/.local/state or ~/.config, also exposes mail.sqlite3 and the encrypted credential.
+(2) Jails run as the operator's uid: ~/flakes/agents/jailed-agents.nix line ~64 ("bwrap runs as PID 1 in the jail's pid namespace, same uid"). So 0700 and UMask=0077 give no protection against a jail; only the mount view does.
+(3) The mount view has a known hole: jailed-agents.nix line ~206 binds the launch directory read-write (--bind PWD /workspace/basename), with no refusal of PWD = HOME. satan ISS-028 (doctrine show ISS-028 in ~/dev/satan, open) says satan-broker.el never sets default-directory and the Emacs unit runs from ~, so "probable result: the production harness has ~ read-write" (unverified there).
+Consequence (inference, not reproduced): if ISS-028's suspicion holds, the production model-output harness can read the whole store, and with rw HOME can write a drop-in under ~/.config/systemd/user/screwtape.service.d that the next daemon-reload (any Home Manager switch) applies, running a command unjailed in the unit that holds the decrypted token. Decrypting the ciphertext directly needs /run/systemd/io.systemd.Credentials (mode 0666 here, uid-scoped key); jails do not appear to bind /run/systemd today, but the satan scan forbids /run, not /run/systemd. DEC-016's rationale ("Against jails, the boundary is the HOME shadow plus 0700, and it holds") therefore depends on an open satan issue. This is not a challenge to the ruling: the operator's model makes the jail the boundary, and this is about whether that boundary is evidenced.
+Repair options: (a) gate deployment on ISS-028's harness-cwd item being verified or fixed (mountinfo of the live bwrap child shows no host HOME, ~/.local or ~/.config bind), recorded as an I7 deploy check; (b) extend op-unjailed (or a sibling check) to forbid static binds of HOME, ~/.local/state/screwtape and its ancestors, ~/.config/credstore.encrypted and ~/.config/systemd, and /run/systemd, and add a launcher-side refusal of PWD equal to HOME or an ancestor of those; (c) otherwise restate I7 as conditional on ISS-028 and record the operator's acceptance. In every case correct the stale 'exposes only the SSH agent' sentence in 9 and DEC-013.
+"""
+disposition = "fix-now"
+route = "review"
+response = """
+Both wording points accepted. Design 5.5 I7 now defines one launch condition: the jail's working directory must not be, or contain, the store directory (~/.local/state/screwtape), the credential directory (~/.config/credstore.encrypted) or ~/.config/systemd/user; HOME and its ancestors are excluded because they contain all three. Sections 2, 5.1, the I7 evidence row, the 9 satan bullet and DEC-013 all refer to that one condition by name. IMP-042 (revised after your rev-98 read) makes the refusal mandatory on every jail entry point for HOME, its ancestors, and anything inside ~/.local, ~/.config or ~/.ssh, which enforces the whole condition; design 5.5 says so and records that the existing pi-dev jail guard covers only HOME and its ancestors.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Accepted; verified in ~/flakes/agents/jailed-agents.nix: jails run as the operator's uid, and launchDirOptions binds PWD read-write at /workspace/<basename>, so a jail launched from HOME or above the store sees it. Operator ruling (2026-10-26): I7's jail clause is conditional on the launch directory not being HOME or an ancestor of the store; no deployment gate. Design 5.5 I7, the 9 evidence row, 2 and 5.1 now state the condition and that the jail side has no test in this repo; the stale whole-home-bind sentence in 9 and DEC-013 now lists the store, credential and systemd user directory. A launcher guard is filed as ~/flakes IMP-042; ISS-028 keeps the wider question. Rationale for not gating: a HOME-launched jail already sees the operator's other mail and can write ~/.config/systemd/user and rc files, a general escape that Screwtape neither creates nor widens materially.
+"""
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = """
+opus round 3: CONTEST in part. Accepted: the operator ruling makes I7's jail clause conditional, there is no gate, the I7 row says the jail side has no test here, and the stale whole-home-bind sentence is corrected in 9 and DEC-013. That resolves the finding as raised, except for two wording defects, both cheap to fix.
+(1) The condition does not cover the credential path. I7 (5.5) states it as the launch directory being "HOME or above the store". The response, 9 'Outside this repo' and DEC-013 all name the encrypted credential (~/.config/credstore.encrypted) and ~/.config/systemd/user as exposed too, and the response concedes that a writable systemd user directory is a code-execution path. A drop-in under ~/.config/systemd/user/screwtape.service.d runs inside the unit that holds the decrypted token. None of those is below the store, so a jail launched from ~/.config satisfies the stated condition and still reaches the token's unit. That is inference, not reproduced. Repair: state the condition as a launch directory that is not HOME, nor an ancestor of the store, the credential or ~/.config/systemd/user.
+(2) The condition is phrased three ways. 2 and 5.1 say "launched from HOME or above", which excludes ~/.local and ~/.local/state. I7 says "HOME or above the store", which includes them. ~/flakes IMP-042's proposal makes the refusal mandatory only for HOME and its ancestors (/home, /), and leaves ~/.local and ~/.config optional. So the guard the design cites would not enforce I7's own condition. Repair: use one wording in 2, 5.1, I7, the 9 row and DEC-013, and either align IMP-042's mandatory scope with it or say that IMP-042 covers only part of it.
+Not contested: the decision not to gate deployment.
+"""
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Both wording points accepted. Design 5.5 I7 now defines one launch condition: the jail's working directory must not be, or contain, the store directory (~/.local/state/screwtape), the credential directory (~/.config/credstore.encrypted) or ~/.config/systemd/user; HOME and its ancestors are excluded because they contain all three. Sections 2, 5.1, the I7 evidence row, the 9 satan bullet and DEC-013 all refer to that one condition by name. IMP-042 (revised after your rev-98 read) makes the refusal mandatory on every jail entry point for HOME, its ancestors, and anything inside ~/.local, ~/.config or ~/.ssh, which enforces the whole condition; design 5.5 says so and records that the existing pi-dev jail guard covers only HOME and its ancestors.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED against design revision 100. Both contested points are resolved.
+(1) Coverage. Design 5.5 I7 defines one launch condition: the jail's working directory must not be, or contain, ~/.local/state/screwtape, ~/.config/credstore.encrypted or ~/.config/systemd/user. HOME and its ancestors are excluded because they contain all three. That covers the credential and the drop-in path I said were missing.
+(2) Consistency. Design 2 (line ~84), 5.1 (line ~201), the I7 row in 9 (line ~1006), the satan bullet in 9 (line ~1072) and DEC-013 all refer to the condition by name; no "HOME or above" phrasing remains.
+Enforcement. ~/flakes IMP-042's proposal refuses, on every entry point (the pi-dev jail and the jailed-agents.nix launchers), a launch dir that is HOME, an ancestor of HOME, or inside ~/.config, ~/.local or ~/.ssh. Every directory that is or contains one of the three targets is HOME, an ancestor of it, or ~/.local, ~/.local/state, ~/.config or one of the targets itself, so the guard enforces the whole condition, as I7 says. I read "inside a subtree" as including the subtree's root (~/.local, ~/.config); the implementer should make sure the guard does too. I7 also records that the existing pi-dev guard (~/nushell/mod/pi-dev/mod.nu, around line 79) covers only HOME and its ancestors. The guard is a proposal, not a gate, by operator ruling; the I7 row states that the jail side has no test in this repo.
+Trivial: IMP-042's Origin paragraph still paraphrases the condition as "launched at or above ~/.local/state". Its Proposal is correct.
+"""
+
+[[finding]]
+id = "F-28"
+status = "verified"
+severity = "minor"
+title = "ProtectSystem=strict in the user unit leaves HOME and XDG_RUNTIME_DIR writable; ProtectHome is missing"
+detail = """
+opus round 3: introduced by DEC-016/ASM-005. Design 5.4 lists ProtectSystem=strict among the user unit's hardening and ASM-005 claims it runs under it; the earlier system-unit design confined writes to /var/lib/screwtape. In a systemd 262 user manager it does not confine writes to HOME or XDG_RUNTIME_DIR. Reproduction on this host (transient units via systemd-run --user, no secrets): with -p ProtectSystem=strict alone, and with PrivateTmp=yes added, touch under ~/.cache and under /run/user/1000 both succeed, while /var/tmp and /tmp are read-only; findmnt shows /home mounted rw inside the unit; uid_map 1000 1000 1 shows PrivateUsers was implied. man systemd.exec (Sandboxing preamble) says filesystem-namespacing settings need PrivateUsers in user services; ProtectSystem's own entry, unlike PrivateTmp and ProtectHome, makes no implicit-PrivateUsers statement. So the network-facing process that parses untrusted mail (HTML via htmgrrrl, JSON, the esqlite NIF) can read ~/.ssh, ~/Mail and ~/.config and write shell rc files or unit drop-ins. Under DEC-016 the process is trusted not to be malicious, but it consumes attacker-controlled input; the separate uid used to bound the blast radius of a parser bug and the redesign silently dropped that.
+The other listed keys are effective in a user unit (same reproduction): NoNewPrivs 1, Seccomp 2 with SystemCallFilter=@system-service, AF_NETLINK refused under RestrictAddressFamilies, ulimit -c 0, umask 0077, memory.max 1073741824 (memory is delegated: user@1000.service cgroup.controllers lists cpu io memory pids).
+Repair: add ProtectHome=tmpfs. Verified: with ProtectSystem=strict, PrivateTmp, ProtectHome=tmpfs, StateDirectory and StateDirectoryMode=0700, ~/.ssh and /run/user/1000 are absent, STATE_DIRECTORY is writable, files are created 0600, and LoadCredentialEncrypted still delivers the credential at CREDENTIALS_DIRECTORY. (ProtectHome=read-only also works but leaves home readable.) Add it to 5.4, ASM-005's claim and the module-eval assertions. Related ASM-005 evidence from the same session: systemd-creds encrypt --user works unprivileged; LoadCredentialEncrypted matches the credential ID against the name embedded at encryption, not the file name, so --name=fastmail with file screwtape.fastmail and ID fastmail is correct; %E in LoadCredentialEncrypted is expanded in unit files (systemd-analyze --user verify accepts it and rejects a relative path); the credentials directory is a plain dr-x------ directory on the /run/user tmpfs, not ramfs.
+"""
+disposition = "fix-now"
+response = """
+Accepted on your transient-unit reproduction. ProtectHome=tmpfs added to the unit (design 5.4) with the reason; module-eval asserts it (design 9). ASM-005's claim and validation plan now record which points your experiments settled (keys effective, encrypt --user unprivileged, credential id, %E) and what remains (real BEAM, TPM binding).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted on your transient-unit reproduction. ProtectHome=tmpfs added to the unit (design 5.4) with the reason; module-eval asserts it (design 9). ASM-005's claim and validation plan now record which points your experiments settled (keys effective, encrypt --user unprivileged, credential id, %E) and what remains (real BEAM, TPM binding).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. Design 5.4 adds ProtectHome=tmpfs and says why: in a user unit ProtectSystem=strict leaves HOME and XDG_RUNTIME_DIR writable, and StateDirectory and the credentials directory stay reachable. That matches my transient-unit reproduction. Design 9 module-eval asserts the key. ASM-005's claim lists the key and its validation_plan separates the settled points from what remains (a real BEAM run, TPM binding).
+"""
+
+[[finding]]
+id = "F-29"
+status = "verified"
+severity = "minor"
+title = "httpc option placement and a zero remaining budget can silently disable or misreport the byte ceiling"
+detail = """
+opus round 3: adjacent to the F-12/F-19/F-20 repair. Evidence from OTP 28.5.0.8 inets-9.6.2.4 src/http_client/httpc.erl: max_body_size is validated in request_options_defaults (~line 1594), i.e. it belongs in httpc:request/4's fourth argument (Options); timeout, autoredirect, autoretry and ssl are in http_options (~lines 1490-1500), the third argument (HttpOptions). Both parsers silently drop an option they do not recognise or that fails validation, reporting only through error_logger:info_report (request_options/3 and http_options/3, ~lines 1400-1425 and 1604-1630). Main silences the logger before anything runs (design 5.2), so a misplaced max_body_size disables the byte ceiling with no trace. Design 5.2 calls all five 'the request options', which invites exactly that mistake. The transport proof in 9 would catch a misplaced max_body_size, which is good; a misplaced autoretry is caught by the 503 test.
+Second, max_body_size is verified by VerifyIntegerNoLimit, which has clauses only for nolimit and integers > 0 (~line 1580). A zero remaining budget, reached when earlier responses consume max_total_bytes exactly, makes the next call raise function_clause inside request_options, so guard reports internal (exit 1) instead of Error.LimitExceeded("max_total_bytes"). Exit code is the same, the diagnostic is wrong, and it depends on an exception path the design otherwise reserves for bugs.
+Repair: in 5.2 name which list each option goes in; have jmap/client return LimitExceeded when the remaining budget is 0 before calling Send (Send's contract: cap > 0); add a fixture_send case that spends the budget exactly and expects LimitExceeded on the next call without a request.
+"""
+disposition = "fix-now"
+response = """
+Accepted. Design 5.2 now places max_body_size in the fourth httpc:request argument and the other options in the third, noting that a misplaced option is dropped and reported only to the silenced logger; the oversized-body controls fail if the cap is misplaced. jmap/client returns LimitExceeded without sending when the remaining budget is 0; design 9 adds that test (no request counted).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted. Design 5.2 now places max_body_size in the fourth httpc:request argument and the other options in the third, noting that a misplaced option is dropped and reported only to the silenced logger; the oversized-body controls fail if the cap is misplaced. jmap/client returns LimitExceeded without sending when the remaining budget is 0; design 9 adds that test (no request counted).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. Design 5.2 puts max_body_size in httpc:request's fourth argument (Options) and the rest in the third (HttpOptions). It records that a misplaced option is dropped and reported only to the silenced logger, and that the oversized-body controls would catch a misplaced cap; this matches inets httpc.erl request_options/3 and http_options/3. A zero remaining budget returns LimitExceeded without sending, for the stated reason (VerifyIntegerNoLimit has no clause for 0), and design 9 tests that no request is counted.
+"""
+
+[[finding]]
+id = "F-30"
+status = "verified"
+severity = "nit"
+title = "check-imports does not see @external FFI calls in the pure modules"
+detail = """
+opus round 3: residual from the F-24 repair. Design 9 I5 enforces purity of model, html_text and normalise by an import-edge allowlist. A Gleam module can call any Erlang function through an @external(erlang, ...) declaration without importing anything (for example os:cmd or httpc:request), so a normalise or html_text with an @external would pass check-imports while doing I/O. F-24's original repair asked for FFI leaves to be checked; the response does not mention them. Repair: have check-imports also fail on any @external in the allowlisted pure modules (or allow an explicit list), with a negative fixture.
+"""
+disposition = "fix-now"
+response = """
+Accepted. check-imports also fails on any @external attribute in model, html_text or normalise, with a negative fixture (design 9, I5).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted. check-imports also fails on any @external attribute in model, html_text or normalise, with a negative fixture (design 9, I5).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. Design 9 I5 forbids any @external attribute in model, html_text and normalise, and adds a negative fixture in which html_text declares an @external.
+"""
+
+[[finding]]
+id = "F-31"
+status = "verified"
+severity = "nit"
+title = "Redesign leftovers: DEC-004 title, flake-check warning, home-manager follows, XDG coupling"
+detail = """
+opus round 3: small inconsistencies left by the redesign.
+(1) DEC-004's title still reads "Screwtape's flake exports a NixOS module"; its body says homeManagerModules.default.
+(2) Design 9 Hygiene requires nix flake check to be clean, but homeManagerModules is not a known flake output: a one-output test flake under this host's Lix 2.95.4 prints "warning: unknown flake output 'homeManagerModules'". Either accept that warning explicitly or define clean as no errors.
+(3) Design 10 adds a home-manager input to this flake for module-eval; 10 Elsewhere has ~/flakes add the screwtape input with only nixpkgs.follows, so ~/flakes' lock gains a second home-manager. Add screwtape.inputs.home-manager.follows there.
+(4) Design 5.2 derives store_path from xdg.stateHome while StateDirectory resolves from the user manager's XDG_STATE_HOME, and provisioning presumably writes under xdg.configHome while the unit reads %E. They agree on this host (no xdg overrides in ~/flakes), but a store_path computed from the module's own constant ~/.local/state is less coupled; at least have module-eval assert the store_path equals the StateDirectory resolution under default xdg settings.
+"""
+disposition = "fix-now"
+response = """
+Accepted. DEC-004 retitled. The homeManagerModules unknown-output warning is named as the one accepted nix flake check exception, shared with attrd's flake (the precedent, which ~/flakes consumes as satan-attrd.homeManagerModules.default). ~/flakes input gains home-manager.follows (design 10). The module asserts xdg.stateHome equals the user manager's default so store_path and StateDirectory cannot diverge; module-eval checks a customised value fails (design 5.2, 9). Also applied your F-22 note: I2 and I10 compare PRAGMA user_version alongside .dump.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted. DEC-004 retitled. The homeManagerModules unknown-output warning is named as the one accepted nix flake check exception, shared with attrd's flake (the precedent, which ~/flakes consumes as satan-attrd.homeManagerModules.default). ~/flakes input gains home-manager.follows (design 10). The module asserts xdg.stateHome equals the user manager's default so store_path and StateDirectory cannot diverge; module-eval checks a customised value fails (design 5.2, 9). Also applied your F-22 note: I2 and I10 compare PRAGMA user_version alongside .dump.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+opus round 3: VERIFIED. (1) DEC-004 is retitled "exports a Home Manager module". (2) Design 9 Hygiene names the homeManagerModules warning as the one accepted exception. The precedent holds: ~/flakes features/satan/attrd.nix:28 imports inputs.satan-attrd.homeManagerModules.default, and goad, walker and vicinae use the same output. (3) Design 10 Elsewhere adds home-manager.follows to the ~/flakes input. (4) Design 5.2 makes the module assert that xdg.stateHome is the default, and 9 module-eval requires a customised value to fail evaluation, so store_path and StateDirectory cannot diverge silently. The F-22 note is applied: the I2 and I10 rows compare PRAGMA user_version alongside .dump.
+"""
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

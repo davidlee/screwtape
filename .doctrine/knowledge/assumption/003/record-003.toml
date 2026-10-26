@@ -1,0 +1,34 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 3
+slug = "the-1password-abstract-socket-is-gated-by-the-onepassword-cli-gid-check"
+title = "The 1Password abstract socket is gated by the onepassword-cli GID check"
+record_kind = "assumption"
+status = "held"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+claim = "Reaching @1PASSWORD_SDK_INTERGATIONS from a jail without the setgid op wrapper yields no secret access, because the app resets connections whose GID is not onepassword-cli (P4)."
+confidence = "medium"
+basis = "external-source"
+validation_plan = "Negative IPC probe from inside each class of model-output jail against @1PASSWORD_SDK_INTERGATIONS, recording effective groups and no_new_privs, with a control that tells an authorisation reset from an unrelated failure. Owned by satan RSK-021 (RV-001 F-21). Host check 8 only identifies the endpoint (RV-001 F-13)."
+validated_by    = ""
+validated_on    = ""
+invalidated_by  = ""
+invalidated_on  = ""
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

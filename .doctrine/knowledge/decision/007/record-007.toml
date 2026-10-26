@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 7
+slug = "screwtape-store-schema-private-normalised-tables-keyed-by-account-m2-and-m4-ready"
+title = "Screwtape store schema: private normalised tables keyed by account, M2- and M4-ready"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "The schema must carry JMAP state from M1 (OQ-7), queryable columns for the read verbs (brief §3.1), per-row provenance for M4 (brief §6), and not rule out versioned views (OQ-11). Screwtape is sole schema owner (SPEC-002 NF-001)."
+choice = "PRAGMA user_version is the single migration ledger; migrations run only inside the snapshot write transaction (RV-001 F-14), and the writer refuses a stored user_version newer than it supports before any DDL or delete (RV-001 F-22). Tables: sync; type_state (earliest state per type in the run); query_state (the single queryState phase 1 settled on); mailbox; message (incl. received_at raw plus received_at_ms epoch-millisecond key; order is received_at_ms then id, and sub-millisecond precision is not ordered, RV-001 F-17, F-23; email_state at fetch); message_header_id; message_mailbox; address; body (incl. is_truncated, truncated_by server|message_limit); attachment; thread_email. Tables private; v<N>_ prefix reserved for versioned views."
+alternatives = ["JSON blob per message", "separate migration table"]
+rationale = "Queryable columns for list filters; provenance cheap now; state strings stored opaque per RFC 8620 §5.1."
+consequences = ["M2 adds behaviour without a schema break", "M3 contract views can be layered without exposing tables"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

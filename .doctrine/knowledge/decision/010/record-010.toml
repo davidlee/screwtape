@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 10
+slug = "screwtape-html-to-text-a-pure-htmgrrrl-sax-fold-with-no-fetch-capability"
+title = "Screwtape HTML-to-text: a pure htmgrrrl SAX fold with no fetch capability"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "HTML-only bodies are reduced to text at sync time, never fetching external resources (SL-001 scope)."
+choice = "A SAX fold over htmgrrrl events: drop script, style, head; block elements and br become newlines; li becomes '- '; img becomes its alt text; links become 'text <href>' as inert text; whitespace collapsed. The module has no HTTP import. Parse failure stores the body with conversion_failed."
+alternatives = ["regex stripping", "an external converter binary"]
+rationale = "Structural guarantee of no fetch; small hand-written fold over a pure Erlang parser."
+consequences = ["htmgrrrl API to be verified early (ASM)"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

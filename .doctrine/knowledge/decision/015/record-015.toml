@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 15
+slug = "sl-001-governance-follow-through-amend-scope-now-draft-rfc-020-revisions-defer-spec-002-to-m3"
+title = "SL-001 governance follow-through: amend scope now, draft RFC-020 revisions, defer SPEC-002 to M3"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-001..DEC-004 change the token path, unit kind and deployment shape the scope and RFC-020 assume."
+choice = "Amend SL-001 scope now (credentials file, user unit, Home Manager module, ~/flakes feature). Draft RFC-020 revisions (D3, OQ-4, D7 row 10 'Enforced at', OQ-7 drift) for the operator to commit. Defer a SPEC-002 entry to M3, when Screwtape first connects to SATAN."
+alternatives = ["add Screwtape to SPEC-002 now"]
+rationale = "Per-slice artefacts are edited directly; satan governance changes need operator assent."
+consequences = []
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

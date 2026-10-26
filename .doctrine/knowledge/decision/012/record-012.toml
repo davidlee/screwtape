@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 12
+slug = "screwtape-token-ingress-credentials-directory-file-opaque-closure-wrapped-token-sentinel-redaction"
+title = "Screwtape token ingress: credentials-directory file, opaque closure-wrapped Token, sentinel redaction tests"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-25"
+updated = "2026-10-25"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-001 delivers the token as $CREDENTIALS_DIRECTORY/<id>; it must never reach argv, logs, errors or the store."
+choice = "Read $CREDENTIALS_DIRECTORY/<credential_name>; it must be non-empty. Wrap it in an opaque Token holding fn() -> String so string.inspect shows //fn. Only the authorization-header builder calls it. Error types never carry request headers or response bodies. Tests run a sentinel token through every error path and assert it is absent from stdout, stderr, inspected errors and a full SQLite dump. argv carries only the credential name."
+alternatives = ["token via environment variable"]
+rationale = "Redaction by construction, proven by tests."
+consequences = ["SL-001 scope's 'only through its environment' is superseded"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"
