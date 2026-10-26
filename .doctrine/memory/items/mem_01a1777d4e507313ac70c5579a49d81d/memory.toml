@@ -9,7 +9,7 @@ created = "2026-10-26"
 updated = "2026-10-26"
 
 [scope]
-paths = ["src/screwtape/sync.gleam", "src/screwtape/jmap/decode.gleam", "src/screwtape/jmap/request.gleam"]
+paths = ["src/screwtape/sync.gleam", "src/screwtape/jmap/decode.gleam", "src/screwtape/jmap/request.gleam", "src/screwtape/jmap/client.gleam"]
 globs = []
 commands = []
 tags = ["jmap"]

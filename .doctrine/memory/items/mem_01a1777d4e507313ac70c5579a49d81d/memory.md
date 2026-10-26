@@ -1,8 +1,9 @@
-# JMAP /query and /get response semantics (RFC 8620 § 5.1, § 5.5; applied in SL-001 PHASE-05)
+# JMAP /query and /get response semantics (RFC 8620 § 5.1, § 5.5; applied in SL-001 PHASE-05, PHASE-11)
 
 - `/query` returns `total` only when the request sets `calculateTotal: true`. Paging that stops at "position reaches total" must ask for it; screwtape's decoder treats a missing `total` as `Decode("total")`.
 - `/query` returns `limit` only when the server enforced a different limit from the one requested (a clamp). After you request exactly the clamped value, the server may stop echoing it. So keep the clamp sticky across pages: `option.or(page.limit, previous_clamp)`. Re-deriving it from each page re-learns it every other page.
 - A page shorter than the requested limit but equal to the clamp is not a short page. The effective page size is the response `limit` when present, else the request's.
 - `/get` must answer every requested id in `list` or `notFound`. A response that drops an id, or returns one that wasn't asked for, is a server fault. sync fails with `Decode("notFound")` / `Decode("list")` rather than silently losing or adding a message (I3).
-- `ids: []` is a valid `/get`. It returns no objects but does return the type's `state`; an empty window uses it so every type gets a state.
+- `ids: []` is a valid `/get`. It returns no objects but does return the type's `state`. screwtape sends `Email/get` and `Thread/get` with `ids: []` in the opening request (with `Mailbox/get`) to take each type's state before phase 1 (ISS-001): a state taken from a phase-2 get could already include mail the id list lacks, so `/changes` from it would never report that mail.
+- Several calls in one request: the method-name check (F8) alone does not refuse an answer whose entries are reordered but keep their own call ids. `client.call` therefore requires response i to carry call i's id, with equal counts (PHASE-11 D1). That is stricter than RFC 8620 in general (some methods add implicit responses) but holds for Mailbox/get, Email/query, Email/get and Thread/get.
 - Unverified against Fastmail until the live run (PHASE-09).
