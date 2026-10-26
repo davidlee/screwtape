@@ -107,6 +107,19 @@ pub fn call(
   Ok(#(Client(..client, budget:), responses))
 }
 
+/// Post the one call `invocation` and answer its one response. A response
+/// document with any other number of entries is `Decode("methodResponses")`.
+pub fn call_one(
+  client: Client,
+  invocation: jmap_request.Invocation,
+) -> Result(#(Client, MethodResponse), Error) {
+  use #(client, responses) <- result.try(call(client, [invocation]))
+  case responses {
+    [response] -> Ok(#(client, response))
+    _ -> Error(error.Decode("methodResponses"))
+  }
+}
+
 /// The session the client is bound to.
 pub fn session_of(client: Client) -> Session {
   client.session

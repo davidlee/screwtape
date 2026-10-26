@@ -323,6 +323,67 @@ pub fn method_error_is_jmap_method_test() {
   |> expect_error(error.JmapMethod("Mailbox/get", "unknown"))
 }
 
+// ---------------------------------------------------------------- call_one
+
+fn mailbox_method() -> String {
+  jmap_request.method_name(jmap_request.MailboxGet)
+}
+
+/// One call in, one call out: `call_one` hands back the single entry the server
+/// answered, and charges the response to the budget like `call` does.
+pub fn call_one_answers_the_single_entry_test() {
+  let #(fixture, client_) =
+    with_session([post(200, jmap_fixture.text("mailbox_get.json"))])
+  let assert Ok([expected]) =
+    decode.method_responses(jmap_fixture.text("mailbox_get.json"), [
+      #(request_call_id, mailbox_method()),
+    ])
+
+  let assert Ok(#(client_, response)) = client.call_one(client_, invocation())
+  response |> should.equal(expected)
+  fixture_send.request_count(fixture) |> should.equal(2)
+  client.remaining(client.budget_of(client_))
+  |> should.equal(
+    roomy
+    - string.byte_size(jmap_fixture.text("session.json"))
+    - string.byte_size(jmap_fixture.text("mailbox_get.json")),
+  )
+}
+
+/// A response document with no entries answers no call: `call_one` must report
+/// that at `methodResponses` rather than crash or invent a response.
+pub fn call_one_without_an_entry_is_a_decode_error_test() {
+  let #(_, client_) = with_session([post(200, "{\"methodResponses\":[]}")])
+
+  client.call_one(client_, invocation())
+  |> expect_error(error.Decode("methodResponses"))
+}
+
+/// Two entries cannot both answer one call: like zero, the count is a decode
+/// error at the map, not a silent pick of the first.
+pub fn call_one_with_two_entries_is_a_decode_error_test() {
+  let #(_, client_) = with_session([post(200, two_entries())])
+
+  client.call_one(client_, invocation())
+  |> expect_error(error.Decode("methodResponses"))
+}
+
+fn two_entries() -> String {
+  let entry =
+    json.preprocessed_array([
+      json.string(mailbox_method()),
+      json.object([
+        #("accountId", json.string(account_id)),
+        #("state", json.string("state-1")),
+        #("list", json.preprocessed_array([])),
+        #("notFound", json.preprocessed_array([])),
+      ]),
+      json.string(request_call_id),
+    ])
+  json.object([#("methodResponses", json.preprocessed_array([entry, entry]))])
+  |> json.to_string
+}
+
 // ---------------------------------------------------------------- statuses
 
 /// D2, status by status: 401/403 with no body, 429, a 500 whose body is a JMAP

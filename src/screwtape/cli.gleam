@@ -31,6 +31,7 @@ import screwtape/file
 import screwtape/jmap/client
 import screwtape/jmap/decode
 import screwtape/jmap/request as jmap_request
+import screwtape/model
 
 /// What `main` writes and exits with: at most one stdout document, zero or more
 /// stderr lines (each already a JSON line, without its newline), and the code.
@@ -103,12 +104,10 @@ fn sync(
     client.budget(settings.max_total_bytes),
   ))
   let session = client.session_of(client_)
-  use #(_, responses) <- result.try(
-    client.call(client_, [
-      jmap_request.mailbox_get(session.account_id, "c0"),
-    ]),
-  )
-  use response <- result.try(only_response(responses))
+  use #(_, response) <- result.try(client.call_one(
+    client_,
+    jmap_request.mailbox_get(session.account_id, jmap_request.call_id),
+  ))
   use #(mailboxes, _state) <- result.try(decode.mailboxes(response))
   Ok(envelope(session, mailboxes))
 }
@@ -133,25 +132,10 @@ fn credentials_directory(
   |> result.map_error(fn(_) { error.Credential("no_credentials_directory") })
 }
 
-/// The one response this run asked for. `decode.method_responses` answers a
-/// list; a run that got none has nothing to decode, and the path names the
-/// missing entry, never the document.
-fn only_response(
-  responses: List(decode.MethodResponse),
-) -> Result(decode.MethodResponse, Error) {
-  case responses {
-    [response] -> Ok(response)
-    _ -> Error(error.Decode("methodResponses"))
-  }
-}
-
 /// The `sync` document: the versioned envelope with this run's account, the
 /// number of mailboxes the server listed and whether the account is read-only
 /// (PHASE-05 widens the `data`).
-fn envelope(
-  session: decode.Session,
-  mailboxes: List(decode.MailboxSummary),
-) -> String {
+fn envelope(session: decode.Session, mailboxes: List(model.Mailbox)) -> String {
   json.object([
     #("version", json.int(1)),
     #("kind", json.string("sync")),

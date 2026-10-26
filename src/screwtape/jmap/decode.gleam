@@ -29,7 +29,7 @@ import gleam/dynamic/decode
 import gleam/int
 import gleam/json
 import gleam/list
-import gleam/option.{type Option, None}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import screwtape/error.{type Error, Decode, JmapMethod, JmapRequest}
@@ -94,7 +94,53 @@ const path_fields = [
   "role",
   "type",
   "receivedAt",
+  "parentId",
+  "sortOrder",
+  "totalEmails",
+  "unreadEmails",
+  "ids",
+  "queryState",
+  "canCalculateChanges",
+  "position",
+  "total",
+  "limit",
+  "notFound",
+  "blobId",
+  "threadId",
+  "mailboxIds",
+  "keywords",
+  "size",
+  "messageId",
+  "inReplyTo",
+  "references",
+  "sender",
+  "from",
+  "to",
+  "cc",
+  "bcc",
+  "replyTo",
+  "subject",
+  "sentAt",
+  "hasAttachment",
+  "preview",
+  "textBody",
+  "attachments",
+  "bodyValues",
+  "partId",
+  "disposition",
+  "cid",
+  "value",
+  "isEncodingProblem",
+  "isTruncated",
+  "email",
+  "emailIds",
 ]
+
+/// The field names whose value is a map keyed by server data (`mailboxIds`,
+/// `keywords`, `bodyValues`). A path that enters one of them ends there: the
+/// keys are document text and may never be appended, not even when a key
+/// happens to read as a list index or as one of `path_fields` (I1).
+const server_keyed_fields = ["mailboxIds", "keywords", "bodyValues"]
 
 /// The parts of the JMAP session the scope uses.
 pub type Session {
@@ -113,9 +159,46 @@ pub type MethodResponse {
   MethodResponse(name: String, arguments: Dynamic, call_id: String)
 }
 
-/// The mailbox fields the scope uses; the full Mailbox model is PHASE-05's.
-pub type MailboxSummary {
-  MailboxSummary(id: String, name: String, role: Option(String))
+/// One `Email/query` page (RFC 8620 § 5.5). `limit` is present only when the
+/// server enforced a limit other than the one asked for (a clamp, F9); `total`
+/// is required, because the run asks for it (`calculateTotal`).
+pub type QueryPage {
+  QueryPage(
+    ids: List(String),
+    query_state: String,
+    can_calculate_changes: Bool,
+    position: Int,
+    total: Int,
+    limit: Option(Int),
+  )
+}
+
+/// One `Email/get` response: the emails, the Email `state` it was served
+/// under, and the ids the server no longer has.
+pub type EmailPage {
+  EmailPage(
+    emails: List(normalise.Email),
+    state: String,
+    not_found: List(String),
+  )
+}
+
+/// The page of an `Email/query` response.
+pub fn email_query(response: MethodResponse) -> Result(QueryPage, Error) {
+  decode_at(response.arguments, query_page_decoder(), "")
+}
+
+/// The emails, state and `notFound` of an `Email/get` response.
+pub fn emails(response: MethodResponse) -> Result(EmailPage, Error) {
+  decode_at(response.arguments, email_page_decoder(), "")
+}
+
+/// The threads and state of a `Thread/get` response; `notFound` is ignored
+/// (PHASE-05 A8).
+pub fn threads(
+  response: MethodResponse,
+) -> Result(#(List(model.Thread), String), Error) {
+  decode_at(response.arguments, thread_page_decoder(), "")
 }
 
 /// A JMAP `UTCDate` field. Text that does not parse fails here, so it surfaces
@@ -182,8 +265,277 @@ pub fn method_responses(
 /// is the one the caller asked for (`Mailbox/get`); its `name` is not rechecked.
 pub fn mailboxes(
   response: MethodResponse,
-) -> Result(#(List(MailboxSummary), String), Error) {
-  decode_at(response.arguments, mailbox_get_decoder(), "")
+) -> Result(#(List(model.Mailbox), String), Error) {
+  decode_at(response.arguments, mailbox_page_decoder(), "")
+}
+
+// Method arguments: the shape of each method's response, relative to its
+// `arguments`, so a failure's path starts at the field the method answered.
+
+fn mailbox_page_decoder() -> decode.Decoder(#(List(model.Mailbox), String)) {
+  use state <- decode.field("state", decode.string)
+  use list <- decode.field("list", decode.list(mailbox_decoder()))
+  decode.success(#(list, state))
+}
+
+fn mailbox_decoder() -> decode.Decoder(model.Mailbox) {
+  use id <- decode.field("id", decode.string)
+  use name <- decode.field("name", decode.string)
+  use parent_id <- decode.optional_field(
+    "parentId",
+    None,
+    decode.optional(decode.string),
+  )
+  use role <- decode.optional_field(
+    "role",
+    None,
+    decode.optional(decode.string),
+  )
+  use sort_order <- decode.field("sortOrder", decode.int)
+  use total_emails <- decode.field("totalEmails", decode.int)
+  use unread_emails <- decode.field("unreadEmails", decode.int)
+  decode.success(model.Mailbox(
+    id:,
+    name:,
+    parent_id:,
+    role:,
+    sort_order:,
+    total_emails:,
+    unread_emails:,
+  ))
+}
+
+fn query_page_decoder() -> decode.Decoder(QueryPage) {
+  use ids <- decode.field("ids", decode.list(decode.string))
+  use query_state <- decode.field("queryState", decode.string)
+  use can_calculate_changes <- decode.field("canCalculateChanges", decode.bool)
+  use position <- decode.field("position", decode.int)
+  use total <- decode.field("total", decode.int)
+  use limit <- decode.optional_field("limit", None, decode.optional(decode.int))
+  decode.success(QueryPage(
+    ids:,
+    query_state:,
+    can_calculate_changes:,
+    position:,
+    total:,
+    limit:,
+  ))
+}
+
+fn email_page_decoder() -> decode.Decoder(EmailPage) {
+  use emails <- decode.field("list", decode.list(email_decoder()))
+  use state <- decode.field("state", decode.string)
+  use not_found <- decode.optional_field(
+    "notFound",
+    [],
+    decode.map(decode.optional(decode.list(decode.string)), or_empty),
+  )
+  decode.success(EmailPage(emails:, state:, not_found:))
+}
+
+fn email_decoder() -> decode.Decoder(normalise.Email) {
+  use id <- decode.field("id", decode.string)
+  use blob_id <- decode.field("blobId", decode.string)
+  use thread_id <- decode.field("threadId", decode.string)
+  use mailbox_ids <- decode.field("mailboxIds", flags_decoder())
+  use keywords <- decode.field("keywords", flags_decoder())
+  use size <- decode.field("size", decode.int)
+  use received_at <- decode.field("receivedAt", utc_date())
+  use message_id <- decode.optional_field(
+    "messageId",
+    None,
+    decode.optional(decode.list(decode.string)),
+  )
+  use in_reply_to <- decode.optional_field(
+    "inReplyTo",
+    None,
+    decode.optional(decode.list(decode.string)),
+  )
+  use references <- decode.optional_field(
+    "references",
+    None,
+    decode.optional(decode.list(decode.string)),
+  )
+  use sender <- decode.optional_field(
+    "sender",
+    None,
+    decode.optional(decode.list(email_address_decoder())),
+  )
+  use from <- decode.optional_field(
+    "from",
+    None,
+    decode.optional(decode.list(email_address_decoder())),
+  )
+  use to <- decode.optional_field(
+    "to",
+    None,
+    decode.optional(decode.list(email_address_decoder())),
+  )
+  use cc <- decode.optional_field(
+    "cc",
+    None,
+    decode.optional(decode.list(email_address_decoder())),
+  )
+  use bcc <- decode.optional_field(
+    "bcc",
+    None,
+    decode.optional(decode.list(email_address_decoder())),
+  )
+  use reply_to <- decode.optional_field(
+    "replyTo",
+    None,
+    decode.optional(decode.list(email_address_decoder())),
+  )
+  use subject <- decode.optional_field(
+    "subject",
+    None,
+    decode.optional(decode.string),
+  )
+  use sent_at <- decode.optional_field(
+    "sentAt",
+    None,
+    decode.optional(decode.string),
+  )
+  use has_attachment <- decode.field("hasAttachment", decode.bool)
+  use preview <- decode.field("preview", decode.string)
+  use text_body <- decode.optional_field(
+    "textBody",
+    [],
+    decode.map(decode.optional(decode.list(body_part_decoder())), or_empty),
+  )
+  use attachments <- decode.optional_field(
+    "attachments",
+    [],
+    decode.map(decode.optional(decode.list(body_part_decoder())), or_empty),
+  )
+  use body_values <- decode.optional_field(
+    "bodyValues",
+    [],
+    decode.map(
+      decode.optional(decode.dict(decode.string, body_value_decoder())),
+      dict_or_empty,
+    ),
+  )
+  decode.success(normalise.Email(
+    id:,
+    blob_id:,
+    thread_id:,
+    mailbox_ids:,
+    keywords:,
+    size:,
+    received_at:,
+    message_id:,
+    in_reply_to:,
+    references:,
+    sender:,
+    from:,
+    to:,
+    cc:,
+    bcc:,
+    reply_to:,
+    subject:,
+    sent_at:,
+    has_attachment:,
+    preview:,
+    text_body:,
+    attachments:,
+    body_values:,
+  ))
+}
+
+fn email_address_decoder() -> decode.Decoder(normalise.EmailAddress) {
+  use name <- decode.optional_field(
+    "name",
+    None,
+    decode.optional(decode.string),
+  )
+  use email <- decode.field("email", decode.string)
+  decode.success(normalise.EmailAddress(name:, email:))
+}
+
+fn body_part_decoder() -> decode.Decoder(normalise.BodyPart) {
+  use part_id <- decode.optional_field(
+    "partId",
+    None,
+    decode.optional(decode.string),
+  )
+  use blob_id <- decode.optional_field(
+    "blobId",
+    None,
+    decode.optional(decode.string),
+  )
+  use size <- decode.field("size", decode.int)
+  use name <- decode.optional_field(
+    "name",
+    None,
+    decode.optional(decode.string),
+  )
+  use type_ <- decode.field("type", decode.string)
+  use disposition <- decode.optional_field(
+    "disposition",
+    None,
+    decode.optional(decode.string),
+  )
+  use cid <- decode.optional_field("cid", None, decode.optional(decode.string))
+  decode.success(normalise.BodyPart(
+    part_id:,
+    blob_id:,
+    size:,
+    name:,
+    type_:,
+    disposition:,
+    cid:,
+  ))
+}
+
+fn body_value_decoder() -> decode.Decoder(normalise.BodyValue) {
+  use value <- decode.field("value", decode.string)
+  use is_encoding_problem <- decode.field("isEncodingProblem", decode.bool)
+  use is_truncated <- decode.field("isTruncated", decode.bool)
+  decode.success(normalise.BodyValue(
+    value:,
+    is_encoding_problem:,
+    is_truncated:,
+  ))
+}
+
+fn thread_page_decoder() -> decode.Decoder(#(List(model.Thread), String)) {
+  use list <- decode.field("list", decode.list(thread_decoder()))
+  use state <- decode.field("state", decode.string)
+  decode.success(#(list, state))
+}
+
+fn thread_decoder() -> decode.Decoder(model.Thread) {
+  use id <- decode.field("id", decode.string)
+  use email_ids <- decode.field("emailIds", decode.list(decode.string))
+  decode.success(model.Thread(id:, email_ids:))
+}
+
+/// An RFC 8621 set: the keys whose value is `true`, in the dictionary's order.
+/// The keys of a JMAP flag object (`mailboxIds`, `keywords`) whose value is
+/// `true`, sorted, so a stored list never depends on map order (I3).
+fn flags_decoder() -> decode.Decoder(List(String)) {
+  decode.map(decode.dict(decode.string, decode.bool), fn(flags) {
+    flags
+    |> dict.to_list
+    |> list.filter(fn(entry) { entry.1 })
+    |> list.map(fn(entry) { entry.0 })
+    |> list.sort(string.compare)
+  })
+}
+
+fn or_empty(values: Option(List(a))) -> List(a) {
+  case values {
+    Some(values) -> values
+    None -> []
+  }
+}
+
+fn dict_or_empty(values: Option(Dict(k, v))) -> List(#(k, v)) {
+  case values {
+    Some(values) -> dict.to_list(values)
+    None -> []
+  }
 }
 
 // The session, in stages: decode the shape, then apply the rules, so a
@@ -278,23 +630,6 @@ fn read_only(
   }
 }
 
-fn mailbox_get_decoder() -> decode.Decoder(#(List(MailboxSummary), String)) {
-  use state <- decode.field("state", decode.string)
-  use mailboxes <- decode.field("list", decode.list(mailbox_decoder()))
-  decode.success(#(mailboxes, state))
-}
-
-fn mailbox_decoder() -> decode.Decoder(MailboxSummary) {
-  use id <- decode.field("id", decode.string)
-  use name <- decode.field("name", decode.string)
-  use role <- decode.optional_field(
-    "role",
-    None,
-    decode.optional(decode.string),
-  )
-  decode.success(MailboxSummary(id:, name:, role:))
-}
-
 // One `methodResponses` entry, at its index.
 
 fn response(
@@ -309,8 +644,26 @@ fn response(
     prefix,
   ))
   case name == error_method {
-    False -> Ok(MethodResponse(name:, arguments:, call_id:))
+    False -> {
+      use _ <- result.try(matching_name(name, call_id, calls, prefix))
+      Ok(MethodResponse(name:, arguments:, call_id:))
+    }
     True -> method_error(arguments, call_id, calls, prefix)
+  }
+}
+
+/// F8: a response must name the method that was sent under its call id, or an
+/// `Email/get` reply could be read as `Mailbox/get`. An entry whose id is not
+/// in `calls` has no sent method to compare with.
+fn matching_name(
+  name: String,
+  call_id: String,
+  calls: List(#(String, String)),
+  prefix: String,
+) -> Result(Nil, Error) {
+  case list.find(calls, fn(call) { call.0 == call_id }) {
+    Ok(#(_, method)) if method != name -> Error(Decode(path(prefix, ["0"])))
+    _ -> Ok(Nil)
   }
 }
 
@@ -403,12 +756,18 @@ fn render(segments: List(String)) -> String {
   case segments {
     [] -> ""
     [segment, ..rest] ->
-      case int.parse(segment) {
-        Ok(index) -> "[" <> int.to_string(index) <> "]" <> render(rest)
-        Error(Nil) ->
-          case list.contains(path_fields, segment) {
-            True -> "." <> segment <> render(rest)
-            False -> ""
+      case list.contains(server_keyed_fields, segment) {
+        // The next segment is a map key the server chose, so the path ends at
+        // the map, before the key is even read as a list index or a field.
+        True -> "." <> segment
+        False ->
+          case int.parse(segment) {
+            Ok(index) -> "[" <> int.to_string(index) <> "]" <> render(rest)
+            Error(Nil) ->
+              case list.contains(path_fields, segment) {
+                True -> "." <> segment <> render(rest)
+                False -> ""
+              }
           }
       }
   }

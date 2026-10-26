@@ -1,10 +1,15 @@
 //// A scripted `Send` for the client contract tests (SL-001 PHASE-10, EX-1).
 ////
-//// `start` takes a script of `Step(method, reply)` entries, served one per
-//// request by position. Every request is recorded — method, URL, headers, body
-//// and the cap the caller passed — before it is answered, so a test can assert
-//// how many requests arrived, what cap the client asked for and which header it
-//// sent.
+//// `start` takes a script of `Step` entries, served one per request by position.
+//// A `Step` matches by HTTP method; an `Expect` matches a POST by the JMAP method
+//// its first call names, so a test can script by method name and position.
+//// Every request is recorded — method, URL, headers, body and the cap the caller
+//// passed — before it is answered, so a test can assert how many requests
+//// arrived, what cap the client asked for and which header it sent.
+////
+//// `recorded_calls` reads the JMAP calls back out of the recorded bodies, in
+//// arrival order, and `ids_of` is their `ids` argument. `unmatched_count` counts
+//// the requests no position answered, including those after the script ran out.
 ////
 //// The cap is honoured as the real `Send` honours it: a reply body whose
 //// `string.byte_size` exceeds the cap is not returned, the call fails
@@ -16,22 +21,29 @@
 //// `Error(Http("status_500"))`, so a wrong call shows up in the client's result
 //// as well as in the recording.
 
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode
 import gleam/erlang/process
-import gleam/http.{type Method}
+import gleam/http.{type Method, Post}
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response, Response}
+import gleam/json
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/uri
 import screwtape/jmap/client
+import screwtape/jmap/request as jmap_request
 
 /// What one position answers with.
 pub type Reply =
   Result(Response(String), client.HttpFailure)
 
-/// One scripted position: the method it expects and the reply it gives.
+/// One scripted position. `Step` matches by HTTP method only; `Expect` matches a
+/// POST by the JMAP method its first call names.
 pub type Step {
   Step(method: Method, reply: Reply)
+  Expect(call: jmap_request.Method, reply: Reply)
 }
 
 /// One received request as the client sent it, and whether its method matched
@@ -45,6 +57,12 @@ pub type Recorded {
     cap: Int,
     matched: Bool,
   )
+}
+
+/// One call a request carried: its method name and arguments, as parsed from
+/// the first entry of `methodCalls`.
+pub type RecordedCall {
+  RecordedCall(name: String, arguments: Dynamic)
 }
 
 pub opaque type Fixture {
@@ -102,6 +120,38 @@ pub fn caps(fixture: Fixture) -> List(Int) {
   fixture |> recorded |> list.map(fn(request) { request.cap })
 }
 
+/// The calls the client sent, in arrival order. A request whose body is not a
+/// JMAP request document (the session GET) contributes nothing.
+pub fn recorded_calls(fixture: Fixture) -> List(RecordedCall) {
+  fixture
+  |> recorded
+  |> list.filter_map(fn(request) {
+    case call_of(request.body) {
+      Some(call) -> Ok(call)
+      None -> Error(Nil)
+    }
+  })
+}
+
+/// How many requests no scripted position matched, including those that
+/// arrived after the script ran out.
+pub fn unmatched_count(fixture: Fixture) -> Int {
+  fixture
+  |> recorded
+  |> list.filter(fn(request) { !request.matched })
+  |> list.length
+}
+
+/// The `ids` argument of a call: empty when absent or null.
+pub fn ids_of(call: RecordedCall) -> List(String) {
+  case
+    decode.run(call.arguments, decode.at(["ids"], decode.list(decode.string)))
+  {
+    Ok(ids) -> ids
+    Error(_) -> []
+  }
+}
+
 fn loop(
   state: process.Subject(Message),
   script: List(Step),
@@ -114,8 +164,11 @@ fn loop(
     }
     Posted(reply_to:, request:) ->
       case script {
-        [Step(expected, reply), ..rest] -> {
-          let matched = expected == request.method
+        [step, ..rest] -> {
+          let matched = matches(step, request)
+          let reply = case step {
+            Step(_, reply) | Expect(_, reply) -> reply
+          }
           let answer = case matched {
             True -> capped(reply, request.cap)
             False -> unmatched()
@@ -128,6 +181,42 @@ fn loop(
           loop(state, [], [request, ..seen])
         }
       }
+  }
+}
+
+fn matches(step: Step, received: Recorded) -> Bool {
+  case step {
+    Step(method:, ..) -> method == received.method
+    Expect(call:, ..) ->
+      case received.method == Post, call_of(received.body) {
+        True, Some(recorded) -> recorded.name == jmap_request.method_name(call)
+        _, _ -> False
+      }
+  }
+}
+
+fn call_of(body: String) -> Option(RecordedCall) {
+  case json.parse(body, using: decode.dynamic) {
+    Ok(document) -> {
+      let entries =
+        decode.run(
+          document,
+          decode.at(["methodCalls"], decode.list(decode.dynamic)),
+        )
+      case entries {
+        Ok([entry, ..]) -> {
+          let name = decode.run(entry, decode.at([0], decode.string))
+          let arguments = decode.run(entry, decode.at([1], decode.dynamic))
+          case name, arguments {
+            Ok(name), Ok(arguments) ->
+              Some(RecordedCall(name: name, arguments: arguments))
+            _, _ -> None
+          }
+        }
+        _ -> None
+      }
+    }
+    Error(_) -> None
   }
 }
 

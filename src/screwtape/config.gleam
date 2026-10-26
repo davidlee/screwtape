@@ -74,6 +74,16 @@ fn decoder() -> decode.Decoder(Config) {
   ))
 }
 
+/// The window as JSON, for the `sync` row's provenance (`window_json`).
+pub fn window_json(window: Window) -> String {
+  json.object([
+    #("mailboxes", json.array(window.mailboxes, json.string)),
+    #("max_age_days", json.nullable(window.max_age_days, json.int)),
+    #("max_messages", json.nullable(window.max_messages, json.int)),
+  ])
+  |> json.to_string
+}
+
 fn window_decoder() -> decode.Decoder(Window) {
   use mailboxes <- decode.field("mailboxes", decode.list(decode.string))
   use max_age_days <- decode.optional_field(

@@ -5,9 +5,11 @@
 //// asserted by parsing the encoded JSON back into a concrete record, so the
 //// wire shape is what is tested rather than an internal representation.
 
+import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/json
-import gleam/option.{type Option, None}
+import gleam/list
+import gleam/option.{type Option, None, Some, unwrap}
 import gleeunit
 import gleeunit/should
 import screwtape/jmap/request
@@ -71,6 +73,247 @@ pub fn call_names_pairs_each_call_in_order_test() {
 
 pub fn call_names_of_no_calls_is_empty_test() {
   request.call_names([]) |> should.equal([])
+}
+
+/// Every builder names its own method, and `call_names` reports that name for
+/// each call id: a builder that sent another method would be attributed to the
+/// wrong one on an error entry.
+pub fn call_names_name_each_builder_test() {
+  [
+    request.mailbox_get("acct-1", "c0"),
+    request.email_query(
+      "acct-1",
+      request.email_query_filter(["mb-1"], None),
+      0,
+      None,
+      "c1",
+    ),
+    request.email_get("acct-1", ["m1"], 1024, "c2"),
+    request.thread_get("acct-1", ["t1"], "c3"),
+  ]
+  |> request.call_names
+  |> should.equal([
+    #("c0", request.method_name(request.MailboxGet)),
+    #("c1", request.method_name(request.EmailQuery)),
+    #("c2", request.method_name(request.EmailGet)),
+    #("c3", request.method_name(request.ThreadGet)),
+  ])
+}
+
+/// One mailbox still gets an `OR` wrapper: a bare `inMailbox` object would be
+/// a different filter from the one `query_state` stores, so the same window
+/// must encode identically however many mailboxes it names.
+pub fn email_query_filter_wraps_even_one_mailbox_in_or_test() {
+  request.email_query_filter(["mb-1"], None)
+  |> decode_filter
+  |> should.equal(or([in_mailbox("mb-1")]))
+}
+
+/// The mailboxes appear as `inMailbox` conditions in the order given: a
+/// filter that sorted or deduplicated them would query a different set.
+pub fn email_query_filter_lists_each_mailbox_in_order_test() {
+  request.email_query_filter(["mb-1", "mb-2"], None)
+  |> decode_filter
+  |> should.equal(or([in_mailbox("mb-1"), in_mailbox("mb-2")]))
+}
+
+/// An age bound nests the OR inside an AND with `after`, so the window reads
+/// "in these mailboxes and received after this instant"; a builder that put
+/// `after` beside the OR at the top level would filter differently.
+pub fn email_query_filter_nests_after_in_and_test() {
+  request.email_query_filter(["mb-1"], Some("2026-09-26T09:00:00Z"))
+  |> decode_filter
+  |> should.equal(
+    Filter(operator: Some("AND"), in_mailbox: None, after: None, conditions: [
+      or([in_mailbox("mb-1")]),
+      after("2026-09-26T09:00:00Z"),
+    ]),
+  )
+}
+
+/// The page is asked from `position`, newest first, threads uncollapsed and
+/// `total` calculated; a builder that dropped `calculateTotal` would make the
+/// run's stop condition unreadable.
+pub fn email_query_arguments_test() {
+  let sent =
+    sent(request.email_query(
+      "acct-1",
+      request.email_query_filter(["mb-1"], None),
+      5,
+      Some(3),
+      "c0",
+    ))
+
+  sent.name |> should.equal(request.method_name(request.EmailQuery))
+  sent.call_id |> should.equal("c0")
+  field(sent.arguments, "accountId", decode.string) |> should.equal("acct-1")
+  field(sent.arguments, "filter", filter_decoder())
+  |> should.equal(or([in_mailbox("mb-1")]))
+  field(sent.arguments, "sort", decode.list(sort_decoder()))
+  |> should.equal([Sort("receivedAt", False)])
+  field(sent.arguments, "collapseThreads", decode.bool) |> should.be_false
+  field(sent.arguments, "position", decode.int) |> should.equal(5)
+  field(sent.arguments, "calculateTotal", decode.bool) |> should.be_true
+  optional_int(sent.arguments, "limit") |> should.equal(Some(3))
+}
+
+/// Without a known page size the `limit` key is absent, not null: a server
+/// that saw `null` would reject the argument.
+pub fn email_query_omits_limit_when_unknown_test() {
+  let sent =
+    sent(request.email_query(
+      "acct-1",
+      request.email_query_filter(["mb-1"], None),
+      0,
+      None,
+      "c0",
+    ))
+
+  optional_int(sent.arguments, "limit") |> should.equal(None)
+  decode.run(sent.arguments, decode.at(["limit"], decode.dynamic))
+  |> should.be_error
+}
+
+/// The content call asks for exactly the properties the model reads, fetches
+/// text body values under the part cap, and names each part property; a
+/// builder missing `fetchTextBodyValues` would get no body text at all.
+pub fn email_get_arguments_test() {
+  let sent = sent(request.email_get("acct-1", ["m1", "m2"], 4096, "c0"))
+
+  sent.name |> should.equal(request.method_name(request.EmailGet))
+  sent.call_id |> should.equal("c0")
+  field(sent.arguments, "accountId", decode.string) |> should.equal("acct-1")
+  field(sent.arguments, "ids", decode.list(decode.string))
+  |> should.equal(["m1", "m2"])
+  field(sent.arguments, "fetchTextBodyValues", decode.bool)
+  |> should.be_true
+  field(sent.arguments, "maxBodyValueBytes", decode.int) |> should.equal(4096)
+  let properties =
+    field(sent.arguments, "properties", decode.list(decode.string))
+  ["receivedAt", "bodyValues", "textBody", "attachments", "mailboxIds"]
+  |> list.each(fn(property) {
+    list.contains(properties, property) |> should.be_true
+  })
+  field(sent.arguments, "bodyProperties", decode.list(decode.string))
+  |> list.contains("partId")
+  |> should.be_true
+}
+
+/// A thread call names the account and the thread ids, nothing else.
+pub fn thread_get_arguments_test() {
+  let sent = sent(request.thread_get("acct-1", ["t1", "t2"], "c0"))
+
+  sent.name |> should.equal(request.method_name(request.ThreadGet))
+  sent.call_id |> should.equal("c0")
+  field(sent.arguments, "accountId", decode.string) |> should.equal("acct-1")
+  field(sent.arguments, "ids", decode.list(decode.string))
+  |> should.equal(["t1", "t2"])
+}
+
+/// One decoded `methodCalls` entry with its arguments left dynamic, so each
+/// test decodes only the fields it asserts on.
+type Sent {
+  Sent(name: String, arguments: Dynamic, call_id: String)
+}
+
+fn sent_decoder() -> decode.Decoder(Sent) {
+  decode.then(decode.at([0], decode.string), fn(name) {
+    decode.then(decode.at([1], decode.dynamic), fn(arguments) {
+      decode.then(decode.at([2], decode.string), fn(call_id) {
+        decode.success(Sent(name:, arguments:, call_id:))
+      })
+    })
+  })
+}
+
+fn sent(invocation: request.Invocation) -> Sent {
+  let assert Ok([call]) =
+    json.parse(
+      request.body([invocation]) |> json.to_string,
+      using: decode.at(["methodCalls"], decode.list(sent_decoder())),
+    )
+  call
+}
+
+fn field(arguments: Dynamic, name: String, decoder: decode.Decoder(a)) -> a {
+  let assert Ok(value) = decode.run(arguments, decode.at([name], decoder))
+  value
+}
+
+fn optional_int(arguments: Dynamic, name: String) -> Option(Int) {
+  let assert Ok(value) =
+    decode.run(
+      arguments,
+      decode.optionally_at([name], None, decode.optional(decode.int)),
+    )
+  value
+}
+
+/// The `filter` argument decoded back into the tree the builder emitted.
+type Filter {
+  Filter(
+    operator: Option(String),
+    in_mailbox: Option(String),
+    after: Option(String),
+    conditions: List(Filter),
+  )
+}
+
+fn filter_decoder() -> decode.Decoder(Filter) {
+  use operator <- decode.optional_field(
+    "operator",
+    None,
+    decode.optional(decode.string),
+  )
+  use in_mailbox <- decode.optional_field(
+    "inMailbox",
+    None,
+    decode.optional(decode.string),
+  )
+  use after <- decode.optional_field(
+    "after",
+    None,
+    decode.optional(decode.string),
+  )
+  use conditions <- decode.optional_field(
+    "conditions",
+    None,
+    decode.optional(decode.list(filter_decoder())),
+  )
+  decode.success(Filter(
+    operator:,
+    in_mailbox:,
+    after:,
+    conditions: unwrap(conditions, []),
+  ))
+}
+
+fn decode_filter(filter: json.Json) -> Filter {
+  let assert Ok(decoded) =
+    json.parse(json.to_string(filter), using: filter_decoder())
+  decoded
+}
+
+fn in_mailbox(id: String) -> Filter {
+  Filter(operator: None, in_mailbox: Some(id), after: None, conditions: [])
+}
+
+fn or(conditions: List(Filter)) -> Filter {
+  Filter(operator: Some("OR"), in_mailbox: None, after: None, conditions:)
+}
+
+fn after(date: String) -> Filter {
+  Filter(operator: None, in_mailbox: None, after: Some(date), conditions: [])
+}
+
+type Sort {
+  Sort(property: String, is_ascending: Bool)
+}
+
+fn sort_decoder() -> decode.Decoder(Sort) {
+  use property <- decode.field("property", decode.string)
+  use is_ascending <- decode.field("isAscending", decode.bool)
+  decode.success(Sort(property:, is_ascending:))
 }
 
 fn using_urns(text: String) -> List(String) {

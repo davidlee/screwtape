@@ -17,7 +17,9 @@ import gleeunit
 import gleeunit/should
 import screwtape/error
 import screwtape/jmap/decode
+import screwtape/jmap/request
 import screwtape/model
+import screwtape/normalise
 import support/jmap_fixture
 
 pub fn main() -> Nil {
@@ -146,8 +148,15 @@ pub fn method_error_keeps_a_known_type_test() {
   let text =
     "{\"methodResponses\":[[\"error\",{\"type\":\"serverUnavailable\"},\"c0\"]]}"
 
-  decode.method_responses(text, [#("c0", "Mailbox/get")])
-  |> should.equal(Error(error.JmapMethod("Mailbox/get", "serverUnavailable")))
+  decode.method_responses(text, [
+    #(request.call_id, request.method_name(request.MailboxGet)),
+  ])
+  |> should.equal(
+    Error(error.JmapMethod(
+      request.method_name(request.MailboxGet),
+      "serverUnavailable",
+    )),
+  )
 }
 
 /// A method-level `type` outside that set is the fixed `"unknown"`, never the
@@ -199,36 +208,284 @@ pub fn method_responses_missing_field_test() {
   |> should.equal(Error(error.Decode("methodResponses[0]")))
 }
 
+/// Each mailbox carries every RFC 8621 field the model stores, in the fixture's
+/// order: a decoder that defaulted `sortOrder`, `totalEmails` or `unreadEmails`
+/// would silently lose the server's ordering and counts.
 pub fn mailboxes_list_and_state_test() {
-  let assert Ok([response]) =
-    decode.method_responses(jmap_fixture.text("mailbox_get.json"), [
-      #("c0", "Mailbox/get"),
-    ])
+  let response = mailbox_response(jmap_fixture.text("mailbox_get.json"))
   let assert Ok(#(mailboxes, state)) = decode.mailboxes(response)
 
   state |> should.equal("state-1")
   mailboxes
   |> should.equal([
-    decode.MailboxSummary(id: "mb-1", name: "Inbox", role: Some("inbox")),
-    decode.MailboxSummary(id: "mb-2", name: "Archive", role: None),
-    decode.MailboxSummary(id: "mb-3", name: "Work", role: None),
+    model.Mailbox(
+      id: "mb-1",
+      name: "Inbox",
+      parent_id: None,
+      role: Some("inbox"),
+      sort_order: 1,
+      total_emails: 12,
+      unread_emails: 3,
+    ),
+    model.Mailbox(
+      id: "mb-2",
+      name: "Archive",
+      parent_id: None,
+      role: None,
+      sort_order: 2,
+      total_emails: 0,
+      unread_emails: 0,
+    ),
+    model.Mailbox(
+      id: "mb-3",
+      name: "Work",
+      parent_id: Some("mb-2"),
+      role: None,
+      sort_order: 3,
+      total_emails: 5,
+      unread_emails: 1,
+    ),
   ])
 }
 
 pub fn mailboxes_missing_field_test() {
-  let assert Ok([response]) =
-    decode.method_responses(mailbox_without_id(), [#("c0", "Mailbox/get")])
+  let response = mailbox_response(mailbox_without_id())
 
   decode.mailboxes(response)
   |> should.equal(Error(error.Decode("list[2].id")))
 }
 
+/// `sortOrder` has no RFC 8621 default we may invent: a mailbox without it is
+/// a document we cannot order, so the path names the missing field.
+pub fn mailboxes_missing_sort_order_test() {
+  let text = bent("mailbox_get.json", "\"sortOrder\":1,", "")
+  let response = mailbox_response(text)
+
+  decode.mailboxes(response)
+  |> should.equal(Error(error.Decode("list[0].sortOrder")))
+}
+
 pub fn mailboxes_mistyped_field_test() {
   let text = bent("mailbox_get.json", "\"state\":\"state-1\"", "\"state\":1")
-  let assert Ok([response]) =
-    decode.method_responses(text, [#("c0", "Mailbox/get")])
+  let response = mailbox_response(text)
 
   decode.mailboxes(response) |> should.equal(Error(error.Decode("state")))
+}
+
+/// One `Email/query` page: ids, state, position and the `total` the run asked
+/// for, with no `limit` when the server did not clamp.
+pub fn email_query_page_test() {
+  let text =
+    jmap_fixture.email_query_response(
+      ["m1", "m2"],
+      "qs-1",
+      10,
+      Some(42),
+      None,
+      True,
+    )
+
+  decode.email_query(response_of(text, request.EmailQuery))
+  |> should.equal(
+    Ok(decode.QueryPage(
+      ids: ["m1", "m2"],
+      query_state: "qs-1",
+      can_calculate_changes: True,
+      position: 10,
+      total: 42,
+      limit: None,
+    )),
+  )
+}
+
+/// A server that clamped the page reports its own `limit`; dropping it would
+/// make the run ask for the unclamped size again.
+pub fn email_query_page_carries_a_server_limit_test() {
+  let text =
+    jmap_fixture.email_query_response(
+      ["m1"],
+      "qs-2",
+      0,
+      Some(7),
+      Some(3),
+      False,
+    )
+
+  decode.email_query(response_of(text, request.EmailQuery))
+  |> should.equal(
+    Ok(decode.QueryPage(
+      ids: ["m1"],
+      query_state: "qs-2",
+      can_calculate_changes: False,
+      position: 0,
+      total: 7,
+      limit: Some(3),
+    )),
+  )
+}
+
+/// The run asks for `total` and pages until it, so a page without one is a
+/// document that cannot end the run: the path names `total`.
+pub fn email_query_page_without_total_test() {
+  let text =
+    jmap_fixture.email_query_response(["m1"], "qs-1", 0, None, None, True)
+
+  decode.email_query(response_of(text, request.EmailQuery))
+  |> should.equal(Error(error.Decode("total")))
+}
+
+/// One `Email/get` page normalises its email: the true keys of `mailboxIds`
+/// become the mailbox list, the date is parsed, and `bodyValues` is keyed by
+/// part id. A decoder that passed the raw flags map on would not answer
+/// `mailbox_ids`.
+pub fn emails_page_test() {
+  let text =
+    jmap_fixture.email_get_response([jmap_fixture.email("m1")], "state-e1", [
+      "gone",
+    ])
+  let assert Ok(page) = decode.emails(response_of(text, request.EmailGet))
+
+  page.state |> should.equal("state-e1")
+  page.not_found |> should.equal(["gone"])
+  let assert [email] = page.emails
+  email.mailbox_ids |> should.equal(["mb-1"])
+  email.keywords |> should.equal([])
+  let assert Ok(received_at) = normalise.utc_date("2026-10-25T21:04:11Z")
+  email.received_at |> should.equal(received_at)
+  email.body_values
+  |> list.any(fn(entry) { entry.0 == "1" })
+  |> should.be_true
+}
+
+/// RFC 8621 § 4.1.1 / § 4.1.4: `mailboxIds` and `keywords` are sets, so only
+/// `true` keys are members; a decoder that kept `false` keys would list
+/// mailboxes and keywords the email does not have.
+pub fn emails_exclude_false_flags_test() {
+  let text =
+    jmap_fixture.email_get_response([jmap_fixture.email("m1")], "state-e1", [])
+  let text =
+    string.replace(
+      text,
+      "\"mailboxIds\":{\"mb-1\":true}",
+      "\"mailboxIds\":{\"mb-1\":true,\"mb-x\":false}",
+    )
+  let text =
+    string.replace(
+      text,
+      "\"keywords\":{}",
+      "\"keywords\":{\"$seen\":true,\"$flagged\":false}",
+    )
+  let assert Ok(page) = decode.emails(response_of(text, request.EmailGet))
+  let assert [email] = page.emails
+
+  email.mailbox_ids |> should.equal(["mb-1"])
+  email.keywords |> should.equal(["$seen"])
+}
+
+/// `receivedAt` is a `UTCDate`, not free text: text that does not parse is a
+/// decode failure naming the field, not a message with a bogus date.
+pub fn emails_invalid_received_at_test() {
+  let text =
+    jmap_fixture.email_get_response([jmap_fixture.email("m1")], "state-e1", [])
+  let text =
+    string.replace(
+      text,
+      "\"receivedAt\":\"2026-10-25T21:04:11Z\"",
+      "\"receivedAt\":\"not a date\"",
+    )
+
+  decode.emails(response_of(text, request.EmailGet))
+  |> should.equal(Error(error.Decode("list[0].receivedAt")))
+}
+
+/// A thread page keeps its ids in order with the Email state it was served
+/// under; a decoder that reordered or re-keyed them would break thread order.
+pub fn threads_page_test() {
+  let text = jmap_fixture.thread_get_response([#("t1", ["m1", "m2"])], "ts-1")
+
+  decode.threads(response_of(text, request.ThreadGet))
+  |> should.equal(Ok(#([model.Thread("t1", ["m1", "m2"])], "ts-1")))
+}
+
+/// I1: `mailboxIds` is keyed by server data, so the path must end at the map.
+/// A decoder that appended the key would put document text in the path.
+pub fn emails_mailbox_ids_key_ends_the_path_test() {
+  let text = "\"mailboxIds\":{\"SENTINEL-KEY\":\"not a bool\"}"
+  let text =
+    string.replace(
+      jmap_fixture.email_get_response(
+        [jmap_fixture.email("m1")],
+        "state-e1",
+        [],
+      ),
+      "\"mailboxIds\":{\"mb-1\":true}",
+      text,
+    )
+
+  decode.emails(response_of(text, request.EmailGet))
+  |> should.equal(Error(error.Decode("list[0].mailboxIds")))
+}
+
+/// The same rule for a key that happens to be a fixed field name: `id` must
+/// not extend the path past `mailboxIds`, so the error reads
+/// `list[0].mailboxIds` and not `list[0].mailboxIds.id`.
+pub fn emails_fixed_name_key_still_ends_the_path_test() {
+  let text =
+    jmap_fixture.email_get_response([jmap_fixture.email("m1")], "state-e1", [])
+  let text =
+    string.replace(
+      text,
+      "\"mailboxIds\":{\"mb-1\":true}",
+      "\"mailboxIds\":{\"id\":\"not a bool\"}",
+    )
+
+  decode.emails(response_of(text, request.EmailGet))
+  |> should.equal(Error(error.Decode("list[0].mailboxIds")))
+}
+
+/// A numeric-looking `bodyValues` key must not become a list index in the
+/// path: `7` is a part id the server chose, so the path ends at the map.
+pub fn emails_body_values_numeric_key_ends_the_path_test() {
+  let text =
+    jmap_fixture.email_get_response([jmap_fixture.email("m1")], "state-e1", [])
+  let text =
+    string.replace(
+      text,
+      "\"bodyValues\":{\"1\":",
+      "\"bodyValues\":{\"7\":true,\"1\":",
+    )
+
+  decode.emails(response_of(text, request.EmailGet))
+  |> should.equal(Error(error.Decode("list[0].bodyValues")))
+}
+
+/// F8: a response entry must name the method that was sent under its call id;
+/// otherwise an `Email/get` reply could be read as `Mailbox/get` and the run
+/// would decode the wrong arguments. The path names the entry's name slot.
+pub fn method_response_name_must_match_the_call_test() {
+  let text =
+    jmap_fixture.mailbox_get_response(
+      [jmap_fixture.mailbox("mb-1", "Inbox", Some("inbox"))],
+      "state-1",
+    )
+
+  decode.method_responses(text, [
+    #(request.call_id, request.method_name(request.EmailGet)),
+  ])
+  |> should.equal(Error(error.Decode("methodResponses[0][0]")))
+}
+
+fn mailbox_response(text: String) -> decode.MethodResponse {
+  response_of(text, request.MailboxGet)
+}
+
+/// The one response of a document the test built for `method`.
+fn response_of(text: String, method: request.Method) -> decode.MethodResponse {
+  let assert Ok([response]) =
+    decode.method_responses(text, [
+      #(request.call_id, request.method_name(method)),
+    ])
+  response
 }
 
 fn json_pair(name: String, value: String) -> String {

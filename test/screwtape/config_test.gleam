@@ -208,3 +208,16 @@ pub fn every_rejection_exits_two_test() {
     })
   codes |> should.equal([2, 2, 2, 2, 2, 2])
 }
+
+/// The `sync` row's provenance: the window as given, an unset bound as null.
+pub fn window_json_test() {
+  config.Window(
+    mailboxes: ["inbox", "Work"],
+    max_age_days: None,
+    max_messages: Some(5),
+  )
+  |> config.window_json
+  |> should.equal(
+    "{\"mailboxes\":[\"inbox\",\"Work\"],\"max_age_days\":null,\"max_messages\":5}",
+  )
+}

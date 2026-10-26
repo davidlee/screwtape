@@ -5,18 +5,36 @@
 //// this module from a `Method` (invariant I6). `method_name` is the one place
 //// the wire spellings live.
 ////
-//// Every request carries both capabilities of the scope. PHASE-05 adds the
-//// Email/Thread argument builders; the closed `Method` already covers all four.
+//// Every request carries both capabilities of the scope. A run sends one call
+//// per request (PHASE-05 A1), under the one `call_id`.
 
 import gleam/function
 import gleam/json
 import gleam/list
+import gleam/option.{type Option, None, Some}
 
 /// The capabilities every request declares in `using`. They are the same URNs
 /// `decode` reads the session under, so they live here once.
 pub const core_capability = "urn:ietf:params:jmap:core"
 
 pub const mail_capability = "urn:ietf:params:jmap:mail"
+
+/// The call id of the one call a run sends per request.
+pub const call_id = "c0"
+
+/// The Email properties a run fetches: exactly what `normalise.Email` reads
+/// (PHASE-05 A12).
+const email_properties = [
+  "id", "blobId", "threadId", "mailboxIds", "keywords", "size", "receivedAt",
+  "messageId", "inReplyTo", "references", "sender", "from", "to", "cc", "bcc",
+  "replyTo", "subject", "sentAt", "hasAttachment", "preview", "textBody",
+  "attachments", "bodyValues",
+]
+
+/// The body part properties `normalise.BodyPart` reads.
+const body_properties = [
+  "partId", "blobId", "size", "name", "type", "disposition", "cid",
+]
 
 /// The JMAP methods of the scope, and no others.
 pub type Method {
@@ -49,6 +67,116 @@ pub fn mailbox_get(account_id: String, call_id: String) -> Invocation {
     arguments: json.object([
       #("accountId", json.string(account_id)),
       #("ids", json.null()),
+    ]),
+    call_id: call_id,
+  )
+}
+
+/// The window's Email/query filter (design § 5.2, PHASE-05 D2): an `OR` of
+/// `inMailbox` over `mailbox_ids`, inside an `AND` with `after` when the window
+/// has an age bound. The `query_state` row stores this same value.
+pub fn email_query_filter(
+  mailbox_ids: List(String),
+  after: Option(String),
+) -> json.Json {
+  let mailboxes =
+    json.object([
+      #("operator", json.string("OR")),
+      #(
+        "conditions",
+        json.array(mailbox_ids, fn(id) {
+          json.object([#("inMailbox", json.string(id))])
+        }),
+      ),
+    ])
+  case after {
+    None -> mailboxes
+    Some(date) ->
+      json.object([
+        #("operator", json.string("AND")),
+        #(
+          "conditions",
+          json.preprocessed_array([
+            mailboxes,
+            json.object([#("after", json.string(date))]),
+          ]),
+        ),
+      ])
+  }
+}
+
+/// Newest first by `receivedAt`; the `query_state` row stores this same value.
+pub fn email_query_sort() -> json.Json {
+  json.preprocessed_array([
+    json.object([
+      #("property", json.string("receivedAt")),
+      #("isAscending", json.bool(False)),
+    ]),
+  ])
+}
+
+/// One page of ids: `Email/query` from `position`, with `limit` when the run
+/// knows one, every thread member listed, and `total` asked for so paging can
+/// stop at it (PHASE-05 A2, A3).
+pub fn email_query(
+  account_id: String,
+  filter: json.Json,
+  position: Int,
+  limit: Option(Int),
+  call_id: String,
+) -> Invocation {
+  let arguments = [
+    #("accountId", json.string(account_id)),
+    #("filter", filter),
+    #("sort", email_query_sort()),
+    #("collapseThreads", json.bool(False)),
+    #("position", json.int(position)),
+    #("calculateTotal", json.bool(True)),
+  ]
+  let arguments = case limit {
+    None -> arguments
+    Some(limit) -> list.append(arguments, [#("limit", json.int(limit))])
+  }
+  Invocation(
+    method: EmailQuery,
+    arguments: json.object(arguments),
+    call_id: call_id,
+  )
+}
+
+/// The content of `ids`: the model's properties, text bodies fetched, each
+/// part's value capped at `max_body_value_bytes`.
+pub fn email_get(
+  account_id: String,
+  ids: List(String),
+  max_body_value_bytes: Int,
+  call_id: String,
+) -> Invocation {
+  Invocation(
+    method: EmailGet,
+    arguments: json.object([
+      #("accountId", json.string(account_id)),
+      #("ids", json.array(ids, json.string)),
+      #("properties", json.array(email_properties, json.string)),
+      #("bodyProperties", json.array(body_properties, json.string)),
+      #("fetchTextBodyValues", json.bool(True)),
+      #("maxBodyValueBytes", json.int(max_body_value_bytes)),
+    ]),
+    call_id: call_id,
+  )
+}
+
+/// The member ids of the threads `ids`.
+pub fn thread_get(
+  account_id: String,
+  ids: List(String),
+  call_id: String,
+) -> Invocation {
+  Invocation(
+    method: ThreadGet,
+    arguments: json.object([
+      #("accountId", json.string(account_id)),
+      #("ids", json.array(ids, json.string)),
     ]),
     call_id: call_id,
   )
