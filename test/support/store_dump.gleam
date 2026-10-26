@@ -132,3 +132,18 @@ fn column_names(connection: sqlight.Connection, table: String) -> List(String) {
 fn quote_identifier(name: String) -> String {
   "\"" <> string.replace(name, "\"", "\"\"") <> "\""
 }
+
+/// Run one statement on the store outside `screwtape/store`, as an operator or
+/// another binary would: how a test takes a store to an older or newer
+/// `user_version`.
+pub fn exec_sql(path: String, sql: String) -> Nil {
+  let assert Ok(connection) = sqlight.open(path)
+  let assert Ok(Nil) = sqlight.exec(sql, on: connection)
+  let assert Ok(Nil) = sqlight.close(connection)
+  Nil
+}
+
+/// Set the store's `PRAGMA user_version`, leaving its tables and rows.
+pub fn set_user_version(path: String, version: Int) -> Nil {
+  exec_sql(path, "PRAGMA user_version = " <> int.to_string(version))
+}

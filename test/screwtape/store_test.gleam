@@ -23,6 +23,7 @@ import gleeunit/should
 import screwtape/error.{type Error, Store}
 import screwtape/model
 import screwtape/store
+import screwtape/store/query
 import sqlight
 import support/snapshot_fixture
 import support/store_dump
@@ -77,15 +78,6 @@ fn written(snapshot: model.Snapshot) -> #(String, String) {
   let assert Ok(Nil) = store.write_snapshot(writer, snapshot)
   store.close_writer(writer)
   #(dir, path)
-}
-
-/// Run one statement on `path` through a plain sqlight connection, as an
-/// operator (or a newer binary) would: outside the store.
-fn raw_exec(path: String, sql: String) -> Nil {
-  let assert Ok(connection) = sqlight.open(path)
-  let assert Ok(Nil) = sqlight.exec(sql, on: connection)
-  let assert Ok(Nil) = sqlight.close(connection)
-  Nil
 }
 
 /// Open the store read-only, run `query` in one read, and close the reader.
@@ -322,11 +314,11 @@ pub fn user_version_after_a_first_write_is_the_supported_version_test() {
 pub fn newer_schema_is_refused_with_schema_mismatch_and_left_untouched_test() {
   let #(dir, path) = written(snapshot_fixture.full(account))
   let newer = store.supported_version() + 1
-  raw_exec(
+  store_dump.exec_sql(
     path,
     "ALTER TABLE message ADD COLUMN extra TEXT NOT NULL DEFAULT 'x'",
   )
-  raw_exec(path, "PRAGMA user_version = " <> int.to_string(newer))
+  store_dump.set_user_version(path, newer)
   let before = store_dump.dump(path)
 
   let assert Ok(writer) = store.open_writer(path)
@@ -638,8 +630,8 @@ pub fn round_trip_keeps_bodies_addresses_and_header_ids_test() {
 // ---------------------------------------------------------------------------
 
 /// The `list` query that selects every message, in the store's order.
-fn every_message() -> store.ListQuery {
-  store.ListQuery(
+fn every_message() -> query.ListQuery {
+  query.ListQuery(
     mailbox_ids: None,
     since_ms: None,
     from: None,
@@ -684,9 +676,9 @@ fn mailbox_order(a: model.Mailbox, b: model.Mailbox) -> Order {
 
 fn messages_of(
   path: String,
-  query: store.ListQuery,
+  query: query.ListQuery,
 ) -> Result(List(model.MessageSummary), Error) {
-  read_from(path, fn(tx) { store.messages(tx, query) })
+  read_from(path, fn(tx) { query.messages(tx, query) })
 }
 
 /// Round trip: every message of the fixture comes back equal to its canonical
@@ -699,7 +691,7 @@ pub fn read_queries_round_trip_every_fixture_message_test() {
   let result =
     read_from(path, fn(tx) {
       list.try_map(snapshot.messages, fn(message) {
-        store.message(tx, message.id)
+        query.message(tx, message.id)
       })
     })
   temp.remove_dir(dir)
@@ -714,7 +706,7 @@ pub fn read_queries_round_trip_every_fixture_message_test() {
 pub fn message_of_an_unknown_id_is_none_test() {
   let #(dir, path) = written(snapshot_fixture.full(account))
   let result =
-    read_from(path, fn(tx) { store.message(tx, account <> "-missing") })
+    read_from(path, fn(tx) { query.message(tx, account <> "-missing") })
   temp.remove_dir(dir)
 
   result |> should.equal(Ok(None))
@@ -723,7 +715,7 @@ pub fn message_of_an_unknown_id_is_none_test() {
 /// The `sync` row carries the account the snapshot belongs to.
 pub fn account_id_is_the_snapshots_account_test() {
   let #(dir, path) = written(snapshot_fixture.full(account))
-  let result = read_from(path, fn(tx) { store.account_id(tx) })
+  let result = read_from(path, fn(tx) { query.account_id(tx) })
   temp.remove_dir(dir)
 
   result |> should.equal(Ok(account))
@@ -735,7 +727,7 @@ pub fn account_id_is_the_snapshots_account_test() {
 pub fn mailboxes_are_ordered_by_sort_order_then_name_then_id_test() {
   let snapshot = snapshot_fixture.full(account)
   let #(dir, path) = written(snapshot)
-  let result = read_from(path, fn(tx) { store.mailboxes(tx) })
+  let result = read_from(path, fn(tx) { query.mailboxes(tx) })
   temp.remove_dir(dir)
 
   let expected = list.sort(snapshot.mailboxes, mailbox_order)
@@ -828,17 +820,17 @@ pub fn messages_mailbox_filter_matches_any_listed_mailbox_once_test() {
   let inbox =
     messages_of(
       path,
-      store.ListQuery(..every_message(), mailbox_ids: Some(["acct-l-mb1"])),
+      query.ListQuery(..every_message(), mailbox_ids: Some(["acct-l-mb1"])),
     )
   let archive =
     messages_of(
       path,
-      store.ListQuery(..every_message(), mailbox_ids: Some(["acct-l-mb2"])),
+      query.ListQuery(..every_message(), mailbox_ids: Some(["acct-l-mb2"])),
     )
   let both =
     messages_of(
       path,
-      store.ListQuery(
+      query.ListQuery(
         ..every_message(),
         mailbox_ids: Some(["acct-l-mb2", "acct-l-mb1"]),
       ),
@@ -874,12 +866,12 @@ pub fn messages_since_includes_its_boundary_millisecond_test() {
   let from_midnight =
     messages_of(
       path,
-      store.ListQuery(..every_message(), since_ms: Some(midnight)),
+      query.ListQuery(..every_message(), since_ms: Some(midnight)),
     )
   let from_just_before =
     messages_of(
       path,
-      store.ListQuery(..every_message(), since_ms: Some(midnight - 1)),
+      query.ListQuery(..every_message(), since_ms: Some(midnight - 1)),
     )
   temp.remove_dir(dir)
 
@@ -915,7 +907,7 @@ pub fn messages_since_includes_its_boundary_millisecond_test() {
 pub fn messages_from_matches_a_from_address_case_insensitively_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
   let result =
-    messages_of(path, store.ListQuery(..every_message(), from: Some("ACME")))
+    messages_of(path, query.ListQuery(..every_message(), from: Some("ACME")))
   temp.remove_dir(dir)
 
   result |> should.equal(Ok(listing_summaries(["acct-l-m1"])))
@@ -926,9 +918,9 @@ pub fn messages_from_matches_a_from_address_case_insensitively_test() {
 pub fn messages_from_treats_percent_and_underscore_literally_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
   let percent =
-    messages_of(path, store.ListQuery(..every_message(), from: Some("%")))
+    messages_of(path, query.ListQuery(..every_message(), from: Some("%")))
   let underscore =
-    messages_of(path, store.ListQuery(..every_message(), from: Some("_")))
+    messages_of(path, query.ListQuery(..every_message(), from: Some("_")))
   temp.remove_dir(dir)
 
   percent |> should.equal(Ok(listing_summaries(["acct-l-m6"])))
@@ -939,9 +931,9 @@ pub fn messages_from_treats_percent_and_underscore_literally_test() {
 pub fn messages_unread_keeps_only_unseen_messages_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
   let unread =
-    messages_of(path, store.ListQuery(..every_message(), unread: True))
+    messages_of(path, query.ListQuery(..every_message(), unread: True))
   let read =
-    messages_of(path, store.ListQuery(..every_message(), unread: False))
+    messages_of(path, query.ListQuery(..every_message(), unread: False))
   temp.remove_dir(dir)
 
   unread
@@ -968,11 +960,11 @@ pub fn messages_unread_keeps_only_unseen_messages_test() {
 /// the end returns nothing.
 pub fn messages_limit_and_offset_paginate_the_ordered_result_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
-  let one = messages_of(path, store.ListQuery(..every_message(), limit: 1))
-  let all = messages_of(path, store.ListQuery(..every_message(), limit: 100))
+  let one = messages_of(path, query.ListQuery(..every_message(), limit: 1))
+  let all = messages_of(path, query.ListQuery(..every_message(), limit: 100))
   let page =
-    messages_of(path, store.ListQuery(..every_message(), limit: 2, offset: 2))
-  let beyond = messages_of(path, store.ListQuery(..every_message(), offset: 6))
+    messages_of(path, query.ListQuery(..every_message(), limit: 2, offset: 2))
+  let beyond = messages_of(path, query.ListQuery(..every_message(), offset: 6))
   temp.remove_dir(dir)
 
   one |> should.equal(Ok(listing_summaries(["acct-l-m6"])))
@@ -1000,7 +992,7 @@ pub fn messages_filters_combine_with_and_test() {
   let result =
     messages_of(
       path,
-      store.ListQuery(
+      query.ListQuery(
         ..every_message(),
         mailbox_ids: Some(["acct-l-mb1"]),
         since_ms: Some(snapshot_fixture.listing_midnight_ms),
@@ -1018,7 +1010,7 @@ pub fn messages_filters_combine_with_and_test() {
 pub fn thread_reads_entries_in_position_order_with_summaries_for_held_messages_test() {
   let snapshot = snapshot_fixture.listing()
   let #(dir, path) = written(snapshot)
-  let result = read_from(path, fn(tx) { store.thread(tx, "acct-l-th1") })
+  let result = read_from(path, fn(tx) { query.thread(tx, "acct-l-th1") })
   temp.remove_dir(dir)
 
   result
@@ -1037,7 +1029,7 @@ pub fn thread_reads_entries_in_position_order_with_summaries_for_held_messages_t
 /// A thread id the store does not hold is `None`, not an empty list.
 pub fn thread_of_an_unknown_id_is_none_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
-  let result = read_from(path, fn(tx) { store.thread(tx, "acct-l-th-missing") })
+  let result = read_from(path, fn(tx) { query.thread(tx, "acct-l-th-missing") })
   temp.remove_dir(dir)
 
   result |> should.equal(Ok(None))

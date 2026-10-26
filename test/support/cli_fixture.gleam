@@ -15,7 +15,6 @@ import gleam/bit_array
 import gleam/dict
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
-import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -25,7 +24,6 @@ import screwtape/cli
 import screwtape/credential
 import screwtape/model
 import screwtape/store
-import sqlight
 import support/jmap_fixture
 import support/local_jmap
 import support/temp
@@ -236,21 +234,6 @@ pub fn seeded(prefix: String, snapshot: model.Snapshot) -> ReadSetup {
   let assert Ok(Nil) = store.write_snapshot(writer, snapshot)
   store.close_writer(writer)
   setup
-}
-
-/// Run one statement on the store outside `screwtape/store`, as an operator or
-/// another binary would: how a test takes a store to an older or newer
-/// `user_version`.
-pub fn exec_sql(path: String, sql: String) -> Nil {
-  let assert Ok(connection) = sqlight.open(path)
-  let assert Ok(Nil) = sqlight.exec(sql, on: connection)
-  let assert Ok(Nil) = sqlight.close(connection)
-  Nil
-}
-
-/// Set the store's `PRAGMA user_version`, leaving its tables and rows.
-pub fn set_user_version(path: String, version: Int) -> Nil {
-  exec_sql(path, "PRAGMA user_version = " <> int.to_string(version))
 }
 
 /// The outcome's stdout as a decoded JSON document. A failure, or a stdout that

@@ -1040,7 +1040,7 @@ pub fn read_verbs_refuse_a_missing_store_with_no_snapshot_test() {
 pub fn read_verbs_refuse_an_older_store_with_no_snapshot_test() {
   let setup =
     cli_fixture.seeded("cli-ex3-older", snapshot_fixture.full("acct-a"))
-  cli_fixture.set_user_version(setup.store_path, 0)
+  store_dump.set_user_version(setup.store_path, 0)
   expect_store_refusal(setup, "no_snapshot")
 }
 
@@ -1049,11 +1049,11 @@ pub fn read_verbs_refuse_an_older_store_with_no_snapshot_test() {
 pub fn read_verbs_refuse_a_newer_store_with_schema_mismatch_test() {
   let setup =
     cli_fixture.seeded("cli-ex3-newer", snapshot_fixture.full("acct-a"))
-  cli_fixture.exec_sql(
+  store_dump.exec_sql(
     setup.store_path,
     "ALTER TABLE message ADD COLUMN extra TEXT NOT NULL DEFAULT 'x'",
   )
-  cli_fixture.set_user_version(setup.store_path, store.supported_version() + 1)
+  store_dump.set_user_version(setup.store_path, store.supported_version() + 1)
   expect_store_refusal(setup, "schema_mismatch")
 }
 

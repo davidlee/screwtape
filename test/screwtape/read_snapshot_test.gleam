@@ -9,7 +9,7 @@
 //// (the old_snapshot).
 ////
 //// Why this fails if `store.read` ran each select in autocommit (no
-//// BEGIN/COMMIT): `store.message` issues several selects (the message row,
+//// BEGIN/COMMIT): `query.message` issues several selects (the message row,
 //// then its addresses, header ids, bodies, attachments and mailbox ids). The
 //// hook commits B after the first of them. In autocommit every later select
 //// starts a fresh implicit read transaction, so it sees B's rows: the result
@@ -33,6 +33,7 @@ import screwtape/model.{
   PlainText, Snapshot, To,
 }
 import screwtape/store
+import screwtape/store/query
 import support/snapshot_fixture
 import support/temp
 
@@ -51,7 +52,7 @@ pub fn read_serves_one_snapshot_while_another_commits_test() {
   let assert Ok(reader) =
     store.open_reader_with(path, commit_hook(path, new_snapshot, None))
   let assert Ok(read) =
-    store.read(reader, fn(tx) { store.message(tx, message.id) })
+    store.read(reader, fn(tx) { query.message(tx, message.id) })
   store.close_reader(reader)
 
   read |> should.equal(Some(snapshot_fixture.canonical(message)))
@@ -74,7 +75,7 @@ pub fn hook_commits_during_the_read_test() {
   let assert Ok(reader) =
     store.open_reader_with(path, commit_hook(path, new_snapshot, Some(fired)))
   let assert Ok(_) =
-    store.read(reader, fn(tx) { store.message(tx, message.id) })
+    store.read(reader, fn(tx) { query.message(tx, message.id) })
   store.close_reader(reader)
 
   process.receive(fired, within: 0) |> should.equal(Ok(Nil))
@@ -121,7 +122,7 @@ fn written(snapshot: Snapshot) -> #(String, String) {
 /// Message `id` as a plain reader returns it.
 fn read_message(path: String, id: String) -> Option(Message) {
   let assert Ok(reader) = store.open_reader(path)
-  let assert Ok(message) = store.read(reader, fn(tx) { store.message(tx, id) })
+  let assert Ok(message) = store.read(reader, fn(tx) { query.message(tx, id) })
   store.close_reader(reader)
   message
 }
