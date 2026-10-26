@@ -4,8 +4,8 @@
 //// *while* `local_jmap` still withholds its end, both framings), EX-4 / VT-2
 //// (a 503 with `Retry-After: 0` is exactly one request, plain or oversized).
 ////
-//// The Erlang binding is declared here for now (D2); PHASE-10's cli owns the
-//// production one. Requests are POSTed with a JSON body because JMAP uses
+//// The production `Send` is `screwtape/cli`'s (D8); each case binds it with its
+//// own timeout and CA. Requests are POSTed with a JSON body because JMAP uses
 //// POST, and every call passes the server's per-run CA (`Some(ca_path)`).
 
 import gleam/bit_array
@@ -17,6 +17,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
+import screwtape/cli
 import screwtape/jmap/client
 import support/local_jmap
 
@@ -366,11 +367,13 @@ pub fn invalid_utf8_body_bad_utf8_test() {
   result |> should.equal(Error(client.BadUtf8))
 }
 
-/// D2: the Erlang adapter's entry point, one synchronous httpc request.
-@external(erlang, "screwtape_http", "send")
+/// D2/D8: the production `Send`, owned by `screwtape/cli`, bound with each
+/// case's timeout and CA file.
 fn send(
   req: Request(String),
   cap: Int,
   timeout_ms: Int,
   ca_file: Option(String),
-) -> Result(Response(String), client.HttpFailure)
+) -> Result(Response(String), client.HttpFailure) {
+  cli.production_send(timeout_ms, ca_file)(req, cap)
+}

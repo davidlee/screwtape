@@ -6,7 +6,6 @@
 //// `bearer` and through `string.inspect`, which is all a debug print could show.
 
 import gleam/bit_array
-import gleam/dynamic.{type Dynamic}
 import gleam/list
 import gleam/string
 import gleeunit
@@ -42,7 +41,7 @@ pub fn missing_credentials_directory_test() {
 
 pub fn empty_file_test() {
   let dir = temp.dir("credential-empty")
-  let _ = write(dir, "fastmail", <<>>)
+  temp.write(dir <> "/fastmail", <<>>)
   let result = credential.read(dir, "fastmail")
   temp.remove_dir(dir)
 
@@ -51,7 +50,7 @@ pub fn empty_file_test() {
 
 pub fn whitespace_only_file_empty_test() {
   let dir = temp.dir("credential-space")
-  let _ = write(dir, "fastmail", bit_array.from_string("\n \t\r\n"))
+  temp.write(dir <> "/fastmail", bit_array.from_string("\n \t\r\n"))
   let result = credential.read(dir, "fastmail")
   temp.remove_dir(dir)
 
@@ -60,7 +59,7 @@ pub fn whitespace_only_file_empty_test() {
 
 pub fn non_utf8_file_missing_test() {
   let dir = temp.dir("credential-bytes")
-  let _ = write(dir, "fastmail", <<0xff, 0xfe, 0x00>>)
+  temp.write(dir <> "/fastmail", <<0xff, 0xfe, 0x00>>)
   let result = credential.read(dir, "fastmail")
   temp.remove_dir(dir)
 
@@ -80,7 +79,7 @@ pub fn control_bytes_invalid_test() {
   ]
   let results =
     list.map(cases, fn(c) {
-      let _ = write(dir, c.0, bit_array.from_string(c.1))
+      temp.write(dir <> "/" <> c.0, bit_array.from_string(c.1))
       credential.read(dir, c.0)
     })
   temp.remove_dir(dir)
@@ -91,7 +90,7 @@ pub fn control_bytes_invalid_test() {
 
 pub fn readable_file_trailing_newline_trimmed_test() {
   let dir = temp.dir("credential-read")
-  let _ = write(dir, "fastmail", bit_array.from_string(secret <> "\n"))
+  temp.write(dir <> "/fastmail", bit_array.from_string(secret <> "\n"))
   let result = credential.read(dir, "fastmail")
   temp.remove_dir(dir)
 
@@ -102,8 +101,10 @@ pub fn readable_file_trailing_newline_trimmed_test() {
 
 pub fn readable_file_surrounding_whitespace_trimmed_test() {
   let dir = temp.dir("credential-trim")
-  let _ =
-    write(dir, "fastmail", bit_array.from_string("  \t" <> secret <> "  \n\n"))
+  temp.write(
+    dir <> "/fastmail",
+    bit_array.from_string("  \t" <> secret <> "  \n\n"),
+  )
   let result = credential.read(dir, "fastmail")
   temp.remove_dir(dir)
 
@@ -114,7 +115,7 @@ pub fn readable_file_surrounding_whitespace_trimmed_test() {
 
 pub fn inspect_hides_secret_test() {
   let dir = temp.dir("credential-inspect")
-  let _ = write(dir, "fastmail", bit_array.from_string(secret <> "\n"))
+  temp.write(dir <> "/fastmail", bit_array.from_string(secret <> "\n"))
   let result = credential.read(dir, "fastmail")
   temp.remove_dir(dir)
 
@@ -128,17 +129,15 @@ pub fn inspect_hides_secret_test() {
 /// take: `Credential` reasons are fixed strings.
 pub fn error_reasons_do_not_carry_the_secret_test() {
   let dir = temp.dir("credential-errors")
-  let _ = write(dir, "empty", bit_array.from_string("   \n"))
-  let _ =
-    write(
-      dir,
-      "bytes",
-      bit_array.concat([
-        <<0xff>>,
-        bit_array.from_string(namespaced_secret),
-        <<0xfe>>,
-      ]),
-    )
+  temp.write(dir <> "/empty", bit_array.from_string("   \n"))
+  temp.write(
+    dir <> "/bytes",
+    bit_array.concat([
+      <<0xff>>,
+      bit_array.from_string(namespaced_secret),
+      <<0xfe>>,
+    ]),
+  )
   let empty = credential.read(dir, "empty")
   let bytes = credential.read(dir, "bytes")
   let absent = credential.read(dir, "absent")
@@ -154,14 +153,3 @@ pub fn error_reasons_do_not_carry_the_secret_test() {
   |> string.contains(namespaced_secret)
   |> should.be_false
 }
-
-/// Erlang's `file:write_file/2` answers the bare atom `ok`, which has no Gleam
-/// `Result` shape; the call's outcome is asserted where it matters, by reading
-/// the file back through the code under test.
-fn write(dir: String, name: String, content: BitArray) -> Nil {
-  let _ = write_file(dir <> "/" <> name, content)
-  Nil
-}
-
-@external(erlang, "file", "write_file")
-fn write_file(path: String, content: BitArray) -> Dynamic

@@ -110,14 +110,17 @@ pub fn loopback_tls_hostname_mismatch_fails_test() {
 }
 
 /// VT-4 (subprocess half): the shipped artifact's `main`, spawned as a
-/// process through the shipment's own entry point. It must exit cleanly and
-/// say nothing on either stream (design § 5.2: nothing may print).
+/// process through the shipment's own entry point. A bare invocation is a
+/// usage error (D7), so it exits 2 with one JSON line on stderr and says
+/// nothing on stdout (design § 5.2: no document, nothing that may print).
 pub fn shipment_main_runs_as_a_subprocess_test() {
   let assert Ok(shipment) = subprocess.shipment_dir()
   let assert Ok(record) =
     subprocess.run(subprocess.entrypoint(shipment), ["run"])
 
   record.stdout |> should.equal(<<>>)
-  record.stderr |> should.equal("")
-  record.exit_code |> should.equal(0)
+  record.stderr
+  |> string.starts_with("{\"level\":\"error\",\"error\":\"usage\"")
+  |> should.be_true
+  record.exit_code |> should.equal(2)
 }

@@ -9,22 +9,22 @@
 //// runs once over the production `Send` against `support/local_jmap`.
 
 import gleam/bit_array
-import gleam/dynamic.{type Dynamic}
 import gleam/http
-import gleam/http/request.{type Request}
 import gleam/http/response.{Response}
 import gleam/json
 import gleam/list
-import gleam/option.{type Option, Some}
+import gleam/option.{Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
+import screwtape/cli
 import screwtape/credential.{type Token}
 import screwtape/error
 import screwtape/jmap/client
 import screwtape/jmap/decode
 import screwtape/jmap/request as jmap_request
 import support/fixture_send
+import support/jmap_fixture
 import support/local_jmap
 import support/temp
 
@@ -57,32 +57,11 @@ const timeout_ms = 5000
 /// The only way to a `Token`: a real file, read by `credential.read`.
 fn token() -> Token {
   let dir = temp.dir("client-token")
-  let _ =
-    write_file(dir <> "/fastmail", bit_array.from_string(sentinel <> "\n"))
+  temp.write(dir <> "/fastmail", bit_array.from_string(sentinel <> "\n"))
   let result = credential.read(dir, "fastmail")
   temp.remove_dir(dir)
   let assert Ok(token) = result
   token
-}
-
-fn fixture_text(name: String) -> String {
-  let assert Ok(bytes) = read_file("test/fixtures/jmap/" <> name)
-  let assert Ok(text) = bit_array.to_string(bytes)
-  text
-}
-
-/// A session document naming `api_url`, in the shape `decode.session` accepts.
-fn session_json(api_url: String) -> String {
-  "{\"apiUrl\":\""
-  <> api_url
-  <> "\""
-  <> ",\"username\":\"operator@example.test\""
-  <> ",\"primaryAccounts\":{\"urn:ietf:params:jmap:mail\":\"acct-1\"}"
-  <> ",\"accounts\":{\"acct-1\":{\"name\":\"operator@example.test\","
-  <> "\"isReadOnly\":false}}"
-  <> ",\"capabilities\":{\"urn:ietf:params:jmap:core\":"
-  <> "{\"maxObjectsInGet\":1000,\"maxCallsInRequest\":32}"
-  <> ",\"urn:ietf:params:jmap:mail\":{}}}"
 }
 
 fn ok(status: Int, body: String) -> fixture_send.Reply {
@@ -127,7 +106,7 @@ fn with_session(
   script: List(fixture_send.Step),
 ) -> #(fixture_send.Fixture, client.Client) {
   let fixture =
-    fixture_send.start([get(200, fixture_text("session.json")), ..script])
+    fixture_send.start([get(200, jmap_fixture.text("session.json")), ..script])
   let assert Ok(client_) = open_session(fixture, roomy)
   #(fixture, client_)
 }
@@ -148,8 +127,8 @@ pub fn budget_remaining_test() {
 /// VT-1 "exhausted", "max_total_bytes": the two 2xx bodies take the budget to
 /// exactly 0, and the next `call` makes no request at all.
 pub fn exhausted_budget_refuses_the_next_call_test() {
-  let session_body = fixture_text("session.json")
-  let call_body = fixture_text("mailbox_get.json")
+  let session_body = jmap_fixture.text("session.json")
+  let call_body = jmap_fixture.text("mailbox_get.json")
   let max_total_bytes =
     string.byte_size(session_body) + string.byte_size(call_body)
   let fixture =
@@ -170,18 +149,18 @@ pub fn exhausted_budget_refuses_the_next_call_test() {
 /// the 2xx session and the 2xx call spend the budget to 0, the refused call
 /// opens no connection, so the server's count does not move.
 pub fn exhausted_budget_real_transport_sends_nothing_test() {
-  let call_body = fixture_text("mailbox_get.json")
+  let call_body = jmap_fixture.text("mailbox_get.json")
   let server =
     local_jmap.start_with(fn(base_url) {
       [
-        jmap_reply(200, session_json(base_url <> "/api")),
-        jmap_reply(200, call_body),
+        local_jmap.reply(200, jmap_fixture.session(base_url <> "/api")),
+        local_jmap.reply(200, call_body),
       ]
     })
-  let session_body = session_json(local_jmap.url(server, "/api"))
-  let send = fn(request: Request(String), cap: Int) -> fixture_send.Reply {
-    production_send(request, cap, timeout_ms, Some(server.ca_path))
-  }
+  let session_body = jmap_fixture.session(local_jmap.url(server, "/api"))
+  // The production `Send`, owned by `screwtape/cli` (D8); this case binds it
+  // with the real server's per-run CA.
+  let send = cli.production_send(timeout_ms, Some(server.ca_path))
   let max_total_bytes =
     string.byte_size(session_body) + string.byte_size(call_body)
 
@@ -208,7 +187,8 @@ pub fn exhausted_budget_real_transport_sends_nothing_test() {
 /// A budget of 0 is already spent: the session fetch is refused before it
 /// exists, so the helper records nothing.
 pub fn zero_budget_sends_no_request_test() {
-  let fixture = fixture_send.start([get(200, fixture_text("session.json"))])
+  let fixture =
+    fixture_send.start([get(200, jmap_fixture.text("session.json"))])
 
   open_session(fixture, 0)
   |> expect_error(error.LimitExceeded("max_total_bytes"))
@@ -219,7 +199,7 @@ pub fn zero_budget_sends_no_request_test() {
 /// `Send`'s `TooLarge` is a budget outcome, not an HTTP one, and the fixture
 /// honours its cap: the session body is one byte over the whole budget.
 pub fn oversized_session_body_over_the_budget_test() {
-  let session_body = fixture_text("session.json")
+  let session_body = jmap_fixture.text("session.json")
   let fixture = fixture_send.start([get(200, session_body)])
 
   open_session(fixture, string.byte_size(session_body) - 1)
@@ -231,8 +211,8 @@ pub fn oversized_session_body_over_the_budget_test() {
 /// The cap handed to `Send` is the bytes left: the whole budget first, then the
 /// budget with the session body taken off.
 pub fn cap_passed_is_the_budget_left_test() {
-  let session_body = fixture_text("session.json")
-  let call_body = fixture_text("mailbox_get.json")
+  let session_body = jmap_fixture.text("session.json")
+  let call_body = jmap_fixture.text("mailbox_get.json")
   let max_total_bytes =
     string.byte_size(session_body) + string.byte_size(call_body) + 500
   let fixture =
@@ -253,7 +233,7 @@ pub fn cap_passed_is_the_budget_left_test() {
 /// (EX-2). It is not retried, and the cap it was received under is the budget
 /// left after the session (A2).
 pub fn call_503_is_an_error_test() {
-  let session_body = fixture_text("session.json")
+  let session_body = jmap_fixture.text("session.json")
   let fixture =
     fixture_send.start([
       get(200, session_body),
@@ -274,7 +254,7 @@ pub fn call_503_is_an_error_test() {
 /// responses come back in order, and `budget_of` carries what is left.
 pub fn session_and_call_decode_test() {
   let #(fixture, client_) =
-    with_session([post(200, fixture_text("mailbox_get.json"))])
+    with_session([post(200, jmap_fixture.text("mailbox_get.json"))])
 
   let session = client.session_of(client_)
   session.api_url |> should.equal("https://api.example.test/jmap/")
@@ -289,8 +269,8 @@ pub fn session_and_call_decode_test() {
   call_id |> should.equal(request_call_id)
 
   let spent =
-    string.byte_size(fixture_text("session.json"))
-    + string.byte_size(fixture_text("mailbox_get.json"))
+    string.byte_size(jmap_fixture.text("session.json"))
+    + string.byte_size(jmap_fixture.text("mailbox_get.json"))
   fixture_send.request_count(fixture) |> should.equal(2)
   client.remaining(client.budget_of(client_)) |> should.equal(roomy - spent)
 
@@ -306,7 +286,7 @@ pub fn session_and_call_decode_test() {
 /// A method-level error names the method that was sent, not the call id.
 pub fn method_error_is_jmap_method_test() {
   let #(_, client_) =
-    with_session([post(200, fixture_text("method_error.json"))])
+    with_session([post(200, jmap_fixture.text("method_error.json"))])
 
   client.call(client_, [invocation()])
   |> expect_error(error.JmapMethod("Mailbox/get", not_request))
@@ -323,7 +303,7 @@ pub fn session_status_table_test() {
     #(429, "slow down", error.RateLimited),
     #(
       500,
-      fixture_text("problem_not_request.json"),
+      jmap_fixture.text("problem_not_request.json"),
       error.JmapRequest(not_request),
     ),
     #(500, "boom", error.Http("status_500")),
@@ -345,7 +325,7 @@ pub fn call_status_table_test() {
     #(429, "slow down", error.RateLimited),
     #(
       500,
-      fixture_text("problem_not_request.json"),
+      jmap_fixture.text("problem_not_request.json"),
       error.JmapRequest(not_request),
     ),
     #(503, "boom", error.Http("status_503")),
@@ -389,7 +369,7 @@ pub fn call_send_failure_test() {
 /// GET and on the POST that follows it.
 pub fn authorization_header_test() {
   let #(fixture, client_) =
-    with_session([post(200, fixture_text("mailbox_get.json"))])
+    with_session([post(200, jmap_fixture.text("mailbox_get.json"))])
 
   let assert Ok(#(_, _)) = client.call(client_, [invocation()])
 
@@ -398,31 +378,3 @@ pub fn authorization_header_test() {
   |> list.map(fn(request) { list.key_find(request.headers, "authorization") })
   |> should.equal([expected, expected])
 }
-
-// ---------------------------------------------------------------- FFI
-
-/// The production `Send`'s Erlang entry point, bound here as `transport_test`
-/// binds it; PHASE-10 T4 moves this to `screwtape/cli`.
-@external(erlang, "screwtape_http", "send")
-fn production_send(
-  request: Request(String),
-  cap: Int,
-  timeout_ms: Int,
-  ca_file: Option(String),
-) -> fixture_send.Reply
-
-fn jmap_reply(status: Int, body: String) -> local_jmap.Reply {
-  local_jmap.Reply(
-    status: status,
-    headers: [],
-    framing: local_jmap.ContentLength,
-    body: bit_array.from_string(body),
-    withhold_end: False,
-  )
-}
-
-@external(erlang, "file", "read_file")
-fn read_file(path: String) -> Result(BitArray, Dynamic)
-
-@external(erlang, "file", "write_file")
-fn write_file(path: String, content: BitArray) -> Dynamic

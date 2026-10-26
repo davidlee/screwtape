@@ -7,15 +7,15 @@
 //// crash: no `let assert`, no `panic`, and no route that puts the secret into a
 //// reason, in this module at all.
 ////
-//// The file is read through `file:read_file/1` rather than a dependency (§ 10 is
-//// pinned, A4). Its bytes never become an `Error`: bytes that are not UTF-8 are
-//// as good as unreadable, so they read as `Credential("missing")`.
+//// The file is read through `screwtape/file`, which reaches `file:read_file/1`
+//// rather than a dependency (§ 10 is pinned, A4). Its bytes never become an
+//// `Error`: bytes that are not UTF-8 are as good as unreadable, so they read as
+//// `Credential("missing")`.
 
-import gleam/bit_array
-import gleam/dynamic.{type Dynamic}
 import gleam/list
 import gleam/string
 import screwtape/error.{type Error, Credential}
+import screwtape/file
 
 pub opaque type Token {
   Token(reveal: fn() -> String)
@@ -28,14 +28,9 @@ pub opaque type Token {
 /// after the trim (< 0x20 or 0x7f, which would corrupt the header) →
 /// `Credential("invalid")`.
 pub fn read(dir: String, name: String) -> Result(Token, Error) {
-  case read_file(dir <> "/" <> name) {
-    Ok(bytes) ->
-      case bit_array.to_string(bytes) {
-        Ok(text) -> token(text)
-        // Not UTF-8: a secret we cannot read is a secret we do not have.
-        Error(Nil) -> Error(Credential("missing"))
-      }
-    Error(_) -> Error(Credential("missing"))
+  case file.read_text(dir <> "/" <> name) {
+    Ok(text) -> token(text)
+    Error(Nil) -> Error(Credential("missing"))
   }
 }
 
@@ -62,6 +57,3 @@ fn has_control_byte(text: String) -> Bool {
     code < 0x20 || code == 0x7f
   })
 }
-
-@external(erlang, "file", "read_file")
-fn read_file(path: String) -> Result(BitArray, Dynamic)

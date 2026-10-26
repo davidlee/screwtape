@@ -19,7 +19,7 @@
 %% for the executable or its arguments.
 -module(subprocess_ffi).
 
--export([run/2, getenv/1, is_dir/1, ebin_dirs/1, find_executable/1]).
+-export([run/2, run/3, getenv/1, is_dir/1, ebin_dirs/1, find_executable/1]).
 
 %% $0 = "screwtape-subprocess", $1 = stderr path, $2.. = executable + args.
 -define(SCRIPT, "s=$1; shift; exec \"$@\" 2>\"$s\"").
@@ -32,9 +32,16 @@
 %% {error, {spawn_failed, Reason}} / {error, {timed_out, Seconds}}: the error
 %% terms are the Gleam constructors `SpawnFailed(reason)` and
 %% `TimedOut(after_seconds)`.
+%%
+%% `Env` holds `{Name, Option}` pairs (Gleam `Option(String)`): `{some, V}` sets
+%% the variable, `none` removes it (`{Name, false}` in `open_port`). Everything
+%% else is inherited from this VM.
 run(Executable, Args) ->
+    run(Executable, Args, []).
+
+run(Executable, Args, Env) ->
     case temp_ffi:file("screwtape-subprocess") of
-        {ok, StderrPath} -> run_with_stderr(StderrPath, Executable, Args);
+        {ok, StderrPath} -> run_with_stderr(StderrPath, Executable, Args, Env);
         {error, Reason} -> {error, {spawn_failed, Reason}}
     end.
 
@@ -74,11 +81,12 @@ find_executable(Name) ->
 
 %% Internals
 
-run_with_stderr(StderrPath, Executable, Args) ->
+run_with_stderr(StderrPath, Executable, Args, Env) ->
     Started = start(
         StderrPath,
         ffi_terms:to_list(Executable),
-        [ffi_terms:to_list(Arg) || Arg <- Args]
+        [ffi_terms:to_list(Arg) || Arg <- Args],
+        Env
     ),
     Collected =
         case Started of
@@ -96,7 +104,7 @@ run_with_stderr(StderrPath, Executable, Args) ->
             {error, {spawn_failed, Reason}}
     end.
 
-start(StderrPath, Executable, Args) ->
+start(StderrPath, Executable, Args, Env) ->
     PortArgs = [
         "-c",
         ?SCRIPT,
@@ -113,9 +121,7 @@ start(StderrPath, Executable, Args) ->
                     binary,
                     exit_status,
                     use_stdio,
-                    %% Keeps a crashing subprocess from dropping erl_crash.dump
-                    %% in the caller's working directory (design 5.4).
-                    {env, [{"ERL_CRASH_DUMP_SECONDS", "0"}]},
+                    {env, port_env(Env)},
                     {args, PortArgs}
                 ]
             )}
@@ -123,6 +129,18 @@ start(StderrPath, Executable, Args) ->
         error:Reason ->
             {error, {spawn_failed, ffi_terms:format("open_port failed: ~p", [Reason])}}
     end.
+
+%% The child's environment: the constants, then the caller's pairs.
+port_env(Env) ->
+    [
+        %% Keeps a crashing subprocess from dropping erl_crash.dump in the
+        %% caller's working directory (design 5.4).
+        {"ERL_CRASH_DUMP_SECONDS", "0"}
+        | [{ffi_terms:to_list(Name), child_value(Value)} || {Name, Value} <- Env]
+    ].
+
+child_value({some, Value}) -> ffi_terms:to_list(Value);
+child_value(none) -> false.
 
 collect(Port, Acc) ->
     Previous = process_flag(trap_exit, true),

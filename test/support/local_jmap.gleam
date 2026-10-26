@@ -25,6 +25,7 @@
 //// URLs use `localhost`, never `127.0.0.1`: `ssl` compares the peer
 //// certificate against the host string in the URL (sheet A4).
 
+import gleam/bit_array
 import gleam/int
 import gleam/list
 
@@ -73,6 +74,18 @@ pub fn start_with(script: fn(String) -> List(Reply)) -> Server {
 /// The URL of `path` on this server, with `localhost` as the host.
 pub fn url(server: Server, path: String) -> String {
   "https://localhost:" <> int.to_string(server.port) <> path
+}
+
+/// A reply with `status`, no headers of its own, a `Content-Length` body and
+/// nothing withheld: the shape most scripts need.
+pub fn reply(status: Int, body: String) -> Reply {
+  Reply(
+    status: status,
+    headers: [],
+    framing: ContentLength,
+    body: bit_array.from_string(body),
+    withhold_end: False,
+  )
 }
 
 /// How many requests the server has received, including any beyond the script.

@@ -38,7 +38,8 @@ silence_logger() ->
 %% has to know that `os:getenv/1` says `false`. The value is a path, never the
 %% token, so it may enter an error reason.
 getenv(Name) ->
-    case os:getenv(Name) of
+    %% A Gleam String is a binary; os:getenv/1 takes a list (or an atom).
+    case os:getenv(unicode:characters_to_list(Name)) of
         false -> {error, nil};
         Value -> {ok, unicode:characters_to_binary(Value)}
     end.

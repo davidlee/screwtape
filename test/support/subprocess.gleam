@@ -19,9 +19,13 @@
 //// A failure to capture stderr, or a child that never exits, is a typed
 //// `Failure` and never an empty stream: an `stderr` assertion must not pass
 //// because the capture was lost.
+////
+//// `run_env` sets or unsets variables in the child's environment; `run` is the
+//// same call with nothing changed.
 
 import gleam/int
 import gleam/list
+import gleam/option.{type Option}
 import gleam/string
 
 /// Exit status plus the two streams, kept apart. `stdout` stays bytes so a
@@ -46,9 +50,24 @@ pub type Failure {
   TimedOut(after_seconds: Int)
 }
 
-/// Runs `executable` with `args`, collecting stdout and stderr separately.
+/// Runs `executable` with `args` and this process's environment, collecting
+/// stdout and stderr separately.
 pub fn run(executable: String, args: List(String)) -> Result(Record, Failure) {
-  case run_ffi(executable, args) {
+  run_env(executable, args, [])
+}
+
+/// Runs `executable` with `args` and `env`, collecting stdout and stderr
+/// separately.
+///
+/// `#(name, Some(value))` sets that variable for the child; `#(name, None)`
+/// removes it, so a test can prove a variable is unset even when the suite that
+/// launched it has it set. Every variable not named is inherited.
+pub fn run_env(
+  executable: String,
+  args: List(String),
+  env: List(#(String, Option(String))),
+) -> Result(Record, Failure) {
+  case run_ffi(executable, args, env) {
     Ok(#(exit_code, stdout, stderr)) -> Ok(Record(exit_code, stdout, stderr))
     Error(failure) -> Error(failure)
   }
@@ -133,6 +152,7 @@ fn erl_path() -> Result(String, Failure) {
 fn run_ffi(
   executable: String,
   args: List(String),
+  env: List(#(String, Option(String))),
 ) -> Result(#(Int, BitArray, String), Failure)
 
 @external(erlang, "subprocess_ffi", "getenv")

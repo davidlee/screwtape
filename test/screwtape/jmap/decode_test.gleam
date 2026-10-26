@@ -1,21 +1,21 @@
 //// Contract tests for `screwtape/jmap/decode` (PHASE-10, D6; VT-6).
 ////
 //// The fixtures are synthetic JMAP documents under `test/fixtures/jmap/`, read
-//// through the same `file:read_file/1` external the unit uses (A4). A fixture
+//// through `support/jmap_fixture` and so through the same `file:read_file/1`
+//// external the unit uses (A4). A fixture
 //// is bent one field at a time so each failing case differs from a passing
 //// decode in exactly the check it exercises.
 ////
 //// `Decode(path)` paths name a fixed location and never quote the input: the
 //// assertions here are on the exact path strings.
 
-import gleam/bit_array
-import gleam/dynamic.{type Dynamic}
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
 import screwtape/error
 import screwtape/jmap/decode
+import support/jmap_fixture
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -25,14 +25,8 @@ const mail_urn = "urn:ietf:params:jmap:mail"
 
 const not_request = "urn:ietf:params:jmap:error:notRequest"
 
-fn fixture(name: String) -> String {
-  let assert Ok(bytes) = read_file("test/fixtures/jmap/" <> name)
-  let assert Ok(text) = bit_array.to_string(bytes)
-  text
-}
-
 fn bent(name: String, from: String, into: String) -> String {
-  string.replace(fixture(name), from, into)
+  string.replace(jmap_fixture.text(name), from, into)
 }
 
 /// The fixture with one mailbox's `id` removed, so `list[2].id` is the first
@@ -42,7 +36,7 @@ fn mailbox_without_id() -> String {
 }
 
 pub fn session_full_test() {
-  let assert Ok(session) = decode.session(fixture("session.json"))
+  let assert Ok(session) = decode.session(jmap_fixture.text("session.json"))
   session.api_url |> should.equal("https://api.example.test/jmap/")
   session.account_id |> should.equal("acct-1")
   session.is_read_only |> should.be_false
@@ -58,7 +52,7 @@ pub fn session_read_only_test() {
 }
 
 pub fn session_without_mail_test() {
-  decode.session(fixture("session_no_mail.json"))
+  decode.session(jmap_fixture.text("session_no_mail.json"))
   |> should.equal(Error(error.JmapRequest("no_mail_capability")))
 }
 
@@ -70,7 +64,7 @@ pub fn session_capabilities_without_mail_test() {
 }
 
 pub fn session_non_https_api_url_test() {
-  decode.session(fixture("session_http_api.json"))
+  decode.session(jmap_fixture.text("session_http_api.json"))
   |> should.equal(Error(error.JmapRequest("api_url_not_https")))
 }
 
@@ -86,7 +80,7 @@ pub fn session_malformed_json_test() {
 }
 
 pub fn problem_document_test() {
-  decode.problem(fixture("problem_not_request.json"))
+  decode.problem(jmap_fixture.text("problem_not_request.json"))
   |> should.equal(Ok(not_request))
 }
 
@@ -97,7 +91,7 @@ pub fn problem_without_type_test() {
 
 pub fn method_error_carries_the_request_method_test() {
   let result =
-    decode.method_responses(fixture("method_error.json"), [
+    decode.method_responses(jmap_fixture.text("method_error.json"), [
       #("c0", "Mailbox/get"),
     ])
 
@@ -106,7 +100,8 @@ pub fn method_error_carries_the_request_method_test() {
 }
 
 pub fn method_error_with_unknown_call_test() {
-  let result = decode.method_responses(fixture("method_error.json"), [])
+  let result =
+    decode.method_responses(jmap_fixture.text("method_error.json"), [])
 
   result
   |> should.equal(Error(error.Decode("methodResponses[0][2]")))
@@ -114,7 +109,7 @@ pub fn method_error_with_unknown_call_test() {
 
 pub fn method_responses_carry_calls_test() {
   let assert Ok([response]) =
-    decode.method_responses(fixture("mailbox_get.json"), [
+    decode.method_responses(jmap_fixture.text("mailbox_get.json"), [
       #("c0", "Mailbox/get"),
     ])
 
@@ -133,7 +128,7 @@ pub fn method_responses_missing_field_test() {
 
 pub fn mailboxes_list_and_state_test() {
   let assert Ok([response]) =
-    decode.method_responses(fixture("mailbox_get.json"), [
+    decode.method_responses(jmap_fixture.text("mailbox_get.json"), [
       #("c0", "Mailbox/get"),
     ])
   let assert Ok(#(mailboxes, state)) = decode.mailboxes(response)
@@ -166,6 +161,3 @@ pub fn mailboxes_mistyped_field_test() {
 fn json_pair(name: String, value: String) -> String {
   "\"" <> name <> "\":" <> value
 }
-
-@external(erlang, "file", "read_file")
-fn read_file(path: String) -> Result(BitArray, Dynamic)

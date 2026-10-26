@@ -7,10 +7,12 @@
 %%
 %% Creation is exclusive and the modes are explicit: a directory is 8#700, a
 %% file 8#600, and an existing path makes `dir/1` crash and `file/1` return an
-%% error rather than silently reusing something another test wrote.
+%% error rather than silently reusing something another test wrote. `write/2`
+%% does replace an existing file, but then sets 8#600 itself, so content handed
+%% to the unit under test is never one another user could read.
 -module(temp_ffi).
 
--export([dir/1, remove_dir/1, file/1, remove_file/1]).
+-export([dir/1, remove_dir/1, file/1, remove_file/1, write/2]).
 
 dir(Prefix) ->
     Path = path(Prefix),
@@ -42,6 +44,14 @@ file(Prefix) ->
 
 remove_file(Path) ->
     _ = file:delete(ffi_terms:to_list(Path)),
+    nil.
+
+%% Write Content to Path, failing loudly: a test that cannot lay down its input
+%% should crash here, not fail later in the unit for the wrong reason.
+write(Path, Content) ->
+    PathList = ffi_terms:to_list(Path),
+    ok = file:write_file(PathList, Content),
+    ok = file:change_mode(PathList, 8#600),
     nil.
 
 %% Internals
