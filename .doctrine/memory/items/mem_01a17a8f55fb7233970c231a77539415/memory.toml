@@ -1,0 +1,51 @@
+memory_uid = "mem_01a17a8f55fb7233970c231a77539415"
+memory_key = "mem.fact.gleam.gleam-httpc-unbounded"
+schema_version = 1
+lifespan = "semantic"
+memory_type = "fact"
+status = "active"
+title = "gleam_httpc cannot bound response bodies or disable retries"
+summary = "gleam_httpc can't bound a response body or turn off retries; call httpc directly with max_body_size and autoretry 0"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = []
+globs = ["src/screwtape_http.erl", "src/screwtape/jmap/**"]
+commands = []
+tags = ["gleam", "erlang", "httpc"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "commit"
+commit = "902bd7a5ace44ec973640dd56d58b9d731aa6e4a"
+tree = "d554a3d3711defcbe3b1fa11de16fd5f8dc4884a"
+ref_name = "refs/heads/main"
+checkout_state_id = ""
+base_commit = "902bd7a5ace44ec973640dd56d58b9d731aa6e4a"
+verified_sha = ""
+normalizer = ""
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "high"
+weight = 0
+
+[[source]]
+kind = "review"
+ref = "RV-001"
+
+[[relation]]
+label = "related"
+target = "mem.fact.erlang.httpc-reason-shapes"
+

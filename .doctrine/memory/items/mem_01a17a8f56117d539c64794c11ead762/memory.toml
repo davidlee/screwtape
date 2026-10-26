@@ -1,0 +1,51 @@
+memory_uid = "mem_01a17a8f56117d539c64794c11ead762"
+memory_key = "mem.fact.systemd.user-unit-edges"
+schema_version = 1
+lifespan = "semantic"
+memory_type = "fact"
+status = "active"
+title = "systemd user-unit sharp edges: no network-online.target; oneshot is-active"
+summary = "systemd --user: no network-online.target; is-active reads false while a oneshot is activating"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = ["nix/module.nix"]
+globs = []
+commands = []
+tags = ["systemd", "nix", "home-manager"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "d554a3d3711defcbe3b1fa11de16fd5f8dc4884a"
+ref_name = "refs/heads/main"
+checkout_state_id = "ae6f2163b0f3cf30789f68ca077955bcbae9cfa6363c789ab63752f5f304510f"
+base_commit = "902bd7a5ace44ec973640dd56d58b9d731aa6e4a"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "medium"
+weight = 0
+
+[[relation]]
+label = "related"
+target = "mem.pattern.host.op-secrets-for-units"
+
+[[relation]]
+label = "related"
+target = "mem.pattern.nix.hm-module-eval-check"
+

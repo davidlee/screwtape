@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · audit · a02225e+ · RV-004 done (17 findings: F-1 fix-now, F-2..F-17 design-wrong, brief written); RV-003 concluded (waived); next /reconcile
+fresh-as-of: 2026-10-27 · close · 902bd7a+ · RV-004 done (17 findings: F-1 fix-now, F-2..F-17 design-wrong, brief written); RV-003 concluded (waived); reconciled (902bd7a); closed
 
 ### Produced
 - Audit (RV-004): F-1 fix — `cli_fixture.config_text_with` labelled args; I1 suite passes `ca_file:` (PHASE-10 VT-2 keyword)
@@ -37,10 +37,10 @@ fresh-as-of: 2026-10-27 · audit · a02225e+ · RV-004 done (17 findings: F-1 fi
 - Project quotient forms: CHR-001 § Done
 - Later decoders: add field names to `decode.path_fields`; server-keyed maps go in `server_keyed_fields` (Decode-path safety)
 - The host `quotient` on PATH may be the stale npm 0.2.0; use `~/.local/state/quotient/bin/quotient`
-- Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15); a loopback TLS cert needs SAN `localhost` for hostname verification, not only `127.0.0.1` (PHASE-01 F5); `systemctl is-active` is false while a oneshot is `activating` — wait on `ActiveState` (PHASE-09 F5)
+- Recorded at close: mem.fact.gleam.gleam-httpc-unbounded, mem.fact.systemd.user-unit-edges; updated mem.fact.jmap.query-get-response-semantics (Fastmail-verified, `#ids`), mem.fact.erlang.httpc-reason-shapes (SAN localhost); WAL read-transaction candidate rejected (covered by mem.pattern.sqlite.snapshot-read-test)
 
 ### Open
-- Next: /reconcile on RV-004's Reconciliation Brief (F-2..F-17 → design.md §§ 5.1–5.5, 6, 9, 10; selector registry for F-2..F-4); then /close
+- Probes kept locally (untracked) in `probes.local.d/` (README): live JMAP probe for M2, htmerl repros for CHR-002, httpc wrong-adapter control, credential unit probes
 - ~/flakes a4c04414 (local, unpushed) also carries the operator's pre-staged files (7 ~/flakes .doctrine backlog entries incl. IMP-042, emacs/emacs.nix, modules/home/nushell.nix); operator: "one commit is fine"
 - Live checks not exercised (PHASE-05 R5): `limit` clamping and `total` (419 messages, under every bound)
 - ASM-003 (unvalidated; satan RSK-021)
