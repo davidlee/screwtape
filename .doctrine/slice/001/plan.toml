@@ -39,11 +39,13 @@ exit_criteria = [
   { id = "EX-4", text = "src/screwtape_ffi.erl provides halt/1 (erlang:halt with flush), silence_logger/0 and guard/1. A subprocess test shows a large stdout document written immediately before halt arrives whole, and that guard turns a raised exception into exactly the stderr line {\"level\":\"error\",\"error\":\"internal\"} with exit 1." },
   { id = "EX-5", text = "httpc verifies a real https host (verify_peer with public_key:cacerts_get/0) from the built code on this NixOS host; if the system CA store is empty, an explicit cacertfile from Nix cacert is adopted and the choice recorded in notes (design § 8)." },
   { id = "EX-6", text = "justfile gains test, fmt and check recipes; `gleam format --check` and `gleam build` are warning-free." },
+  { id = "EX-7", text = "Under `nix flake check`, a gleam test starts an OTP server on loopback and reaches it with httpc, and spawns the built code as a subprocess. The local_jmap helper and the I1 subprocess suite of PHASE-02 depend on both; if the sandbox refuses either, stop and /consult." },
 ]
 verification = [
   { id = "VT-1", expects = "sqlight opens a temporary file, writes a row and reads it back", test_file = "test/screwtape/skeleton_test.gleam", keywords = ["sqlight", "round_trip"], waived = false },
   { id = "VT-2", expects = "subprocess runs of the built code: large stdout survives halt; guard yields the internal error line and exit 1", test_file = "test/screwtape/ffi_test.gleam", keywords = ["halt", "guard", "internal"], waived = false },
   { id = "VT-3", expects = "the Nix package builds the shipment with rebar3/pc and its check runs gleam test", test_file = "nix/package.nix", keywords = ["gleam test", "rebar3"], waived = false },
+  { id = "VT-4", expects = "inside the Nix check, a loopback server answers httpc and a subprocess of the built code runs", test_file = "test/screwtape/skeleton_test.gleam", keywords = ["loopback", "subprocess"], waived = false },
   { id = "VA-1", text = "ASM-001 is settled through `doctrine knowledge` with the observed outcome (vendored NIF, fallback 1, or consult)." },
   { id = "VA-2", text = "The TLS check of EX-5 was run from the devshell against a real host (network; outside the sandbox) and its result is in notes." },
 ]

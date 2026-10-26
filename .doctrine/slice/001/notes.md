@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · design run dr-01a17546 locked (rev 102); slice status plan · 15914cd (all design work uncommitted)
+fresh-as-of: 2026-10-26 · plan authored (9 phases), phase sheets materialised; slice status ready · design committed 20b9fa2
 
 ### Produced
 - SL-001 scope: research amendment (check-jails to satan) committed in 15914cd; design amendments (DEC-001, DEC-004, DEC-013, DEC-016, DEC-017, F11 body values, F-13 wording) uncommitted
@@ -19,6 +19,7 @@ fresh-as-of: 2026-10-26 · design run dr-01a17546 locked (rev 102); slice status
 - RV-001 done: 31 findings (30 verified, 1 withdrawn), pass concluded; severe findings routed (control: F-1, F-9, F-12, F-14, F-15, F-19, F-20, F-22 — their criteria and host-phase constraints live on the ledger for /plan)
 - Design locked 2026-10-26 on the operator's "agreed, lock it": all 14 sections attested, review-disposed (conducted RV-001), design-accepted
 - satan RFC-020 edits from the research round: uncommitted in `~/dev/satan`, operator's
+- plan.toml/plan.md: PHASE-01..PHASE-09; RV-001 control findings transcribed (placement table in plan.md); selectors `src/screwtape_http.erl`, `nix/**` added; research baseline restamped (drift was the design itself)
 
 ### Learned
 - mem.pattern.host.op-secrets-for-units: `op://` at unit start prompts on every run; use the llm-gateway provision-once `systemd-creds` pattern
@@ -27,9 +28,9 @@ fresh-as-of: 2026-10-26 · design run dr-01a17546 locked (rev 102); slice status
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- /plan: author plan.toml/plan.md; read RV-001's control-routed findings (criterion + host-phase constraint) and fold them into phase EN/EX/VT — the transport proof must precede any phase relying on the byte ceiling
+- Next: /phase-plan PHASE-01 (packaging skeleton) → /execute; plan.md § Risks lists phase-plan unknowns (forced crash in client, body withholding, raw JMAP type home)
 - Design § 6: OQ-A (operator 2026-10-26: warn now, decide after the live run); lingering (host choice); silent sync failures; library pins
-- ASM-001 (plan phase 1 spike), ASM-002, ASM-003 (unvalidated; satan RSK-021), ASM-004 (live run), ASM-005 (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
+- ASM-001 (PHASE-01), ASM-002 (PHASE-03), ASM-003 (unvalidated; satan RSK-021), ASM-004 (PHASE-09), ASM-005 (PHASE-09) (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
 - I7 jail clause is conditional on launch directory (operator accepted, F-27)
 - Host hygiene, outside SL-001 (operator to decide): `~/Mail`, `~/News` and `~/.var/app/com.fastmail.Fastmail` are 0755; whether the Fastmail flatpak's session is keyring-protected is unknown
 - RFC-020 drafts per DEC-015 (D3, OQ-4, D7 row 10, OQ-7 drift): not yet written

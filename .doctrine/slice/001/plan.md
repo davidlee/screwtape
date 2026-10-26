@@ -89,6 +89,26 @@ fail F-14's assertion directly).
 - Library pins (design § 6) → PHASE-01/EX-1.
 - RFC-020 drafts (DEC-015) → PHASE-08.
 
+## Risks for the phase plans
+
+- **Forcing a crash inside the client** (PHASE-02/EX-8). The I1 suite needs
+  a crash in a frame that holds the revealed header, triggered in the built
+  code with no test hook in production. Candidate triggers are a sentinel
+  token with header-illegal bytes, or a response that httpc fails on. This is
+  the phase's first unknown. If only a production hook would work, stop and
+  /consult.
+- **Withholding a body end.** The transport proof needs exact control of
+  framing and timing. If inets httpd can't withhold the end of a body,
+  `local_jmap` serves raw responses over `gen_tcp`. That is a test-helper
+  detail and doesn't change the design.
+- **Where raw JMAP types live** (PHASE-03). The import allowlist confines
+  `normalise` to stdlib, `model` and `html_text`. So the decoded JMAP email
+  type belongs in `model` or `normalise`, and `jmap/decode` imports it from
+  there.
+- **PHASE-02's size.** It spans eight modules and two helpers. Its phase
+  sheet should split it into tasks in this order: transport, client, the CLI
+  edge, then I1.
+
 ## Notes
 
 - **Parallelism.** PHASE-08 is file-disjoint from this repo and can run

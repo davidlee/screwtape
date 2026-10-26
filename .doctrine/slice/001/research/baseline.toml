@@ -1,5 +1,8 @@
 slice = "SL-001"
-date = "2026-10-25"
+date = "2026-10-26"
 
 [hashes]
-".doctrine/slice/001/slice-001.md" = "15c87588f90b1edbe26b049602f90f8aff960db866753520d00ef7a634c4e2b6"
+".doctrine/slice/001/design.md" = "48cacea5e6c896f48eda624fab65190691624220f8861fa78cefca764ce8ec8e"
+".doctrine/slice/001/plan.md" = "bef96b6034791e91e06637e6fea5aca8182f84f8fae8b2b3fc4f1db60e7e5f7b"
+".doctrine/slice/001/plan.toml" = "e4a85fc5c8d5cb0a2c58d7c4cd82dbb01a86d2836a4c5b1e5735491bb9eccde4"
+".doctrine/slice/001/slice-001.md" = "6e7894d8ab335bb98d32946c2f02d219b8bb794256565af94ccf8b130b01e283"
