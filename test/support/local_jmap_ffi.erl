@@ -30,7 +30,7 @@
 -module(local_jmap_ffi).
 
 -export([
-    start/1, stop/1, port/1, ca_path/1,
+    start/1, load/2, stop/1, port/1, ca_path/1,
     request_count/1, withholding/1, release/1
 ]).
 
@@ -58,6 +58,12 @@ port(#{port := Port}) ->
 
 ca_path(#{ca_path := CaPath}) ->
     CaPath.
+
+%% Replace the script before any request: for a script that must name the
+%% server's own URL, which exists only once the listener has a port.
+load(#{state := State}, Script) ->
+    call(State, {load, Script}),
+    nil.
 
 %%% ------------------------------------------------------------------
 %%% Script state
@@ -89,6 +95,9 @@ state_loop(#{script := Script, count := Count, withheld := Withheld} = State) ->
             [Worker ! release || Worker <- Withheld],
             From ! {reply, ok},
             state_loop(State#{withheld := [], blocking := false});
+        {{load, NewScript}, From} ->
+            From ! {reply, ok},
+            state_loop(State#{script := NewScript});
         {request_count, From} ->
             From ! {reply, Count},
             state_loop(State);

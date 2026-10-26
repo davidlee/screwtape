@@ -61,6 +61,18 @@ pub fn body_keeps_the_calls_in_order_test() {
   ])
 }
 
+/// The client needs each call id paired with the method that was sent, in the
+/// order the calls went out, so an error entry can name its method.
+pub fn call_names_pairs_each_call_in_order_test() {
+  [request.mailbox_get("acct-1", "c0"), request.mailbox_get("acct-1", "c1")]
+  |> request.call_names
+  |> should.equal([#("c0", "Mailbox/get"), #("c1", "Mailbox/get")])
+}
+
+pub fn call_names_of_no_calls_is_empty_test() {
+  request.call_names([]) |> should.equal([])
+}
+
 fn using_urns(text: String) -> List(String) {
   let assert Ok(urns) =
     json.parse(text, using: decode.at(["using"], decode.list(decode.string)))

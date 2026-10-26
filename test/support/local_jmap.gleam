@@ -61,6 +61,15 @@ pub fn start(script: List(Reply)) -> Server {
   Server(handle, port_ffi(handle), ca_path_ffi(handle))
 }
 
+/// Start a listener whose script is built from its own base URL
+/// (`https://localhost:<port>`), so a session document can name the server's
+/// own `apiUrl` (PHASE-10, D9).
+pub fn start_with(script: fn(String) -> List(Reply)) -> Server {
+  let server = start([])
+  load_ffi(server.handle, list.map(script(url(server, "")), wire_reply))
+  server
+}
+
 /// The URL of `path` on this server, with `localhost` as the host.
 pub fn url(server: Server, path: String) -> String {
   "https://localhost:" <> int.to_string(server.port) <> path
@@ -114,6 +123,12 @@ fn wire_framing(framing: Framing) -> #(String, Int) {
 fn start_ffi(
   script: List(#(Int, List(#(String, String)), #(String, Int), BitArray, Bool)),
 ) -> Handle
+
+@external(erlang, "local_jmap_ffi", "load")
+fn load_ffi(
+  handle: Handle,
+  script: List(#(Int, List(#(String, String)), #(String, Int), BitArray, Bool)),
+) -> Nil
 
 @external(erlang, "local_jmap_ffi", "port")
 fn port_ffi(handle: Handle) -> Int

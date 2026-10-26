@@ -10,6 +10,7 @@
 
 import gleam/function
 import gleam/json
+import gleam/list
 
 /// The capabilities every request declares in `using`.
 const core_capability = "urn:ietf:params:jmap:core"
@@ -58,6 +59,15 @@ pub fn body(calls: List(Invocation)) -> json.Json {
     #("using", json.array([core_capability, mail_capability], json.string)),
     #("methodCalls", json.array(calls, encode_call)),
   ])
+}
+
+/// Each call's id and method name, in request order: what
+/// `decode.method_responses` needs to attribute an error entry to the method
+/// that produced the call it answers.
+pub fn call_names(calls: List(Invocation)) -> List(#(String, String)) {
+  list.map(calls, fn(invocation) {
+    #(invocation.call_id, method_name(invocation.method))
+  })
 }
 
 fn encode_call(invocation: Invocation) -> json.Json {
