@@ -6,9 +6,10 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · 418a09f · PHASE-11 completed (ISS-001 resolved); next PHASE-09 (EN-2..EN-4 settled); 08 independent
+fresh-as-of: 2026-10-27 · 6c31cf9 · PHASE-09 completed (deployed, live acceptance passed; ASM-004/005 validated; OQ-A → IMP-001); next PHASE-08 (~/dev/satan), then /audit
 
 ### Produced
+- PHASE-09 (6c31cf9; ~/flakes a4c04414): quotient pinned by github at the same rev; ~/flakes screwtape input, features/satan/screwtape.nix, dev-checkouts entry, SATAN.md § Screwtape; ASM-004, ASM-005 validated; IMP-001 (OQ-A fail closed); CHR-003 updated
 - PHASE-11 (418a09f): request.opening (Mailbox/get + Email/get ids:[] + Thread/get ids:[], c0/c1/c2); decode.state; decode.threads returns threads only; client.call D1 response-order guarantee; sync opening (`Opened`), phase 2 stateless, `in_chunks` over `list.sized_chunk` (no empty gets); test support RecordedCall.call_id, fixture_send.calls_of, sync_fixture Run.requests/opening_calls/opening/opening_with, jmap_fixture Entry/opening_entries/opening_response/responses/error_entry; tests VT-1..VT-3 (sync_test), opening wire shape, state_*, call_* D1
 - PHASE-07 (95b04ee, 6b8d0bf): nix/module.nix `homeManagerModules.default` (options, hardened oneshot unit, timer, store config with a parser checkPhase, `--config`-only wrapper, screwtape-provision, stateHome/configHome assertions, internal `configFile`); nix/module-eval.nix `checks.module-eval` (VT-1, VT-2); flake home-manager input; README deployment sections
 - PHASE-06 (93850f0, 5fa77da, 54ca590, 04f0f2f, 49d0d95): read verbs mailboxes/list/read/thread; modules argv (pure parse), render (one envelope writer, governed pure), utf8 (I5), store/query (read queries), store/codec (stored encodings both ways); model MessageSummary/ThreadEntry/mailboxes_matching; reader busy_timeout 5 s; `open_reader_with` + `cli.run_with` I8 seams; tests read_snapshot_test (4, VT-1), render_test, cli_test read contract (VT-2, EX-3), store_test read contract, utf8_test, model_test; memory mem.pattern.sqlite.snapshot-read-test, mem.fact.sqlite.esqlite-readonly-uri extended
@@ -37,33 +38,45 @@ fresh-as-of: 2026-10-27 · 418a09f · PHASE-11 completed (ISS-001 resolved); nex
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: PHASE-09 (EN-2..EN-4 settled; live checks now include the three-call opening request and `ids: []` states); 08 independent
+- Next: PHASE-08 (~/dev/satan), then /audit
+- ~/flakes a4c04414 (local, unpushed) also carries the operator's pre-staged files (7 ~/flakes .doctrine backlog entries incl. IMP-042, emacs/emacs.nix, modules/home/nushell.nix); operator: "one commit is fine"
 - Reconcile at audit (PHASE-11 D1, operator 2026-10-27 "ok, b"): `client.call` guarantees response i answers call i (count + call ids in order) else `Decode("methodResponses")` — stricter than RFC 8620 in general (implicit extra responses), sound for the four scoped methods; design § 5.2 could name it next to F8. PHASE-11 A3's premise (F8 refuses a reorder) was false; recorded in the phase sheet
 - Audit (pre-existing, found at PHASE-07 verify-vt): PHASE-10 VT-2 keyword `ca_file` is absent from `test/screwtape/token_leak_test.gleam` (never present; the test trusts a per-run CA via `server.ca_path`). Behaviour covered; the keyword/traceability needs a ruling at /audit
 - Reconcile at audit (PHASE-07): design § 5.2/5.4 additions — module asserts xdg.configHome default too (the unit's %E; provision bakes `xdg.configHome`/credstore.encrypted/screwtape.fastmail); the config file is validated at build by the program's parser (writeTextFile checkPhase); `services.screwtape.configFile` internal option; provision traps EXIT/INT/TERM/HUP
-- PHASE-09 (ASM-005) for the module: `systemd-creds encrypt --user` and the unit under the hardening are unverified on the host; provision's `/run/wrappers/bin/op` is a NixOS-with-1Password-module assumption
 - Reconcile at audit (PHASE-06): design § 5.1 module graph (new utf8, argv, store/query, store/codec; render imports utf8 not error; cli imports store/query; model gains pure rules); § 5.2/5.3 `list` order is newest first (D5); D7 output shapes and `--max-bytes` as a prefix of the concatenated bodies; usage reason codes (argv module doc); design § 5.2 says read verbs fail `no_snapshot` on v0 (A9 covers "older")
 - PHASE-06 operator decisions, settled (2026-10-26): `list` newest first (received_at_ms DESC, id DESC; reconcile design § 5.2/5.3 wording); unknown message/thread id → Usage, exit 2
 - ISS-001 RESOLVED (fixed, 418a09f, PHASE-11). History: (PHASE-05 review F1, type_state race): operator decided 2026-10-26 — fix within SL-001 after PHASE-06, before /audit; REV for design § 5.2 + PHASE-05/EX-4 first. REV-001 abandoned: `revision change add` refuses an SL target (SPEC/PRD/REQ/ADR/POL/STD only). Design amended through its run instead (reopened rev 112, adopted rev 113; §§ 5.2, 5.4, 9). Relocked rev 118 on the operator's "agreed" (human attestations att-24..26, RV-003 waived, design-accepted). Plan: operator chose a new PHASE-11 over reopening PHASE-05 (2026-10-26, "b)"); PHASE-05 ids and text unchanged, PHASE-11/EX-1 supersedes its EX-4 Email/Thread sources
 - M2 note (PHASE-05 D3): with `max_age_days`, `after` (in `filter_json`, part of the `query_state` key) changes every run, so a stored `query_state` row is never reusable by `queryChanges` as-is
 - Audit flags (PHASE-05): A9 retired by PHASE-11 (an empty window now sends no phase-2 gets; states come from the opening request); A10/D4 warning only on a committed run; A13/D5 a failed first run leaves an empty v0 file; A14 `sync.run(client, writer, bounds, now)` refines the design signature (session runs in cli, so EX-5's session injection is a cli_test); review F5 accepted (a mailbox id outside Mailbox/get fails the commit as `write_failed`); N1 thread notFound uncounted
-- PHASE-09 live checks (PHASE-05 R5): server clamps/omits `limit`, `total` with `calculateTotal`, `ids: []` gets, Email/get answers every id
+- PHASE-09 live checks (PHASE-05 R5): `ids: []` gets and the three-call opening request accepted, and Email/get answered every id (not_found 0) — observed; `limit` clamping and `total` not exercised (419 messages, under every bound)
 - PHASE-05/06 inherit (PHASE-04): sync writes through `store.write_snapshot` (I2 dump checks via `support/store_dump.dump`, also for the I1 sentinel); read verbs query via `store.read` + `store.select`; I8 test (PHASE-06/EX-2) needs a second connection committing mid-read — `store_dump` cannot see connection state
 - PHASE-09 EN-2 (operator, 2026-10-26): the read-only Fastmail token's ref is `op://SLEIPNIR_CREDENTIALS/udcn7s4ervqa3mrvadczu6lqoy/credential` (a public module option per design § 5.3; the ref is not a secret, the token never leaves 1Password except via provisioning)
-- PHASE-09 EN-3 (operator, 2026-10-26): accept the host-local `git+file` quotient pin for this host; the published-tag swap is CHR-003 (split from CHR-001). SL-001 still `needs` CHR-001, whose other open items remain; rule on that edge before /close
+- PHASE-09 EN-3 (operator, 2026-10-26): accept the host-local `git+file` quotient pin for this host; superseded at PHASE-09 D4 (operator 2026-10-27): `~/flakes`' gate refuses a local source, so the same rev is pinned by github (6c31cf9). The tag swap stays CHR-003. SL-001 still `needs` CHR-001, whose other open items remain; rule on that edge before /close
 - PHASE-09 EN-4 (operator, 2026-10-26): no lingering for now. The timer runs only while the operator has a session
 - Reconcile: design § 9 I5 row and § 5.1 module table per DEC-020 (html_text imports screwtape/html_sax, not htmgrrrl; html_sax + screwtape_html_ffi are the catch boundary); design § 5.5 'Parse failure' also covers a parser crash; § 9 I5 row: gleam/io denied within gleam_stdlib, FFI rule is the beam import table, I6 literal scan is whole-literal only; CHR-002 upstream htmerl report (operator)
 - Later decoders: add field names to `decode.path_fields`; server-keyed maps go in `server_keyed_fields`
 - Reconcile: design § 5.2 premise 'an httpc worker crash logs a report holding its request' is false on OTP 28.5 (DEC-019 consequences); EX-5 crash case reading per DEC-019
 - Audit reconcile: design § 5.2 crash rules should name the linked-exit containment (guard under spawn_monitor; PHASE-01 review F2); PHASE-10/EX-5 inherits review F7 (forced crash through main)
-- Design § 6: OQ-A (operator 2026-10-26: warn now, decide after the live run); lingering (host choice); silent sync failures; library pins closed by PHASE-01/EX-1 (manifest.toml)
-- ASM-003 (unvalidated; satan RSK-021), ASM-004 (PHASE-09), ASM-005 (PHASE-09) (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
+- Design § 6: OQ-A decided (operator 2026-10-27, VH-2: fail closed, later change → IMP-001; observed `isReadOnly: true`); reconcile § 6 at audit; lingering (host choice); silent sync failures; library pins closed by PHASE-01/EX-1 (manifest.toml)
+- ASM-003 (unvalidated; satan RSK-021); ASM-004, ASM-005 validated at PHASE-09
 - I7 jail clause is conditional on launch directory (operator accepted, F-27)
 - Host hygiene, outside SL-001 (operator to decide): `~/Mail`, `~/News` and `~/.var/app/com.fastmail.Fastmail` are 0755; whether the Fastmail flatpak's session is keyring-protected is unknown
 - RFC-020 drafts per DEC-015 (D3, OQ-4, D7 row 10, OQ-7 drift): not yet written
 - RFC-020 OQ-2, OQ-5, OQ-6, OQ-10, OQ-11
 - Research host checks 8 and 9: not run
 - CHR-001: swap the quotient pin to a published tag
+
+## PHASE-09 evidence
+
+Host Sleipnir, systemd 262, 2026-10-27 (local +11:00). Probe: a transient user unit (`systemd-run --user --pipe --wait -p LoadCredentialEncrypted=fastmail:…`) running a scratch `jmap-probe.sh`: token read by builtin, given to curl on stdin (`-K -`); session GET plus Mailbox/get, Email/get, Thread/get with `ids: []` and Email/query `limit: 0`.
+
+- EX-1: ~/flakes a4c04414 — `screwtape = github:davidlee/screwtape` (follows nixpkgs-home, home-manager, agents, doctrine/agents), `features/satan/screwtape.nix`, `feature.satan.screwtape.enable`, dev-checkouts + its test, SATAN.md (Repos, Units, Storage, Known gaps, § Screwtape smoke). Lingering: none (EN-4). `just gate` exit 0 (after the operator's fleet bump b729033); `just home-switch` ok.
+- EX-2 / ASM-005: provision ok ("credential stored; first sync succeeded"); unit exit 0 under every hardening key, none relaxed (7.8 s, 107 MB peak). Credential header GUID 2a1f877a-… = `CRED_AES256_GCM_BY_HOST_AND_TPM2_HMAC_SCOPED_PINNED_SRK` (systemd 262 `src/shared/creds-util.h`): TPM-bound.
+- EX-3: `~/.local/state/screwtape` drwx------ david; `mail.sqlite3` 0600; `-wal`/`-shm` 0600 david, stat'ed while the unit held the store; both gone after it exited.
+- EX-4: probe 21:52:32Z → sync 21:52:42–48Z (36 mailboxes, 188 messages, 185 threads, 0 truncated/not_found/conversion failures, `is_read_only: true`) → probe 21:53:00Z; Mailbox, Email, Thread all `J365090` before and after. Session capabilities core + mail; one account `u821e43a5` (isPersonal, isReadOnly true, mail only) = primaryAccounts mail (ASM-004); `canCalculateChanges: true`. Default window (30 d / 2000) then: 419 messages, 398 threads, 8.4 s, no rate-limit error.
+- EX-5 / VH-2: OQ-A → fail closed later (IMP-001).
+- VH-1: operator "Confirmed" (2026-10-27). VA-1: ASM-004, ASM-005 settled via `doctrine knowledge settle` with this evidence.
+- Probe pitfall: `systemctl is-active` is false while a oneshot is `activating`; the first after-probe ran mid-sync and was discarded.
 
 ## PHASE-11 evidence
 

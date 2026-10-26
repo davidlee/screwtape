@@ -19,3 +19,9 @@ Done when:
 3. `just quotient-forms` rebuilds both forms and `nix flake check` passes;
 4. the operator re-runs `quotient allow ~/dev/screwtape` if the form
    identities changed.
+
+Update (2026-10-27, SL-001 PHASE-09): `~/flakes`' gate refuses a local
+source in `flake.lock`, so the input now pins the same rev by GitHub,
+`github:davidlee/quotient/dc46a9e…` (6c31cf9; narHash unchanged). Item 1
+already holds: `dc46a9e` is inside tags v0.4.0, v0.4.1 and v0.5.0. Remaining:
+items 2–4 against a chosen tag.

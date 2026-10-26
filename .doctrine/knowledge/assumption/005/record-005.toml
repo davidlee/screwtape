@@ -5,7 +5,7 @@ id = 5
 slug = "systemd-user-units-run-the-beam-under-the-planned-hardening-and-load-user-scoped-encrypted"
 title = "systemd user units run the BEAM under the planned hardening and load user-scoped encrypted credentials"
 record_kind = "assumption"
-status = "held"
+status = "validated"
 created = "2026-10-26"
 updated = "2026-10-26"
 tags = []
@@ -15,8 +15,8 @@ claim = "Under systemd 262's user manager, the screwtape oneshot runs the BEAM w
 confidence = "medium"
 basis = "external-source"
 validation_plan = "Partly checked by the RV-001 round-3 reviewer with transient user units running sh and a dummy credential (2026-10-26): each key takes effect except that ProtectSystem=strict leaves HOME and XDG_RUNTIME_DIR writable (hence ProtectHome=tmpfs, F-28); StateDirectory and LoadCredentialEncrypted work with ProtectHome=tmpfs; systemd-creds encrypt --user works unprivileged; the credential id must match the encrypt-time name; %E expands. Remaining: the real BEAM under these keys, and whether user-scoped credentials are TPM-bound. Deployment phase: provision, start, read the journal; relax only a failing key, recording which."
-validated_by    = ""
-validated_on    = ""
+validated_by = "orch (Opus) on host, PHASE-09"
+validated_on = "2026-10-26"
 invalidated_by  = ""
 invalidated_on  = ""
 

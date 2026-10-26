@@ -5,9 +5,9 @@ id = 4
 slug = "screwtape-m1-serves-one-fastmail-account"
 title = "Screwtape M1 serves one Fastmail account"
 record_kind = "assumption"
-status = "held"
+status = "validated"
 created = "2026-10-25"
-updated = "2026-10-25"
+updated = "2026-10-26"
 tags = []
 
 [facet]                         # every field typed; seeded empty (captured later)
@@ -15,8 +15,8 @@ claim = "The read-only token's session exposes one mail account, used as primary
 confidence = "high"
 basis = "operator-judgement"
 validation_plan = "Live acceptance run records the session's accounts."
-validated_by    = ""
-validated_on    = ""
+validated_by = "orch (Opus) live probe, PHASE-09"
+validated_on = "2026-10-26"
 invalidated_by  = ""
 invalidated_on  = ""
 
