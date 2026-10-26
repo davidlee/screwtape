@@ -67,6 +67,28 @@ pub fn non_utf8_file_missing_test() {
   result |> should.equal(Error(error.Credential("missing")))
 }
 
+/// Control bytes left after the trim (CR/LF, NUL, DEL) would reach the HTTP
+/// header; the token is refused before any request exists.
+pub fn control_bytes_invalid_test() {
+  let dir = temp.dir("credential-control")
+  let cases = [
+    #("lf", "SENTINEL\nX"),
+    #("cr", "SENTINEL\rX"),
+    #("nul", "SENTINEL\u{0000}X"),
+    #("tab", "SENTINEL\tX"),
+    #("del", "SENTINEL\u{007F}X"),
+  ]
+  let results =
+    list.map(cases, fn(c) {
+      let _ = write(dir, c.0, bit_array.from_string(c.1))
+      credential.read(dir, c.0)
+    })
+  temp.remove_dir(dir)
+
+  results
+  |> list.each(should.equal(_, Error(error.Credential("invalid"))))
+}
+
 pub fn readable_file_trailing_newline_trimmed_test() {
   let dir = temp.dir("credential-read")
   let _ = write(dir, "fastmail", bit_array.from_string(secret <> "\n"))

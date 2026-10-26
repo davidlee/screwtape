@@ -14,7 +14,8 @@ import gleam/list
 pub type Error {
   /// A configuration file that is unusable; `reason` names the failing check.
   Config(reason: String)
-  /// No credentials directory, a missing file, or a file with no secret.
+  /// No credentials directory, a missing file, a file with no secret, or a
+  /// secret holding a control byte (`"invalid"`).
   Credential(reason: String)
   /// A transport failure; `reason` is `"timeout"`, `"connect_failed"`,
   /// `"tls_failed"`, `"bad_utf8"` or `"status_<n>"`.

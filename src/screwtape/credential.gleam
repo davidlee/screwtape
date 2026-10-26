@@ -13,6 +13,7 @@
 
 import gleam/bit_array
 import gleam/dynamic.{type Dynamic}
+import gleam/list
 import gleam/string
 import screwtape/error.{type Error, Credential}
 
@@ -23,7 +24,9 @@ pub opaque type Token {
 /// Read `<dir>/<name>`, trim the surrounding whitespace and keep the rest.
 ///
 /// Missing or unreadable → `Credential("missing")`; empty after the trim (a
-/// whitespace-only file included) → `Credential("empty")`.
+/// whitespace-only file included) → `Credential("empty")`; a control byte left
+/// after the trim (< 0x20 or 0x7f, which would corrupt the header) →
+/// `Credential("invalid")`.
 pub fn read(dir: String, name: String) -> Result(Token, Error) {
   case read_file(dir <> "/" <> name) {
     Ok(bytes) ->
@@ -44,10 +47,20 @@ pub fn bearer(token: Token) -> #(String, String) {
 
 fn token(text: String) -> Result(Token, Error) {
   let secret = string.trim(text)
-  case secret == "" {
-    True -> Error(Credential("empty"))
-    False -> Ok(Token(fn() { secret }))
+  case secret == "", has_control_byte(secret) {
+    True, _ -> Error(Credential("empty"))
+    _, True -> Error(Credential("invalid"))
+    False, False -> Ok(Token(fn() { secret }))
   }
+}
+
+fn has_control_byte(text: String) -> Bool {
+  text
+  |> string.to_utf_codepoints
+  |> list.any(fn(codepoint) {
+    let code = string.utf_codepoint_to_int(codepoint)
+    code < 0x20 || code == 0x7f
+  })
 }
 
 @external(erlang, "file", "read_file")
