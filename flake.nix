@@ -16,6 +16,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     doctrine.url = "github:davidlee/doctrine";
+    nix-gleam = {
+      url = "github:arnarg/nix-gleam";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {
@@ -24,10 +28,16 @@
     jail-nix,
     quotient,
     doctrine,
+    nix-gleam,
     ...
   }: let
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
+    screwtape = doCheck:
+      pkgs.callPackage ./nix/package.nix {
+        inherit (nix-gleam.packages.${system}) buildGleamApplication;
+        inherit doCheck;
+      };
     jailLib = agents.lib.${system}.mkJailedAgents {};
 
     # What the project needs to build and test, in the devshell and in a
@@ -67,13 +77,18 @@
     };
   in {
     packages.${system} = {
+      screwtape = screwtape false;
+      default = screwtape false;
       quotient-read = formFamily.read;
       quotient-write = formFamily.write;
     };
 
-    checks.${system}.quotient-forms = quotient.lib.checkFormFamily {
-      inherit pkgs;
-      family = formFamily;
+    checks.${system} = {
+      gleam-test = screwtape true;
+      quotient-forms = quotient.lib.checkFormFamily {
+        inherit pkgs;
+        family = formFamily;
+      };
     };
 
     devShells.${system}.default = pkgs.mkShell {
