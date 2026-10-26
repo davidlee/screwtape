@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · 6b8d0bf · PHASE-07 completed; slice status started; next PHASE-09 (operator gates EN-2..EN-4; 08 independent), ISS-001 before /audit
+fresh-as-of: 2026-10-26 · 26c2467 · PHASE-07 completed; slice status started; next PHASE-09 (operator gates EN-2..EN-4; 08 independent), ISS-001 before /audit
 
 ### Produced
 - PHASE-07 (95b04ee, 6b8d0bf): nix/module.nix `homeManagerModules.default` (options, hardened oneshot unit, timer, store config with a parser checkPhase, `--config`-only wrapper, screwtape-provision, stateHome/configHome assertions, internal `configFile`); nix/module-eval.nix `checks.module-eval` (VT-1, VT-2); flake home-manager input; README deployment sections
