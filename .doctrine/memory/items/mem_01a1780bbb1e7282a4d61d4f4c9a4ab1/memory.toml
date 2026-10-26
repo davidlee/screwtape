@@ -1,0 +1,42 @@
+memory_uid = "mem_01a1780bbb1e7282a4d61d4f4c9a4ab1"
+memory_key = "mem.pattern.sqlite.snapshot-read-test"
+schema_version = 1
+memory_type = "pattern"
+status = "active"
+title = "Prove one-snapshot reads with a commit hook between selects"
+summary = "Test multi-query read consistency under WAL by committing a new snapshot from a second connection after each select"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = ["src/screwtape/store.gleam", "test/screwtape/read_snapshot_test.gleam"]
+globs = []
+commands = []
+tags = ["sqlite", "testing"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "818433f9cb87f63f38cfb2d3d803fd6ae09ebb0a"
+ref_name = "refs/heads/main"
+checkout_state_id = "a6366fcee7a12537d593631697a47d6a645628313b2dc326a7b28416dd1b9f8c"
+base_commit = "49d0d95c154e1eae16ed1846f24d7375ab6febf6"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+

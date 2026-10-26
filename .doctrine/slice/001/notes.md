@@ -6,9 +6,10 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · PHASE-05 completed; slice status started; next PHASE-06
+fresh-as-of: 2026-10-26 · PHASE-06 completed; slice status started; next PHASE-07 (then 09; 08 independent), ISS-001 before /audit
 
 ### Produced
+- PHASE-06 (93850f0, 5fa77da, 54ca590, 04f0f2f, 49d0d95): read verbs mailboxes/list/read/thread; modules argv (pure parse), render (one envelope writer, governed pure), utf8 (I5), store/query (read queries), store/codec (stored encodings both ways); model MessageSummary/ThreadEntry/mailboxes_matching; reader busy_timeout 5 s; `open_reader_with` + `cli.run_with` I8 seams; tests read_snapshot_test (4, VT-1), render_test, cli_test read contract (VT-2, EX-3), store_test read contract, utf8_test, model_test; memory mem.pattern.sqlite.snapshot-read-test, mem.fact.sqlite.esqlite-readonly-uri extended
 - PHASE-05 (bfeb35f, b2cb3a5, 2498e04): sync (run, paging with sticky clamp, ≤2 restarts, chunked gets, earliest states, Email/get answer checks); jmap/request Email/query/get + Thread/get builders, `call_id`; decode QueryPage/EmailPage/threads/full Mailbox, `server_keyed_fields`, F8 name check; client.call_one; config.window_json; cli full sync + summary envelope + read-only warning; test support fixture_send `Expect`/recorded_calls, jmap_fixture builders, sync_fixture, cli_fixture token/full_sync_script; sync_test (36), I1 suite extended to the full path + store dump
 - PHASE-04: store (schema v1 = migration chain `[schema_v1]`, write_snapshot/_with, open_reader/read/select, close_*); test support store_dump (in-process logical dump incl. user_version), snapshot_fixture (full/broken); store_test (16 tests)
 - PHASE-03 (75dd306, f1d6289): model, html_sax + screwtape_html_ffi (catch boundary), html_text, normalise (utc_date, body bound, compare_received), decode.document + utc_date; test/check_imports (+ beam-import FFI rule) in `just check` and checks.gleam-test; DEC-020, DEC-021; ASM-002 validated; CHR-002
@@ -34,15 +35,15 @@ fresh-as-of: 2026-10-26 · PHASE-05 completed; slice status started; next PHASE-
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: PHASE-06 read verbs (then 07 → 09; 08 independent)
-- PHASE-06 operator decisions (2026-10-26): `list` newest first (received_at_ms DESC, id DESC; reconcile design § 5.2/5.3 wording); unknown message/thread id → Usage, exit 2
+- Next: PHASE-07 (then 09; 08 independent); ISS-001 (type_state race) after PHASE-06 and before /audit
+- Reconcile at audit (PHASE-06): design § 5.1 module graph (new utf8, argv, store/query, store/codec; render imports utf8 not error; cli imports store/query; model gains pure rules); § 5.2/5.3 `list` order is newest first (D5); D7 output shapes and `--max-bytes` as a prefix of the concatenated bodies; usage reason codes (argv module doc); design § 5.2 says read verbs fail `no_snapshot` on v0 (A9 covers "older")
+- PHASE-06 operator decisions, settled (2026-10-26): `list` newest first (received_at_ms DESC, id DESC; reconcile design § 5.2/5.3 wording); unknown message/thread id → Usage, exit 2
 - ISS-001 (PHASE-05 review F1, type_state race): operator decided 2026-10-26 — fix within SL-001 after PHASE-06, before /audit; REV for design § 5.2 + PHASE-05/EX-4 first
 - M2 note (PHASE-05 D3): with `max_age_days`, `after` (in `filter_json`, part of the `query_state` key) changes every run, so a stored `query_state` row is never reusable by `queryChanges` as-is
 - Audit flags (PHASE-05): A9 empty gets on an empty window (operator accepted); A10/D4 warning only on a committed run; A13/D5 a failed first run leaves an empty v0 file; A14 `sync.run(client, writer, bounds, now)` refines the design signature (session runs in cli, so EX-5's session injection is a cli_test); review F5 accepted (a mailbox id outside Mailbox/get fails the commit as `write_failed`); N1 thread notFound uncounted
 - PHASE-09 live checks (PHASE-05 R5): server clamps/omits `limit`, `total` with `calculateTotal`, `ids: []` gets, Email/get answers every id
 - PHASE-05/06 inherit (PHASE-04): sync writes through `store.write_snapshot` (I2 dump checks via `support/store_dump.dump`, also for the I1 sentinel); read verbs query via `store.read` + `store.select`; I8 test (PHASE-06/EX-2) needs a second connection committing mid-read — `store_dump` cannot see connection state
 - Operator note (2026-10-26): a read-only JMAP key is provisioned in 1Password — relevant to the live-run/deployment phase (PHASE-09), not used yet
-- PHASE-06 inherits (PHASE-03): `--since` compares received_at_ms ≥ midnight ms
 - Reconcile: design § 9 I5 row and § 5.1 module table per DEC-020 (html_text imports screwtape/html_sax, not htmgrrrl; html_sax + screwtape_html_ffi are the catch boundary); design § 5.5 'Parse failure' also covers a parser crash; § 9 I5 row: gleam/io denied within gleam_stdlib, FFI rule is the beam import table, I6 literal scan is whole-literal only; CHR-002 upstream htmerl report (operator)
 - Later decoders: add field names to `decode.path_fields`; server-keyed maps go in `server_keyed_fields`
 - Reconcile: design § 5.2 premise 'an httpc worker crash logs a report holding its request' is false on OTP 28.5 (DEC-019 consequences); EX-5 crash case reading per DEC-019
@@ -166,6 +167,8 @@ Inquiry ids (`inq-N`) are the design run's; `doctrine design show 1`.
 - RFC-020 lists OQ-7 open; its Outcome records it settled (raised, unanswered).
 
 ## Review passes
+
+- Orchestration (2026-10-26, PHASE-06): orch = Opus; pi deepseek-flash (`implement`) for T1, the T3/T5 tests and implementations, the T6 implementation, the T7 refactors and the review fixes; Opus subagents for the I8 test (T4), the cli contract tests (T6) and one review. pi costs: T1 $0.019, T3 tests $0.064 + impl $0.054, T5 tests $0.064 + impl $0.027, T6 impl $0.048, T7 $0.057 + $0.017, review (max) $0.129, fix tests $0.038 + fixes $0.020: ≈ $0.54. No pi run hit a ceiling (largest 54 requests, the reviewer). pi got wrong: nothing that reached a commit; the T5 test author settled `--max-bytes` as a prefix of the concatenated bodies (accepted, D7 updated) where the brief left it open. pi got right where Opus had not: the reader `busy_timeout` gap (P-2). Opus review found the bignum `--offset` crash (pi too), the I8-through-one-query gap and the missing read-only test. Brief tuning that worked: orch writes the stubs and the output-shape decision (D7) before any test brief; implementers are told which tests are fixed; split render and cli implementation into separate runs.
 
 - Orchestration (2026-10-26, PHASE-03): orch = Opus; pi deepseek-flash. T3a html_text tests $0.01, T4a normalise tests $0.04 + continuation $0.003 (wall-clock timeout, build-lock waits), T5 check-imports $0.06, T3b html_sax/html_text $0.07 (timeout at final check; work complete), T4b normalise $0.05, FFI beam-import hardening $0.02. pi got wrong: T3a asserted hr → blank line against its own stated rule, and pinned unspecified mid-entity truncation; T4a missed MessageLimit-over-Server and scalar-field swap cases (orch added); T5's text scanner for the .erl was evadable (quoted atoms, fun refs) → orch had it replaced with a beam-import check; a worker erl probe left erl_crash.dump in the repo root. Brief tuning: three concurrent workers in one tree cost two wall-clock timeouts (gleam build lock) — max two concurrent, or stagger; give stubs with fixed types before contract-test briefs (worked well).
 

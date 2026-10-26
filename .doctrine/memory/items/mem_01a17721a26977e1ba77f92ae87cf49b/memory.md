@@ -8,3 +8,7 @@
 - `PRAGMA user_version` is transactional: set inside a transaction, it reverts on ROLLBACK.
 - Test gotcha: `sqlight.close` rolls back an open transaction, so "dump unchanged after close" cannot tell a rollback from a leaked transaction. Keep the connection open and reuse it (the next `BEGIN` fails if a transaction leaked).
 - The nix check sandbox has no `sqlite3` CLI; screwtape's `test/support/store_dump` is the in-process `.dump` equivalent (it also records `user_version`).
+
+Added 2026-10-26 (SL-001 PHASE-06, observed in tests):
+- A connection's default `busy_timeout` under esqlite/sqlight is 2000 ms, not SQLite's 0. Set it explicitly on readers too if the design promises a value.
+- `sqlight.int` raises `badarg` (a crash, not an Error) for an integer outside int64: BEAM ints are bignums, so bound any user-supplied integer (e.g. `int.parse` of argv) before binding it.
