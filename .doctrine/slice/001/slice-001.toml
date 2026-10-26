@@ -1,7 +1,7 @@
 id = 1
 slug = "m1-mirror"
 title = "Screwtape M1: Gleam JMAP mirror, full bounded sync"
-status = "started"
+status = "audit"
 created = "2026-10-25"
 updated = "2026-10-26"
 tags = ["belphegor", "mail", "jmap", "gleam"]

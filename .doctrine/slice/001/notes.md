@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · 38f214b · PHASE-09 completed (deployed, live acceptance passed; ASM-004/005 validated; OQ-A → IMP-001); CHR-001 resolved (SL-001 unblocked); next PHASE-08 (~/dev/satan), then /audit
+fresh-as-of: 2026-10-27 · b1d0805 · all 11 phases completed (PHASE-08 landed in satan f0634c2, 1b82629; IMP-051 upstreaming); slice in audit; next /audit
 
 ### Produced
 - PHASE-09 (6c31cf9; ~/flakes a4c04414): quotient pinned by github at the same rev; ~/flakes screwtape input, features/satan/screwtape.nix, dev-checkouts entry, SATAN.md § Screwtape; ASM-004, ASM-005 validated; IMP-001 (OQ-A fail closed); CHR-003 updated
@@ -38,7 +38,7 @@ fresh-as-of: 2026-10-27 · 38f214b · PHASE-09 completed (deployed, live accepta
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: PHASE-08 VH-1 (operator review + satan commit), then complete PHASE-08 and /audit
+- Next: /audit
 - ~/flakes a4c04414 (local, unpushed) also carries the operator's pre-staged files (7 ~/flakes .doctrine backlog entries incl. IMP-042, emacs/emacs.nix, modules/home/nushell.nix); operator: "one commit is fine"
 - Reconcile at audit (PHASE-11 D1, operator 2026-10-27 "ok, b"): `client.call` guarantees response i answers call i (count + call ids in order) else `Decode("methodResponses")` — stricter than RFC 8620 in general (implicit extra responses), sound for the four scoped methods; design § 5.2 could name it next to F8. PHASE-11 A3's premise (F8 refuses a reorder) was false; recorded in the phase sheet
 - Audit (pre-existing, found at PHASE-07 verify-vt): PHASE-10 VT-2 keyword `ca_file` is absent from `test/screwtape/token_leak_test.gleam` (never present; the test trusts a per-run CA via `server.ca_path`). Behaviour covered; the keyword/traceability needs a ruling at /audit
@@ -61,7 +61,8 @@ fresh-as-of: 2026-10-27 · 38f214b · PHASE-09 completed (deployed, live accepta
 - ASM-003 (unvalidated; satan RSK-021); ASM-004, ASM-005 validated at PHASE-09
 - I7 jail clause is conditional on launch directory (operator accepted, F-27)
 - Host hygiene, outside SL-001 (operator to decide): `~/Mail`, `~/News` and `~/.var/app/com.fastmail.Fastmail` are 0755; whether the Fastmail flatpak's session is keyring-protected is unknown
-- PHASE-08 VH-1 (operator): review and commit in satan `flake.nix` + `justfile` (op-unjailed; runner-socket-unjailed moved onto the shared scanner) and RFC-020 (diff against `.doctrine/state/slice/001/rfc-020.pre-phase-08.md`); confirm OQ-7 was operator-settled; Wormwood's future `op://` ref (rfc-020.md:296) left as is
+- RFC-020 OQ-7: the draft takes the Outcome's "settled by the operator" at face value (operator not asked directly); Wormwood's future `op://` ref (rfc-020.md:296) unchanged
+- nix-config IMP-051: upstream `jailScanCheck` + op preset into the agents lib after porting the last `useOpEnv` consumers to the gateway
 - RFC-020 OQ-2, OQ-5, OQ-6, OQ-10, OQ-11
 - Research host checks 8 and 9: not run
 - CHR-001: swap the quotient pin to a published tag
@@ -77,6 +78,7 @@ All in `~/dev/satan`, uncommitted for the operator (DEC-013, DEC-015).
 - Earlier the lock didn't evaluate (`jailLib.gatewayFacts` missing). The operator fixed it mid-phase in `~/flakes` 73516b60 and satan 1af5868/dfa115e (IMP-043).
 - Known limits (a guard, not proof of NF-004): indirection (`B=/run; --bind "$B"`), runtime-generated args (`elf-closure-binds`, `printf` process substitutions), helpers not named `-jailed-`, and a bare `/` in launcher text failing loudly.
 - pi review (deepseek, $0.015): accepted F3 (exec line without args) and F5 (the control must exercise the args leg). Refuted F1 (claimed that args files never match; real launchers use `{RUNTIME_CLOSURE_BIND_ARGS_FD}</nix/store/…`). Declined F2, F4, F6, F7 and F8 as known limits or low value.
+- VH-1 (operator, 2026-10-27: "file a backlog imp for merging these upstream, and then land 08"): landed in satan f0634c2 (check) and 1b82629 (RFC-020), not pushed; upstreaming → nix-config IMP-051 (dcf9f1ee). Operator: opEnv is superseded by the gateway; remaining users get ported.
 - EX-3: RFC-020 revised in place: D1 diagram; D3 (provision-once `systemd-creds --user`, same uid per DEC-016/017, `op-unjailed`, the decrypted credential, provisioning prompt); D4 row; D7 row 10 "Enforced at"; D8 and OQ-7 (removed from the open list, matching the Outcome); brief table; Outcome; OQ-4 (settled, kept as record, residual → RSK-021).
 
 ## PHASE-09 evidence
