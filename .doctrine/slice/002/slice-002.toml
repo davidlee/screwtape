@@ -1,0 +1,52 @@
+id = 2
+slug = "m2-incremental"
+title = "Screwtape M2: minimal incremental sync"
+status = "design"
+created = "2026-10-26"
+updated = "2026-10-26"
+tags = []
+
+[relationships]
+needs = []                      # slice→work hard prerequisite
+after = []                      # slice→work soft sequence: { to, rank }
+
+[[selector]]
+selector = "src/screwtape/sync.gleam"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/jmap/**"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/store.gleam"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/store/**"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/model.gleam"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "test/**"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "README.md"
+intent = "scope-relevant"
+
+[[relation]]
+label = "governed_by"
+target = "POL-001"
+
+# STRUCTURAL relations are uniform `[[relation]]` rows, never a typed
+# `[relationships]` axis. Slices carry no typed STRUCTURAL
+# relation axes — the `[relationships]` table above holds only the dep/seq payload
+# (`needs`/`after`). Author a structural edge with the `doctrine link` verb
+# — it validates the (source, label) pair and resolves the target:
+#   doctrine link SL-NNN specs SPEC-NNN
+#   doctrine link SL-NNN governed_by ADR-NNN
+# `doctrine inspect SL-NNN` renders the inbound + outbound edges.
