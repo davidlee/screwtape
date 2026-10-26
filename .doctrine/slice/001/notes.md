@@ -6,9 +6,10 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · PHASE-04 completed; slice status started; next PHASE-05
+fresh-as-of: 2026-10-26 · PHASE-05 completed; slice status started; next PHASE-06
 
 ### Produced
+- PHASE-05 (bfeb35f, b2cb3a5, 2498e04): sync (run, paging with sticky clamp, ≤2 restarts, chunked gets, earliest states, Email/get answer checks); jmap/request Email/query/get + Thread/get builders, `call_id`; decode QueryPage/EmailPage/threads/full Mailbox, `server_keyed_fields`, F8 name check; client.call_one; config.window_json; cli full sync + summary envelope + read-only warning; test support fixture_send `Expect`/recorded_calls, jmap_fixture builders, sync_fixture, cli_fixture token/full_sync_script; sync_test (36), I1 suite extended to the full path + store dump
 - PHASE-04: store (schema v1 = migration chain `[schema_v1]`, write_snapshot/_with, open_reader/read/select, close_*); test support store_dump (in-process logical dump incl. user_version), snapshot_fixture (full/broken); store_test (16 tests)
 - PHASE-03 (75dd306, f1d6289): model, html_sax + screwtape_html_ffi (catch boundary), html_text, normalise (utc_date, body bound, compare_received), decode.document + utc_date; test/check_imports (+ beam-import FFI rule) in `just check` and checks.gleam-test; DEC-020, DEC-021; ASM-002 validated; CHR-002
 - PHASE-10 (a482012..54e028e): error, credential (control-byte rejection), config, file, jmap/request, jmap/decode, jmap/client (Budget), cli, main; test support fixture_send, jmap_fixture, cli_fixture, local_jmap.start_with/reply, temp.write, subprocess.run_env; I1 token_leak_test (VT-2); DEC-019; RV-002 concluded as waived (1fc3923)
@@ -33,12 +34,16 @@ fresh-as-of: 2026-10-26 · PHASE-04 completed; slice status started; next PHASE-
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: PHASE-05 sync orchestration (then 06 → 07 → 09; 08 independent)
+- Next: PHASE-06 read verbs (then 07 → 09; 08 independent)
+- **Operator decision pending (PHASE-05 review F1):** `type_state` Email/Thread come from the first Email/get/Thread/get, which run after phase 1; mail arriving in between advances the state past a message the id list lacks, so M2 `/changes` from it would miss that message. Proposed fix: `Email/get ids:[]` + `Thread/get ids:[]` before phase 1 (cheap; A9 already sends empty gets). Contradicts PHASE-05/EX-4 and design § 5.2 wording → needs a revision (REV) before changing code
+- M2 note (PHASE-05 D3): with `max_age_days`, `after` (in `filter_json`, part of the `query_state` key) changes every run, so a stored `query_state` row is never reusable by `queryChanges` as-is
+- Audit flags (PHASE-05): A9 empty gets on an empty window (operator accepted); A10/D4 warning only on a committed run; A13/D5 a failed first run leaves an empty v0 file; A14 `sync.run(client, writer, bounds, now)` refines the design signature (session runs in cli, so EX-5's session injection is a cli_test); review F5 accepted (a mailbox id outside Mailbox/get fails the commit as `write_failed`); N1 thread notFound uncounted
+- PHASE-09 live checks (PHASE-05 R5): server clamps/omits `limit`, `total` with `calculateTotal`, `ids: []` gets, Email/get answers every id
 - PHASE-05/06 inherit (PHASE-04): sync writes through `store.write_snapshot` (I2 dump checks via `support/store_dump.dump`, also for the I1 sentinel); read verbs query via `store.read` + `store.select`; I8 test (PHASE-06/EX-2) needs a second connection committing mid-read — `store_dump` cannot see connection state
 - Operator note (2026-10-26): a read-only JMAP key is provisioned in 1Password — relevant to the live-run/deployment phase (PHASE-09), not used yet
-- PHASE-05 inherits (PHASE-03): the Email/get decoder builds `normalise.Email` (DEC-021) and must add its field names to `decode.path_fields`; sync calls `normalise.message(email, email_state, max_body_bytes)`; `--since` filter (PHASE-06) compares received_at_ms ≥ midnight ms
+- PHASE-06 inherits (PHASE-03): `--since` compares received_at_ms ≥ midnight ms
 - Reconcile: design § 9 I5 row and § 5.1 module table per DEC-020 (html_text imports screwtape/html_sax, not htmgrrrl; html_sax + screwtape_html_ffi are the catch boundary); design § 5.5 'Parse failure' also covers a parser crash; § 9 I5 row: gleam/io denied within gleam_stdlib, FFI rule is the beam import table, I6 literal scan is whole-literal only; CHR-002 upstream htmerl report (operator)
-- PHASE-05 inherits: `decode.path_fields` must grow with each new decoder (else paths truncate at the last known field); check a response's method name against its call (PHASE-10 review F8, deferred); a digits-only server map key still renders as `[n]` (accepted: digits only)
+- Later decoders: add field names to `decode.path_fields`; server-keyed maps go in `server_keyed_fields`
 - Reconcile: design § 5.2 premise 'an httpc worker crash logs a report holding its request' is false on OTP 28.5 (DEC-019 consequences); EX-5 crash case reading per DEC-019
 - Audit reconcile: design § 5.2 crash rules should name the linked-exit containment (guard under spawn_monitor; PHASE-01 review F2); PHASE-10/EX-5 inherits review F7 (forced crash through main)
 - Design § 6: OQ-A (operator 2026-10-26: warn now, decide after the live run); lingering (host choice); silent sync failures; library pins closed by PHASE-01/EX-1 (manifest.toml)
@@ -49,6 +54,21 @@ fresh-as-of: 2026-10-26 · PHASE-04 completed; slice status started; next PHASE-
 - RFC-020 OQ-2, OQ-5, OQ-6, OQ-10, OQ-11
 - Research host checks 8 and 9: not run
 - CHR-001: swap the quotient pin to a published tag
+
+## PHASE-05 evidence
+
+- Plan review (opus, unanchored) folded in before execution: 10 findings (sheet Findings). Operator 2026-10-26 accepted A1/A2/A9/A10 ("design choices seem sound").
+- TDD: T3 (23 contract tests) and T5 (29 sync tests) written red against stubs by agents that did not implement them; T4/T6 made them green. Orch TDD additions: sticky clamp (RFC 8620 § 5.5 echoes `limit` only when it differs), sorted flag keys.
+- A11 probe: `to_rfc3339(from_unix_seconds(1793000000), seconds(0))` = `2026-10-26T07:33:20Z`, parsed by `normalise.utc_date`.
+- Negative controls on sync.gleam (copy backup, restored by copy):
+  - (a) queryState check off → 3 query_unstable tests red;
+  - (b) write before Thread/get → inject_500_at_thread_get red;
+  - (c) first chunk re-requested → 21 red, incl. exactly_once_chunks;
+  - (d) latest Email state → type_state_earliest red;
+  - (e) clamp ignored → 6 paging tests red.
+- Gate 299 passed, check-imports ok; `nix flake check` exit 0, sandbox 299 passed.
+- PHASE-05 review (opus, unanchored; no blockers, no reachable hang). F2/F3/F4/F6 fixed by a repair agent against orch-written red tests; F7 regression tests added; F5, N1, N2 accepted; F1 to the operator (Open).
+- Orchestration: orch = Opus. pi (deepseek-flash) did T2, T3, T4 and T7a/b ($0.03–0.06 each, no fixes needed). Opus agents did the plan review, T5, T6, the T9 review and the repair. Briefs: fix the stubs' types before the contract-test brief; stub a signature change rather than let tests fail to compile.
 
 ## PHASE-04 evidence
 

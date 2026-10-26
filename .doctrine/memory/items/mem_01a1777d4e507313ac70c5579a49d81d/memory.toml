@@ -1,0 +1,46 @@
+memory_uid = "mem_01a1777d4e507313ac70c5579a49d81d"
+memory_key = "mem.fact.jmap.query-get-response-semantics"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "JMAP /query and /get response semantics the sync relies on"
+summary = "Email/query echoes limit only when it differs, returns total only with calculateTotal; /get must answer every id in list or notFound"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = ["src/screwtape/sync.gleam", "src/screwtape/jmap/decode.gleam", "src/screwtape/jmap/request.gleam"]
+globs = []
+commands = []
+tags = ["jmap"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "1216c73f494cb84aed669c85cbd70f6c87d785cd"
+ref_name = "refs/heads/main"
+checkout_state_id = "9d5149b12ae324285cf21a457266617c42eff11af14140f37334b313478e12ee"
+base_commit = "2498e045c8f0e21a711054ce857a6745a34a2ee0"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "medium"
+weight = 0
+
+[[source]]
+kind = "slice"
+ref = "SL-001"
+
