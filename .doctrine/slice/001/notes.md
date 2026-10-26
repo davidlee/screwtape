@@ -6,9 +6,10 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · design relocked rev 111 (DEC-018); plan 10 phases (PHASE-10 split from PHASE-02); slice status ready
+fresh-as-of: 2026-10-26 · PHASE-01 completed at 40fbf74; slice status started; next PHASE-02
 
 ### Produced
+- PHASE-01 (1c76354, 8604d32, 40fbf74): gleam package + pins, screwtape_ffi, nix/package.nix + checks.gleam-test, test/support (subprocess, local_tls, temp); ASM-001 validated; memories mem.fact.gleam.shipment-compiles-test-erl, mem.pattern.gleam.guard-spawn-monitor
 - SL-001 scope: research amendment (check-jails to satan) committed in 15914cd; design amendments (DEC-001, DEC-004, DEC-013, DEC-016, DEC-017, F11 body values, F-13 wording) uncommitted
 - CHR-001: flake and quotient forms; quotient pin swap pending
 - Research round 1: `research/research.md` + `raw/`, restamped 2026-10-26 (gitignore gap is upstream doctrine, operator-owned)
@@ -28,9 +29,10 @@ fresh-as-of: 2026-10-26 · design relocked rev 111 (DEC-018); plan 10 phases (PH
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: /phase-plan PHASE-01 (packaging skeleton) → /execute; plan.md § Risks lists phase-plan unknowns (forced crash in client, body withholding, raw JMAP type home, F-20 'charged' reading)
-- Design § 6: OQ-A (operator 2026-10-26: warn now, decide after the live run); lingering (host choice); silent sync failures; library pins
-- ASM-001 (PHASE-01), ASM-002 (PHASE-03), ASM-003 (unvalidated; satan RSK-021), ASM-004 (PHASE-09), ASM-005 (PHASE-09) (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
+- Next: /phase-plan PHASE-02 (transport proof) → /execute, orchestrated per the pi-orchestrate skill; plan.md § Risks lists remaining unknowns (forced crash in client, body withholding, raw JMAP type home, F-20 'charged' reading)
+- Audit reconcile: design § 5.2 crash rules should name the linked-exit containment (guard under spawn_monitor; PHASE-01 review F2); PHASE-10/EX-5 inherits review F7 (forced crash through main)
+- Design § 6: OQ-A (operator 2026-10-26: warn now, decide after the live run); lingering (host choice); silent sync failures; library pins closed by PHASE-01/EX-1 (manifest.toml)
+- ASM-002 (PHASE-03), ASM-003 (unvalidated; satan RSK-021), ASM-004 (PHASE-09), ASM-005 (PHASE-09) (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
 - I7 jail clause is conditional on launch directory (operator accepted, F-27)
 - Host hygiene, outside SL-001 (operator to decide): `~/Mail`, `~/News` and `~/.var/app/com.fastmail.Fastmail` are 0755; whether the Fastmail flatpak's session is keyring-protected is unknown
 - RFC-020 drafts per DEC-015 (D3, OQ-4, D7 row 10, OQ-7 drift): not yet written
