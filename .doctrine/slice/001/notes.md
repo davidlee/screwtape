@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · b1d0805 · all 11 phases completed (PHASE-08 landed in satan f0634c2, 1b82629; IMP-051 upstreaming); slice in audit; next /audit
+fresh-as-of: 2026-10-27 · 7bc38bc · all 11 phases completed (PHASE-08 landed in satan f0634c2, 1b82629; IMP-051 upstreaming); slice in audit; RV-004 opened (empty); next /audit
 
 ### Produced
 - PHASE-09 (6c31cf9; ~/flakes a4c04414): quotient pinned by github at the same rev; ~/flakes screwtape input, features/satan/screwtape.nix, dev-checkouts entry, SATAN.md § Screwtape; ASM-004, ASM-005 validated; IMP-001 (OQ-A fail closed); CHR-003 updated
