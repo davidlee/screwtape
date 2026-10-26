@@ -64,7 +64,6 @@
     # URL is a literal, the key is read at launch outside the jail, and pi's
     # provider list is bound read-only.
     gateway = jailLib.gatewayClient "pi";
-    gatewayModels = (import "${agents}/gateway.nix").models;
 
     # quotient's per-call forms for this root (`quotient help form`): linked
     # at .quotient/forms/<capability> by `just quotient-forms`, then approved
@@ -78,9 +77,7 @@
         ++ (with pkgs; [bash findutils gnugrep gnused gawk ripgrep fd git]);
       env.LLM_GATEWAY_URL = gateway.url;
       secretEnv.LLM_GATEWAY_KEY = ''$(< "${gateway.keyFile}")'';
-      piFiles."models.json" =
-        pkgs.writeText "pi-gateway-models.json"
-        (builtins.toJSON (jailLib.piGatewayConfig gateway.url gatewayModels));
+      piFiles."models.json" = jailLib.piGatewayModels;
     };
   in {
     homeManagerModules.default = import ./nix/module.nix self;
