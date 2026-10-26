@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 21
+slug = "normalise-owns-jmap-inputs"
+title = "normalise owns its JMAP input records and utc_date_ms; jmap/decode maps bad timestamps to Decode(path)"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-26"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "The I5 allowlist lets normalise import only gleam_stdlib, screwtape/model and screwtape/html_text, so it cannot import screwtape/error (imports gleam_json) or jmap/decode; yet PHASE-03/EX-5 wants an unparseable timestamp to be Error.Decode, and jmap/decode's path/render choke point is the only safe builder of Decode paths. notes Harvest Open: raw JMAP type home."
+choice = "normalise defines stdlib-only input records for the JMAP Email shape (and the pieces it needs), and a pure utc_date_ms(String) -> Result(Int, Nil). jmap/decode gains a UTCDate field decoder that calls utc_date_ms, so a bad timestamp fails as Decode(path) through the existing choke point. PHASE-05's Email/get decoder builds normalise's input records."
+alternatives = ["a new pure jmap/email wire-type module added to normalise's allowlist", "JMAP wire types in model", "normalise decoding Dynamic itself"]
+rationale = "No allowlist change; Decode paths keep their single builder; the dependency runs from the effectful-boundary module to the pure one. Wire types in model would mix wire and stored shapes; normalise decoding Dynamic would duplicate the path choke point."
+consequences = ["jmap/decode imports screwtape/normalise", "decode.path_fields grows with the timestamp field names used in tests now and the Email fields in PHASE-05", "VT-3's unparseable case is asserted through jmap/decode"]
+decided_by = "agent proposal; operator choice (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

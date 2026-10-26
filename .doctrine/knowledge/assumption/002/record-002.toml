@@ -5,9 +5,9 @@ id = 2
 slug = "htmgrrrls-event-api-suffices-for-a-text-extraction-fold"
 title = "htmgrrrl's event API suffices for a text-extraction fold"
 record_kind = "assumption"
-status = "held"
+status = "validated"
 created = "2026-10-25"
-updated = "2026-10-25"
+updated = "2026-10-26"
 tags = []
 
 [facet]                         # every field typed; seeded empty (captured later)
@@ -15,8 +15,8 @@ claim = "htmgrrrl 1.0.1 exposes SAX events (start/end element with attributes, c
 confidence = "medium"
 basis = "external-source"
 validation_plan = "Read the htmgrrrl API and write the first html_text tests early in the plan."
-validated_by    = ""
-validated_on    = ""
+validated_by = "orch (Opus) probe; operator ruled crash handling (DEC-020)"
+validated_on = "2026-10-26"
 invalidated_by  = ""
 invalidated_on  = ""
 

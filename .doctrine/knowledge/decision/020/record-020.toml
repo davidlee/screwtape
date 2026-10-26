@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 20
+slug = "html-sax-catch-boundary"
+title = "html_text contains htmerl crashes behind a catching html_sax wrapper and trims a trailing partial tag"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-26"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "PHASE-03/EX-1 probe (2026-10-26, orch, htmgrrrl 1.0.1 / htmerl 0.2.1, latest on hex): events suffice, but htmerl raises instead of returning Error: case_clause at htmerl_sax_utf8.erl:302 on input ending inside a tag name (87 of 316 truncation offsets of a sample email), and badmap on an unclosed table cell even without truncation (<table><tr><td>c). An exception would reach guard and fail the whole sync as internal. I5 forbids @external in html_text, so it cannot catch."
+choice = "New module screwtape/html_sax: a Gleam wrapper over screwtape_html_ffi.erl, which calls htmgrrrl_ffi:sax/3 inside try/catch and returns Error(Nil) on any exception, discarding the reason (it can hold input text). html_text imports html_sax instead of htmgrrrl and stays @external-free; before parsing it trims an unterminated trailing '<...' (no '>' after the last '<'), which removed every tag-name crash in the probe. Remaining crashes become conversion_failed."
+alternatives = ["an audited @external in html_text", "a stdlib-only tokenizer with entity table", "patch or vendor htmerl"]
+rationale = "Smallest change that keeps a parser crash from failing a run and keeps html_text and normalise free of @external; the catch does no I/O; the trim recovers text for the common server-truncation case. A tokenizer is far more code; vendoring breaks the offline hex build."
+consequences = ["design 9 I5 row amended: html_text may import screwtape/html_sax (not htmgrrrl); html_sax may import only gleam_stdlib and htmgrrrl and its one @external targets screwtape_html_ffi; screwtape_html_ffi.erl calls only htmgrrrl_ffi:sax/3 (check-imports enforces)", "a body hitting the table-cell bug stores text empty with conversion_failed (visible: I4 spirit kept)", "upstream htmerl report is backlog work (operator to file)"]
+decided_by = "agent proposal; operator choice (david), option A"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

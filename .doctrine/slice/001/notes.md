@@ -31,12 +31,13 @@ fresh-as-of: 2026-10-26 · PHASE-10 completed at 54e028e; slice status started; 
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: PHASE-03 (then 04 → 05 → 06 → 07 → 09; 08 independent); raw JMAP type home (PHASE-03)
+- Next: PHASE-03 (then 04 → 05 → 06 → 07 → 09; 08 independent); raw JMAP type home settled by DEC-021
+- Reconcile: design § 9 I5 row and § 5.1 module table per DEC-020 (html_text imports screwtape/html_sax, not htmgrrrl; html_sax + screwtape_html_ffi are the catch boundary); design § 5.5 'Parse failure' also covers a parser crash; CHR-002 upstream htmerl report (operator)
 - PHASE-05 inherits: `decode.path_fields` must grow with each new decoder (else paths truncate at the last known field); check a response's method name against its call (PHASE-10 review F8, deferred); a digits-only server map key still renders as `[n]` (accepted: digits only)
 - Reconcile: design § 5.2 premise 'an httpc worker crash logs a report holding its request' is false on OTP 28.5 (DEC-019 consequences); EX-5 crash case reading per DEC-019
 - Audit reconcile: design § 5.2 crash rules should name the linked-exit containment (guard under spawn_monitor; PHASE-01 review F2); PHASE-10/EX-5 inherits review F7 (forced crash through main)
 - Design § 6: OQ-A (operator 2026-10-26: warn now, decide after the live run); lingering (host choice); silent sync failures; library pins closed by PHASE-01/EX-1 (manifest.toml)
-- ASM-002 (PHASE-03), ASM-003 (unvalidated; satan RSK-021), ASM-004 (PHASE-09), ASM-005 (PHASE-09) (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
+- ASM-003 (unvalidated; satan RSK-021), ASM-004 (PHASE-09), ASM-005 (PHASE-09) (partly checked by the Opus reviewer; real BEAM and TPM binding remain for the deployment phase)
 - I7 jail clause is conditional on launch directory (operator accepted, F-27)
 - Host hygiene, outside SL-001 (operator to decide): `~/Mail`, `~/News` and `~/.var/app/com.fastmail.Fastmail` are 0755; whether the Fastmail flatpak's session is keyring-protected is unknown
 - RFC-020 drafts per DEC-015 (D3, OQ-4, D7 row 10, OQ-7 drift): not yet written
