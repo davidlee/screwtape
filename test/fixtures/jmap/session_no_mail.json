@@ -1,0 +1,1 @@
+{"apiUrl":"https://api.example.test/jmap/","username":"operator@example.test","primaryAccounts":{},"accounts":{"acct-1":{"name":"operator@example.test","isReadOnly":false}},"capabilities":{"urn:ietf:params:jmap:core":{"maxObjectsInGet":1000,"maxCallsInRequest":32}}}

@@ -1,0 +1,1 @@
+{"methodResponses":[["Mailbox/get",{"accountId":"acct-1","state":"state-1","list":[{"id":"mb-1","name":"Inbox","role":"inbox"},{"id":"mb-2","name":"Archive","role":null},{"id":"mb-3","name":"Work"}],"notFound":[]},"c0"]]}

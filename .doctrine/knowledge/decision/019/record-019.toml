@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 19
+slug = "i1-crash-case-drives-the-real-guard-and-logger-edge-from-test-code-in-the-shipment-not-a-client"
+title = "I1 crash case drives the real guard and logger edge from test code in the shipment, not a client crash"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-26"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "PHASE-10/EX-5 requires a crash forced inside the client while the revealed token is in the crashing frame, with no production test hook (plan.md Risks). Spike T0 (2026-10-26, OTP 28.5) found no trigger: httpc concatenates header bytes unvalidated (CR/LF, NUL, 1 MB all send), malformed responses all return {error,_}, and httpc_handler catches every exception into a {shutdown,_} stop, which OTP never reports (httpc_handler.erl 268-313, orch-verified). The only real crash, Cap = 0 function_clause, is token-free and prevented by jmap/client (F-29)."
+choice = "The I1 suite's crash case runs inside the built shipment via erl_eval: the real credential.read and bearer, under the real silence_logger and guard, raise with the revealed header in the term (an error raise and a linked-process exit). VA-1 runs the same without guard and with the logger at default and shows the sentinel printed. EX-5's 'a crash forced inside the client' is read as 'a crash in a frame holding the revealed token, under the production main edge'. The other eight cases stay subprocess runs of sync."
+alternatives = ["a production crash hook (env-triggered)", "drop the crash case from EX-5"]
+rationale = "Proves the containment I1 depends on with no production surface added; a hook is what the plan forbids and is attack surface; dropping the case leaves guard with only PHASE-01's test behind I1."
+consequences = ["design 5.2's premise that an httpc worker crash logs a report holding its request is false on OTP 28.5: correct at reconcile (logger silencing stays as defence in depth)", "EX-5 reading recorded in notes for audit"]
+decided_by = "agent proposal; operator choice (david), reply 'a) 1'"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

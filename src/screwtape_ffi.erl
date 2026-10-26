@@ -17,7 +17,7 @@
 %% `halt/1` is also an auto-imported BIF; ours is the flushing one.
 -compile({no_auto_import, [halt/1]}).
 
--export([halt/1, silence_logger/0, guard/1]).
+-export([halt/1, silence_logger/0, guard/1, getenv/1]).
 
 %% The success reason the guarded process exits with, so a normal-looking
 %% `normal`/`killed`/exception reason can never be mistaken for a result.
@@ -31,6 +31,17 @@ halt(Code) ->
 silence_logger() ->
     logger:set_primary_config(level, none),
     nil.
+
+%% `getenv/1` is the one environment read the CLI makes: the credentials
+%% directory systemd hands the unit. It answers a Gleam `Result(String, Nil)` —
+%% `{ok, Binary}`, or `{error, nil}` when the variable is unset — so no caller
+%% has to know that `os:getenv/1` says `false`. The value is a path, never the
+%% token, so it may enter an error reason.
+getenv(Name) ->
+    case os:getenv(Name) of
+        false -> {error, nil};
+        Value -> {ok, unicode:characters_to_binary(Value)}
+    end.
 
 guard(Fun) ->
     {Pid, Ref} = spawn_monitor(fun() -> exit({?OK_TAG, Fun()}) end),

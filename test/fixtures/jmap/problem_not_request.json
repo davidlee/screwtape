@@ -1,0 +1,1 @@
+{"type":"urn:ietf:params:jmap:error:notRequest","status":400,"detail":"The request is not a valid JMAP request"}
