@@ -38,6 +38,16 @@ fresh-as-of: 2026-10-26 · design relocked rev 111 (DEC-018); plan 10 phases (PH
 - Research host checks 8 and 9: not run
 - CHR-001: swap the quotient pin to a published tag
 
+## PHASE-01 evidence
+
+- EX-5 / VA-2 (2026-10-26, orch, devshell, network): OTP 28.5.0.8 (the shipment's erts) `public_key:cacerts_get/0` returns 118 certs on this NixOS host. httpc `verify_peer` + `cacerts_get()` + https hostname match_fun: `https://api.fastmail.com/.well-known/jmap` handshake succeeds (HTTP 401, unauthenticated); negative control `https://expired.badssl.com/` fails `Certificate Expired`. Decision: production trusts the system store; `ca_file` stays optional (DEC-018), not defaulted to the Nix cacert bundle.
+- EX-2 / ASM-001 (2026-10-26, orch): `nix build .#screwtape` (sandbox = true) built the vendored esqlite 0.10.0 NIF via `rebar3WithPlugins [pc]`; no fallback. ASM-001 settled validated.
+- EX-7 (2026-10-26, orch): `nix flake check` ran `checks.gleam-test` in the sandbox: loopback TLS from a pkix_test_data CA and subprocesses of the built shipment both work (12-13 passed).
+- PHASE-01 review (pi `review`, deepseek-flash max, unanchored; 10 findings). Orch verified F2 and F3 by probe:
+  - F2 (high): a process linked from inside `guard` that crashes kills `main`; gleam's `screwtape@@main` wrapper (trap_exit false) prints the exit reason to stderr (SENTINEL leaked). Fix: guard runs the body under `spawn_monitor`. Bears on design § 5.2's crash rules and PHASE-10's I1 suite: reconcile at audit.
+  - F3: `gleam export erlang-shipment` compiles `test/**/*.erl` into the production app ebin. Fix: package src includes `test/` only when `doCheck`.
+  - F4/F5/F6/F10 fixed (subprocess stderr/timeout, hostname-mismatch control, temp file modes). F7 deferred to PHASE-10 (forced crash through main). F8 accepted: `{flush,true}` is OTP's default since 26; kept explicit per design. F9 documented.
+
 ## Design triage (2026-10-26, run dr-01a17546)
 
 Inquiry ids (`inq-N`) are the design run's; `doctrine design show 1`.
@@ -79,6 +89,8 @@ Inquiry ids (`inq-N`) are the design run's; `doctrine design show 1`.
 - RFC-020 lists OQ-7 open; its Outcome records it settled (raised, unanswered).
 
 ## Review passes
+
+- Orchestration (2026-10-26, PHASE-01): orch = Opus; workers = quotient pi (deepseek-flash). Observed: planner, test and code workers reliable on bounded briefs ($0.01-0.07 each); two runs hit their request ceiling exploring (TLS test debug; reviewer cloning nixpkgs) and finished on a session continuation with a "stop probing, answer now" prompt; parallel workers in one tree serialise on gleam's `build/` lock; a worker-written test was vacuous (atom logger message raising function_clause) and caught only by orch running a control. Review at `max` found two real high/medium defects orch had missed.
 
 - Plan review (2026-10-26): pi `review` profile (deepseek-flash), read-only, unanchored brief over plan + design + RV-001. 12 findings, all integrated (F-5 as a two-way split to PHASE-02 + PHASE-10; F-6's prescription contested, observation integrated as the F-20 reading in plan.md). Finding 1 (https-only config vs loopback I1 suite) reopened the design: operator chose https + optional `ca_file` → DEC-018; design relocked rev 111 with RV-002 waived (operator: human review of the four amended sections).
 

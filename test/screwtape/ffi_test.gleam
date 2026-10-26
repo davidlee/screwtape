@@ -82,6 +82,41 @@ pub fn guard_emits_internal_error_line_on_exit_test() {
   |> should.equal("{\"level\":\"error\",\"error\":\"internal\"}\n")
 }
 
+pub fn guard_contains_a_linked_process_crash_test() {
+  // A crash in a process linked to the guarded body must stop outside the
+  // top-level process: gleam's generated wrapper does not trap exits, so an
+  // exit signal there prints the reason (a bearer token, in production) to
+  // stderr. `trap_exit` is turned off explicitly to match that wrapper.
+  let expression =
+    "erlang:process_flag(trap_exit, false), "
+    <> "screwtape_ffi:silence_logger(), "
+    <> "screwtape_ffi:guard(fun() -> "
+    <> "spawn_link(fun() -> exit({leak, \"SENTINEL-LINK\"}) end), "
+    <> "timer:sleep(2000), "
+    <> "ok "
+    <> "end), "
+    <> "screwtape_ffi:halt(0)"
+  let record = unwrap(subprocess.erl_eval(expression))
+  assert_exit(record, 1, "guard/linked exit")
+  record.stdout |> should.equal(<<>>)
+  record.stderr
+  |> should.equal("{\"level\":\"error\",\"error\":\"internal\"}\n")
+  assert_no_sentinel(record, "SENTINEL")
+}
+
+pub fn guard_does_not_leak_a_raised_reason_test() {
+  // The reason itself carries the sentinel: no part of it may be printed.
+  let record =
+    unwrap(subprocess.erl_eval(
+      "screwtape_ffi:silence_logger(), screwtape_ffi:guard(fun() -> erlang:error({leak, \"SENTINEL-RAISE\"}) end)",
+    ))
+  assert_exit(record, 1, "guard/raise sentinel")
+  record.stdout |> should.equal(<<>>)
+  record.stderr
+  |> should.equal("{\"level\":\"error\",\"error\":\"internal\"}\n")
+  assert_no_sentinel(record, "SENTINEL")
+}
+
 pub fn guard_returns_the_fun_value_test() {
   let record =
     unwrap(subprocess.erl_eval(
@@ -121,6 +156,11 @@ fn unwrap(result: Result(a, subprocess.Failure)) -> a {
       panic as message
     }
   }
+}
+
+fn assert_no_sentinel(record: subprocess.Record, sentinel: String) -> Nil {
+  let stdout = bit_array.to_string(record.stdout) |> should.be_ok
+  string.contains(stdout <> record.stderr, sentinel) |> should.be_false
 }
 
 fn assert_exit(record: subprocess.Record, expected: Int, label: String) -> Nil {

@@ -1,25 +1,19 @@
 %% Loopback TLS test helper (PHASE-01/EX-7, DEC-018).
 %%
 %% A CA and server certificate are generated per run by
-%% public_key:pkix_test_data/1 (SANs: DNS localhost, IP 127.0.0.1). The CA
-%% chain is written as PEM to a file in a fresh temporary directory, an ssl
-%% listener on 127.0.0.1:0 (kernel-assigned port) answers a fixed HTTP/1.1 200,
-%% and httpc is driven with verify_peer against either that CA file or the
-%% default trust store.
+%% public_key:pkix_test_data/1. `start/0` names the server `localhost` and adds
+%% the loopback IP as a second SAN; `start_for/1` names it whatever it is given
+%% and adds no IP SAN, so a test can point httpc at `localhost` and watch
+%% hostname verification reject the certificate.
+%%
+%% The CA chain is written as PEM to a file in a fresh temporary directory
+%% (temp_ffi), an ssl listener on 127.0.0.1:0 (kernel-assigned port) answers a
+%% fixed HTTP/1.1 200, and httpc is driven with verify_peer against that CA.
 %%
 %% Grows into PHASE-02's local_jmap; keep it small until then.
 -module(local_tls_ffi).
 
--export([
-    start/0,
-    stop/1,
-    port/1,
-    ca_path/1,
-    http_get_verified/2,
-    http_get_without_cacertfile/1,
-    temp_dir/1,
-    remove_temp_dir/1
-]).
+-export([start/0, start_for/1, stop/1, port/1, ca_path/1, http_get_verified/2]).
 
 -include_lib("public_key/include/public_key.hrl").
 
@@ -40,11 +34,18 @@
 %%% ------------------------------------------------------------------
 
 start() ->
+    start_with([{dNSName, "localhost"}, {iPAddress, <<127, 0, 0, 1>>}]).
+
+%% The server certificate carries this DNS name and no IP SAN.
+start_for(DnsName) ->
+    start_with([{dNSName, ffi_terms:to_list(DnsName)}]).
+
+start_with(Sans) ->
     {ok, _} = application:ensure_all_started(ssl),
     {ok, _} = application:ensure_all_started(inets),
-    Dir = temp_dir("screwtape-local-tls"),
+    Dir = temp_ffi:dir("screwtape-local-tls"),
     CaPath = filename:join(Dir, "ca.pem"),
-    Conf = server_config(),
+    Conf = server_config(Sans),
     ok = file:write_file(CaPath, ca_pem(Conf)),
     ListenOpts = [
         {ip, {127, 0, 0, 1}},
@@ -60,13 +61,13 @@ start() ->
     #{
         listen => Listen,
         port => Port,
-        ca_path => to_binary(CaPath),
-        dir => to_binary(Dir)
+        ca_path => CaPath,
+        dir => Dir
     }.
 
 stop(#{listen := Listen, dir := Dir}) ->
     catch ssl:close(Listen),
-    _ = remove_temp_dir(Dir),
+    temp_ffi:remove_dir(Dir),
     nil.
 
 port(#{port := Port}) ->
@@ -80,44 +81,19 @@ ca_path(#{ca_path := CaPath}) ->
 %%% ------------------------------------------------------------------
 
 http_get_verified(Url, CaPath) ->
-    request(Url, [{cacertfile, to_list(CaPath)}]).
-
-http_get_without_cacertfile(Url) ->
-    request(Url, []).
-
-request(Url, ExtraSslOpts) ->
-    SslOpts = [{verify, verify_peer}, {log_level, none} | ExtraSslOpts],
+    SslOpts = [
+        {verify, verify_peer},
+        {cacertfile, ffi_terms:to_list(CaPath)},
+        {log_level, none}
+    ],
     HttpOpts = [{ssl, SslOpts}],
     RequestOpts = [{body_format, binary}],
-    case httpc:request(get, {to_list(Url), []}, HttpOpts, RequestOpts) of
+    case httpc:request(get, {ffi_terms:to_list(Url), []}, HttpOpts, RequestOpts) of
         {ok, {{_, Status, _}, _Headers, Body}} ->
             {ok, {Status, Body}};
         {error, Reason} ->
-            {error, term_to_string(Reason)}
+            {error, ffi_terms:format("~0p", [Reason])}
     end.
-
-%%% ------------------------------------------------------------------
-%%% Temporary directories
-%%% ------------------------------------------------------------------
-
-temp_dir(Prefix) ->
-    Base =
-        case os:getenv("TMPDIR") of
-            false -> "/tmp";
-            "" -> "/tmp";
-            TmpDir -> TmpDir
-        end,
-    Name =
-        to_list(Prefix) ++ "-" ++
-            integer_to_list(erlang:unique_integer([positive])) ++ "-" ++
-            os:getpid(),
-    Path = filename:join(Base, Name),
-    ok = filelib:ensure_dir(filename:join(Path, "unused")),
-    to_binary(Path).
-
-remove_temp_dir(Dir) ->
-    _ = file:del_dir_r(to_list(Dir)),
-    nil.
 
 %%% ------------------------------------------------------------------
 %%% Internals
@@ -125,7 +101,7 @@ remove_temp_dir(Dir) ->
 
 %% A single chain: the returned options carry the server certificate (peer),
 %% its private key, and the CA certificates that signed it.
-server_config() ->
+server_config(Sans) ->
     Chain = #{
         root => [{key, {rsa, 2048, 65537}}, {digest, sha256}],
         intermediates => [],
@@ -135,7 +111,7 @@ server_config() ->
             {extensions, [
                 #'Extension'{
                     extnID = ?'id-ce-subjectAltName',
-                    extnValue = [{dNSName, "localhost"}, {iPAddress, <<127, 0, 0, 1>>}],
+                    extnValue = Sans,
                     critical = false
                 }
             ]}
@@ -178,12 +154,3 @@ read_request(Socket) ->
         {ok, Request} -> Request;
         {error, Reason} -> {error, Reason}
     end.
-
-to_list(Value) when is_binary(Value) -> unicode:characters_to_list(Value);
-to_list(Value) when is_list(Value) -> Value.
-
-to_binary(Value) when is_binary(Value) -> Value;
-to_binary(Value) when is_list(Value) -> unicode:characters_to_binary(Value).
-
-term_to_string(Term) ->
-    unicode:characters_to_binary(lists:flatten(io_lib:format("~0p", [Term]))).

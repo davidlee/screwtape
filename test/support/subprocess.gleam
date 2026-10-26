@@ -11,7 +11,16 @@
 //// `erl_eval` runs an Erlang expression against the *shipped* modules
 //// (`erl -noshell -pa <shipment>/*/ebin -eval <expr>`), so the FFI under test
 //// is the artifact that ships, without adding test hooks to production code.
+////
+//// Because the code under test comes from `build/erlang-shipment`, run the
+//// suite through `just test` (it re-exports the shipment first) or the nix
+//// check: plain `gleam test` may exercise a stale shipment.
+////
+//// A failure to capture stderr, or a child that never exits, is a typed
+//// `Failure` and never an empty stream: an `stderr` assertion must not pass
+//// because the capture was lost.
 
+import gleam/int
 import gleam/list
 import gleam/string
 
@@ -31,15 +40,17 @@ pub type Failure {
   ShippedCodeUnreadable(shipment: String, reason: String)
   /// `erl` is not on PATH.
   ErlNotFound
-  /// `open_port` or the temp file failed.
+  /// `open_port`, the temp file, or reading the stderr capture failed.
   SpawnFailed(reason: String)
+  /// The child wrote nothing for `after_seconds`; the port was closed.
+  TimedOut(after_seconds: Int)
 }
 
 /// Runs `executable` with `args`, collecting stdout and stderr separately.
 pub fn run(executable: String, args: List(String)) -> Result(Record, Failure) {
   case run_ffi(executable, args) {
     Ok(#(exit_code, stdout, stderr)) -> Ok(Record(exit_code, stdout, stderr))
-    Error(reason) -> Error(SpawnFailed(reason))
+    Error(failure) -> Error(failure)
   }
 }
 
@@ -104,6 +115,10 @@ pub fn failure_message(failure: Failure) -> String {
       "cannot use the erlang-shipment at " <> shipment <> ": " <> reason
     ErlNotFound -> "cannot find `erl` on PATH"
     SpawnFailed(reason) -> "cannot run subprocess: " <> reason
+    TimedOut(after_seconds) ->
+      "subprocess timed out: no output for "
+      <> int.to_string(after_seconds)
+      <> "s"
   }
 }
 
@@ -118,7 +133,7 @@ fn erl_path() -> Result(String, Failure) {
 fn run_ffi(
   executable: String,
   args: List(String),
-) -> Result(#(Int, BitArray, String), String)
+) -> Result(#(Int, BitArray, String), Failure)
 
 @external(erlang, "subprocess_ffi", "getenv")
 fn getenv(name: String) -> Result(String, Nil)

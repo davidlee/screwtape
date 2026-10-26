@@ -9,12 +9,18 @@
 buildGleamApplication {
   src = lib.fileset.toSource {
     root = ./..;
-    fileset = lib.fileset.unions [
-      ../gleam.toml
-      ../manifest.toml
-      ../src
-      ../test
-    ];
+    # `../test` only when `doCheck`: `gleam export erlang-shipment` compiles
+    # every Erlang module it is given, so shipping the test helpers would put
+    # subprocess_ffi, temp_ffi, local_tls_ffi and ffi_terms in the production
+    # ebin.
+    fileset = lib.fileset.unions (
+      [
+        ../gleam.toml
+        ../manifest.toml
+        ../src
+      ]
+      ++ lib.optional doCheck ../test
+    );
   };
 
   # sqlight's esqlite NIF compiles through rebar3's pc plugin, which the

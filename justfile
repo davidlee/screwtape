@@ -25,3 +25,6 @@ check:
     gleam format --check src test
     gleam build --warnings-as-errors
     just test
+
+# The verification gate `doctrine check gate` runs
+gate: check

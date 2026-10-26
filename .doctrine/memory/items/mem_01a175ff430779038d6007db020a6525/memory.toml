@@ -1,0 +1,46 @@
+memory_uid = "mem_01a175ff430779038d6007db020a6525"
+memory_key = "mem.pattern.gleam.guard-spawn-monitor"
+schema_version = 1
+memory_type = "pattern"
+status = "active"
+title = "Crash containment on BEAM must catch linked exits, not just exceptions"
+summary = "try/catch misses linked-process exit signals; gleam's @@main wrapper then prints the exit reason. Run the guarded body under spawn_monitor."
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = ["src/screwtape_ffi.erl"]
+globs = []
+commands = []
+tags = ["gleam", "security"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "2b1c85d82f37f2321cf39e238eb35a18f5303472"
+ref_name = "refs/heads/main"
+checkout_state_id = "532422958d70b0190edcd35487ce042f8453fb5a856233879bca519bfef83df2"
+base_commit = "8604d32c27fb6663ab6512904993f1ae54af6db1"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "high"
+weight = 0
+
+[[source]]
+kind = "slice"
+ref = "SL-001"
+

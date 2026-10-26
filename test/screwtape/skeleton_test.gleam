@@ -9,6 +9,7 @@ import gleeunit/should
 import sqlight
 import support/local_tls
 import support/subprocess
+import support/temp
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -25,7 +26,7 @@ fn body_decoder() -> decode.Decoder(String) {
 /// insert a row through a parameter, close the connection, reopen it, and read
 /// the value back.
 pub fn sqlight_round_trip_on_a_temp_file_test() {
-  let dir = local_tls.temp_dir("screwtape-sqlight")
+  let dir = temp.dir("screwtape-sqlight")
   let path = dir <> "/screwtape.db"
 
   let assert Ok(connection) = sqlight.open(path)
@@ -53,7 +54,7 @@ pub fn sqlight_round_trip_on_a_temp_file_test() {
       expecting: body_decoder(),
     )
   let assert Ok(Nil) = sqlight.close(connection)
-  local_tls.remove_temp_dir(dir)
+  temp.remove_dir(dir)
 
   let assert Ok(rows) = selected
   rows |> should.equal(["round trip"])
@@ -89,6 +90,25 @@ pub fn loopback_tls_foreign_cacertfile_fails_test() {
   reason |> string.contains("unknown_ca") |> should.be_true
 }
 
+/// Hostname-verification negative control: the CA in `cacertfile` is the one
+/// that signed the server certificate (so `unknown_ca` cannot be the reason),
+/// but the certificate names `not-localhost.invalid` and carries no IP SAN
+/// while the URL host is `localhost`. The request must fail on the hostname
+/// check, which proves the peer certificate is compared against the URL host.
+pub fn loopback_tls_hostname_mismatch_fails_test() {
+  let server = local_tls.start_for("not-localhost.invalid")
+  let fetched =
+    local_tls.get_verified(local_tls.url(server, "/"), server.ca_path)
+  local_tls.stop(server)
+
+  let reason = fetched |> should.be_error
+  // Observed: {failed_connect, ... {tls_alert, {bad_certificate,
+  // "... {bad_cert, {hostname_check_failed, {requested, "localhost"},
+  // {received, [{dNSName, "not-localhost.invalid"}]}}}"}}}
+  reason |> string.contains("hostname_check_failed") |> should.be_true
+  reason |> string.contains("not-localhost.invalid") |> should.be_true
+}
+
 /// VT-4 (subprocess half): the shipped artifact's `main`, spawned as a
 /// process through the shipment's own entry point. It must exit cleanly and
 /// say nothing on either stream (design § 5.2: nothing may print).
@@ -100,15 +120,4 @@ pub fn shipment_main_runs_as_a_subprocess_test() {
   record.stdout |> should.equal(<<>>)
   record.stderr |> should.equal("")
   record.exit_code |> should.equal(0)
-}
-
-/// Negative control: verify_peer with no cacertfile at all (the default trust
-/// store) must not trust a CA generated for this run either.
-pub fn loopback_tls_without_cacertfile_fails_test() {
-  let server = local_tls.start()
-  let fetched = local_tls.get_without_cacertfile(local_tls.url(server, "/"))
-  local_tls.stop(server)
-
-  let _reason = fetched |> should.be_error
-  Nil
 }

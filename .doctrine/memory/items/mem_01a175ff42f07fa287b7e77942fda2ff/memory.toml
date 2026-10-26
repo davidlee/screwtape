@@ -1,0 +1,46 @@
+memory_uid = "mem_01a175ff42f07fa287b7e77942fda2ff"
+memory_key = "mem.fact.gleam.shipment-compiles-test-erl"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "gleam export erlang-shipment compiles test/*.erl into the production app"
+summary = "Gleam 1.19 puts every .erl under test/ into the shipment's app ebin; keep test/ out of the production build src"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = []
+globs = ["nix/**", "test/**/*.erl"]
+commands = []
+tags = ["gleam", "nix"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "2b1c85d82f37f2321cf39e238eb35a18f5303472"
+ref_name = "refs/heads/main"
+checkout_state_id = "a24c8c2f0f6edf76009aa362975654910e4e37e78bfeb98bc9256a481365bb35"
+base_commit = "8604d32c27fb6663ab6512904993f1ae54af6db1"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "medium"
+weight = 0
+
+[[source]]
+kind = "slice"
+ref = "SL-001"
+

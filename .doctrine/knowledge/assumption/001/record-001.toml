@@ -5,9 +5,9 @@ id = 1
 slug = "sqlights-esqlite-nif-builds-offline-under-nix-gleam-with-rebar3-pc"
 title = "sqlight's esqlite NIF builds offline under nix-gleam with rebar3 pc"
 record_kind = "assumption"
-status = "held"
+status = "validated"
 created = "2026-10-25"
-updated = "2026-10-25"
+updated = "2026-10-26"
 tags = []
 
 [facet]                         # every field typed; seeded empty (captured later)
@@ -15,8 +15,8 @@ claim = "esqlite (via sqlight 1.2.0) builds in the Nix sandbox with rebar3WithPl
 confidence = "medium"
 basis = "external-source"
 validation_plan = "SL-001 plan phase 1 walking-skeleton spike."
-validated_by    = ""
-validated_on    = ""
+validated_by = "orchestrator (Claude Opus 5.5), SL-001 PHASE-01 nix build evidence"
+validated_on = "2026-10-26"
 invalidated_by  = ""
 invalidated_on  = ""
 

@@ -6,6 +6,9 @@
 //// for TLS on `127.0.0.1` on a kernel-assigned port (bind port 0). It answers
 //// a fixed minimal HTTP/1.1 `200` with body `ok` and `Connection: close`.
 ////
+//// `start_for` is the same server with the certificate's DNS SAN chosen by the
+//// test and no IP SAN, for hostname-verification negative controls.
+////
 //// URLs built here always use `localhost`, never `127.0.0.1`: `ssl` compares
 //// the peer certificate against the host string in the URL (sheet A4).
 ////
@@ -27,7 +30,14 @@ pub type Response {
 /// Start a listener and return its handle, port and generated CA PEM path.
 pub fn start() -> Server {
   let handle = start_ffi()
-  Server(handle: handle, port: port_ffi(handle), ca_path: ca_path_ffi(handle))
+  Server(handle, port_ffi(handle), ca_path_ffi(handle))
+}
+
+/// Start a listener whose certificate carries `dns_name` as its only SAN, so a
+/// request for `https://localhost:<port>/` fails hostname verification.
+pub fn start_for(dns_name: String) -> Server {
+  let handle = start_for_ffi(dns_name)
+  Server(handle, port_ffi(handle), ca_path_ffi(handle))
 }
 
 /// Close the listener and delete the temporary directory holding the CA PEM.
@@ -47,24 +57,6 @@ pub fn get_verified(url: String, ca_path: String) -> Result(Response, String) {
   |> to_response
 }
 
-/// GET `url` with `verify_peer` and no CA source: the default trust store,
-/// which must not contain a CA generated for this run.
-pub fn get_without_cacertfile(url: String) -> Result(Response, String) {
-  get_without_cacertfile_ffi(url)
-  |> to_response
-}
-
-/// Create a fresh temporary directory, honouring `TMPDIR` (falling back to
-/// `/tmp`), and return its path.
-pub fn temp_dir(prefix: String) -> String {
-  temp_dir_ffi(prefix)
-}
-
-/// Delete a temporary directory and everything in it.
-pub fn remove_temp_dir(path: String) -> Nil {
-  remove_temp_dir_ffi(path)
-}
-
 fn to_response(
   result: Result(#(Int, String), String),
 ) -> Result(Response, String) {
@@ -76,6 +68,9 @@ fn to_response(
 
 @external(erlang, "local_tls_ffi", "start")
 fn start_ffi() -> Handle
+
+@external(erlang, "local_tls_ffi", "start_for")
+fn start_for_ffi(dns_name: String) -> Handle
 
 @external(erlang, "local_tls_ffi", "stop")
 fn stop_ffi(handle: Handle) -> Nil
@@ -91,12 +86,3 @@ fn get_verified_ffi(
   url: String,
   ca_path: String,
 ) -> Result(#(Int, String), String)
-
-@external(erlang, "local_tls_ffi", "http_get_without_cacertfile")
-fn get_without_cacertfile_ffi(url: String) -> Result(#(Int, String), String)
-
-@external(erlang, "local_tls_ffi", "temp_dir")
-fn temp_dir_ffi(prefix: String) -> String
-
-@external(erlang, "local_tls_ffi", "remove_temp_dir")
-fn remove_temp_dir_ffi(path: String) -> Nil
