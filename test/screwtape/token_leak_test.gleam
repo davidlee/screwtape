@@ -7,12 +7,21 @@
 //// scripted `local_jmap` (so the run is the production path end to end), and
 //// asserts three things at once: the expected exit code, the error kind decoded
 //// from the one stderr JSON line, and the sentinel's absence from stdout bytes
-//// and stderr. Each failing case is then repeated in process through
-//// `client.session`/`client.call` with the same `Send` the CLI binds, and the
-//// returned `Error` is inspected: neither its JSON line nor `string.inspect`
-//// may hold the sentinel. A happy-path control proves the same setup runs end
-//// to end, so "absent" does not pass because nothing ran; VA-1 (below) shows
-//// the sentinel would be seen if it leaked.
+//// and stderr. Each failing case that fails at or before `Mailbox/get` is then
+//// repeated in process through `client.session`/`client.call` with the same
+//// `Send` the CLI binds, and the returned `Error` is inspected: neither its JSON
+//// line nor `string.inspect` may hold the sentinel. A happy-path control proves
+//// the same setup runs end to end, so "absent" does not pass because nothing
+//// ran; VA-1 (below) shows the sentinel would be seen if it leaked.
+////
+//// PHASE-05 extended `sync` to the whole orchestration (`Mailbox/get`,
+//// `Email/query`, `Email/get`, `Thread/get`, one store write), so the suite runs
+//// the full sync and inspects the store dump as well: the control's dump must
+//// hold the scripted message ids (so "no sentinel" is not passing because
+//// nothing was written) and no sentinel, and a failure past phase 1 must leave
+//// a seeded store's dump exactly as it was (I2). Two cases fail too late for the
+//// in-process repeat — its driver issues the session and one `Mailbox/get` — so
+//// they run only as the shipment subprocess.
 ////
 //// Three cases put the sentinel in the server's own text. A 500 whose problem
 //// document's `type` is the sentinel: the type is not one of RFC 8620 § 3.6.1's
@@ -41,7 +50,7 @@
 //// fail a run before any case reached its own edge.
 
 import gleam/bit_array
-import gleam/option.{Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -50,9 +59,12 @@ import screwtape/credential
 import screwtape/error.{type Error}
 import screwtape/jmap/client
 import screwtape/jmap/request as jmap_request
+import screwtape/store
 import support/cli_fixture
 import support/jmap_fixture
 import support/local_jmap
+import support/snapshot_fixture
+import support/store_dump
 import support/subprocess
 import support/temp
 
@@ -273,28 +285,84 @@ pub fn forced_crash_linked_exit_test() {
 // ---------------------------------------------------------------- case 10
 
 /// The positive control: the same config, credential and process edge, a server
-/// that answers both requests, exit 0 and the envelope on stdout. Without this
-/// a suite of "sentinel absent" cases could pass because nothing ran.
+/// that answers the whole sync, exit 0 and the document on stdout — whose one
+/// stderr line is the writable account's warning, not a leak. Without this a
+/// suite of "sentinel absent" cases could pass because nothing ran. Its own
+/// store is kept until it is dumped, so the store's rows show the run reached
+/// the write and hold no sentinel.
 pub fn happy_path_control_test() {
-  let script = fn(base_url: String) {
-    [
-      session_document(base_url),
-      local_jmap.reply(200, jmap_fixture.text("mailbox_get.json")),
-    ]
-  }
+  let store = temp.dir("i1-store-happy")
+  let store_path = store <> "/mail.sqlite3"
+  let record =
+    run_sync_at(
+      "happy",
+      cli_fixture.full_sync_script,
+      cli_fixture.default_max_total_bytes,
+      cli_fixture.default_request_timeout_ms,
+      store_path,
+    )
+  let dump = store_dump.dump(store_path)
+  temp.remove_dir(store)
+
+  record.exit_code |> should.equal(0)
+  record.stderr
+  |> should.equal(
+    "{\"level\":\"warning\",\"warning\":\"account_not_read_only\"}\n",
+  )
+  record.stderr |> string.contains(sentinel) |> should.be_false
+  let stdout = bit_array.to_string(record.stdout) |> should.be_ok
+  stdout |> string.contains("\"kind\":\"sync\"") |> should.be_true
+  stdout |> string.contains(sentinel) |> should.be_false
+
+  // The dump is non-vacuous: the scripted messages are stored rows, so the
+  // sentinel's absence below is not the absence of a write that never happened.
+  dump |> string.contains("\"m1\"") |> should.be_true
+  dump |> string.contains("\"m2\"") |> should.be_true
+  dump |> string.contains(sentinel) |> should.be_false
+}
+
+// ---------------------------------------------------------------- cases 11-12
+
+/// PHASE-05: the run is past phase 1 — the session, `Mailbox/get` and
+/// `Email/query` all succeed — and `Email/get` answers a method-level error.
+/// The store is seeded first, so the dump after the run proves nothing was
+/// committed (I2), and the line names the method and the problem type, never
+/// the arguments the server sent.
+pub fn email_get_method_error_test() {
+  let store = temp.dir("i1-store-email-get-error")
+  let store_path = store <> "/mail.sqlite3"
+  seed_store(store_path, "acct-old")
+  let before = store_dump.dump(store_path)
+
+  let record =
+    run_sync_at(
+      "email-get-error",
+      email_get_error_script,
+      cli_fixture.default_max_total_bytes,
+      cli_fixture.default_request_timeout_ms,
+      store_path,
+    )
+  let after = store_dump.dump(store_path)
+  temp.remove_dir(store)
+
+  should_fail_late(record, "jmap_method", Some("\"method\":\"Email/get\""))
+  before |> string.contains("acct-old") |> should.be_true
+  after |> should.equal(before)
+}
+
+/// An `Email/query` whose `queryState` is the sentinel on each attempt's first
+/// page and another value on the page after it: every attempt is abandoned, and
+/// the third one is `QueryUnstable` — an `Error` with no payload at all.
+pub fn query_state_keeps_moving_test() {
   let record =
     run_sync(
-      "happy",
-      script,
+      "query-unstable",
+      unstable_query_script,
       cli_fixture.default_max_total_bytes,
       cli_fixture.default_request_timeout_ms,
     )
 
-  record.exit_code |> should.equal(0)
-  record.stderr |> should.equal("")
-  let stdout = bit_array.to_string(record.stdout) |> should.be_ok
-  stdout |> string.contains("\"kind\":\"sync\"") |> should.be_true
-  stdout |> string.contains(sentinel) |> should.be_false
+  should_fail_late(record, "query_unstable", None)
 }
 
 // ---------------------------------------------------------------- driver
@@ -341,6 +409,28 @@ fn run_sync(
   max_total_bytes: Int,
   request_timeout_ms: Int,
 ) -> subprocess.Record {
+  let store = temp.dir("i1-store-" <> label)
+  let record =
+    run_sync_at(
+      label,
+      script,
+      max_total_bytes,
+      request_timeout_ms,
+      store <> "/mail.sqlite3",
+    )
+  temp.remove_dir(store)
+  record
+}
+
+/// `run_sync` against a store path the caller owns, so a case can seed the
+/// store before the run and dump it after.
+fn run_sync_at(
+  label: String,
+  script: fn(String) -> List(local_jmap.Reply),
+  max_total_bytes: Int,
+  request_timeout_ms: Int,
+  store_path: String,
+) -> subprocess.Record {
   let server = local_jmap.start_with(script)
   let credentials = cli_fixture.credential_dir(sentinel)
   let #(dir, path) =
@@ -348,6 +438,7 @@ fn run_sync(
       "i1-" <> label,
       cli_fixture.config_text_with(
         local_jmap.url(server, "/session"),
+        store_path,
         Some(server.ca_path),
         max_total_bytes,
         request_timeout_ms,
@@ -367,6 +458,85 @@ fn run_sync(
   temp.remove_dir(dir)
   temp.remove_dir(credentials)
   record
+}
+
+/// The assertions a failure past the first call shares with
+/// `run_failing_scenario`, minus the in-process repeat: that driver's one call
+/// is `Mailbox/get`, so it cannot reach a later failure, and a second mechanism
+/// would only duplicate it. `field` is a substring of the error line, as in
+/// `Scenario`.
+fn should_fail_late(
+  record: subprocess.Record,
+  kind: String,
+  field: Option(String),
+) -> Nil {
+  record.exit_code |> should.equal(1)
+  let stderr = string.trim(record.stderr)
+  record.stderr |> should.equal(stderr <> "\n")
+  cli_fixture.error_kind(stderr) |> should.equal(Ok(kind))
+  case field {
+    Some(field) -> stderr |> string.contains(field) |> should.be_true
+    None -> Nil
+  }
+
+  let stdout = bit_array.to_string(record.stdout) |> should.be_ok
+  stdout |> string.contains(sentinel) |> should.be_false
+  stderr |> string.contains(sentinel) |> should.be_false
+}
+
+/// The whole passing script with its `Email/get` replaced by a method-level
+/// error, built like the `method-error-sentinel-type` case's.
+fn email_get_error_script(base_url: String) -> List(local_jmap.Reply) {
+  let assert [session, mailboxes, query, _, _] =
+    cli_fixture.full_sync_script(base_url)
+  [
+    session,
+    mailboxes,
+    query,
+    local_jmap.reply(
+      200,
+      "{\"methodResponses\":[[\"error\",{\"type\":\"serverFail\"},\"c0\"]]}",
+    ),
+  ]
+}
+
+/// The session and `Mailbox/get`, then three attempts of two `Email/query`
+/// pages each: the sentinel's `queryState` first (a one-id page whose `limit`
+/// forces a second page), a different one after it, so no attempt settles.
+fn unstable_query_script(base_url: String) -> List(local_jmap.Reply) {
+  let assert [session, mailboxes, ..] = cli_fixture.full_sync_script(base_url)
+  let page = fn(state: String, ids: List(String), position: Int) {
+    local_jmap.reply(
+      200,
+      jmap_fixture.email_query_response(
+        ids,
+        state,
+        position,
+        Some(2),
+        Some(1),
+        True,
+      ),
+    )
+  }
+  [
+    session,
+    mailboxes,
+    page(sentinel, ["m1"], 0),
+    page("qs-moved", ["m2"], 1),
+    page(sentinel, ["m1"], 0),
+    page("qs-moved", ["m2"], 1),
+    page(sentinel, ["m1"], 0),
+    page("qs-moved", ["m2"], 1),
+  ]
+}
+
+/// Write `snapshot_fixture.full(account_id)` into the store at `path`, so a run
+/// that fails has a previous snapshot whose dump it must leave untouched.
+fn seed_store(path: String, account_id: String) -> Nil {
+  let assert Ok(writer) = store.open_writer(path)
+  let assert Ok(Nil) =
+    store.write_snapshot(writer, snapshot_fixture.full(account_id))
+  store.close_writer(writer)
 }
 
 /// The same failing script in process: the token read from a credentials file,

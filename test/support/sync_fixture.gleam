@@ -11,7 +11,6 @@
 //// The step builders answer under the one `call_id` with `jmap_fixture`
 //// documents, so a script names only the fields a case cares about.
 
-import gleam/bit_array
 import gleam/dynamic/decode
 import gleam/http
 import gleam/http/response.{Response}
@@ -23,13 +22,13 @@ import gleam/time/duration
 import gleam/time/timestamp.{type Timestamp}
 import gleeunit/should
 import screwtape/config
-import screwtape/credential.{type Token}
 import screwtape/error.{type Error}
 import screwtape/jmap/client
 import screwtape/jmap/request
 import screwtape/model
 import screwtape/store
 import screwtape/sync
+import support/cli_fixture
 import support/fixture_send.{type RecordedCall, type Step, Expect}
 import support/jmap_fixture
 import support/snapshot_fixture
@@ -307,7 +306,7 @@ pub fn run(store: Store, spec: Spec) -> Run {
   let assert Ok(client_) =
     client.session(
       fixture_send.send(fixture),
-      token(),
+      cli_fixture.token("sync-secret"),
       session_url,
       client.budget(spec.max_total_bytes),
     )
@@ -331,16 +330,6 @@ pub fn run_sync(
 ) -> a {
   use store <- with_store(seed)
   body(store, run(store, spec))
-}
-
-/// The only way to a `Token`: a real file, read by `credential.read`.
-fn token() -> Token {
-  let dir = temp.dir("sync-token")
-  temp.write(dir <> "/fastmail", bit_array.from_string("sync-secret\n"))
-  let result = credential.read(dir, "fastmail")
-  temp.remove_dir(dir)
-  let assert Ok(token) = result
-  token
 }
 
 // ---------------------------------------------------------------- assertions

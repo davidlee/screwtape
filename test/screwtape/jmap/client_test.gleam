@@ -8,7 +8,6 @@
 //// Most requests go through `support/fixture_send`; the exhaustion case also
 //// runs once over the production `Send` against `support/local_jmap`.
 
-import gleam/bit_array
 import gleam/http
 import gleam/http/response.{Response}
 import gleam/json
@@ -18,15 +17,14 @@ import gleam/string
 import gleeunit
 import gleeunit/should
 import screwtape/cli
-import screwtape/credential.{type Token}
 import screwtape/error
 import screwtape/jmap/client
 import screwtape/jmap/decode
 import screwtape/jmap/request as jmap_request
+import support/cli_fixture
 import support/fixture_send
 import support/jmap_fixture
 import support/local_jmap
-import support/temp
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -53,16 +51,6 @@ const roomy = 1_000_000
 const timeout_ms = 5000
 
 // ---------------------------------------------------------------- helpers
-
-/// The only way to a `Token`: a real file, read by `credential.read`.
-fn token() -> Token {
-  let dir = temp.dir("client-token")
-  temp.write(dir <> "/fastmail", bit_array.from_string(sentinel <> "\n"))
-  let result = credential.read(dir, "fastmail")
-  temp.remove_dir(dir)
-  let assert Ok(token) = result
-  token
-}
 
 fn ok(status: Int, body: String) -> fixture_send.Reply {
   Ok(Response(status: status, headers: [], body: body))
@@ -94,7 +82,7 @@ fn open_session(
 ) -> Result(client.Client, error.Error) {
   client.session(
     fixture_send.send(fixture),
-    token(),
+    cli_fixture.token(sentinel),
     session_url,
     client.budget(max_total_bytes),
   )
@@ -167,7 +155,7 @@ pub fn exhausted_budget_real_transport_sends_nothing_test() {
   let fetched =
     client.session(
       send,
-      token(),
+      cli_fixture.token(sentinel),
       local_jmap.url(server, "/session"),
       client.budget(max_total_bytes),
     )
