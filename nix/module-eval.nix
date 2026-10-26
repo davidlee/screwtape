@@ -22,8 +22,7 @@
   self,
   pkgs,
   home-manager,
-}:
-let
+}: let
   lib = pkgs.lib;
 
   # One Home Manager configuration per case: the module under test plus the
@@ -39,7 +38,7 @@ let
           home.stateVersion = "25.05";
           services.screwtape = {
             enable = true;
-            opRef = "op://Vault/Item/credential";
+            opRef = lib.mkDefault "op://Vault/Item/credential";
           };
         }
         extra
@@ -48,11 +47,13 @@ let
 
   ok = hm {};
 
-  # VT-2: the module asserts xdg.stateHome is the default. `tryEval` catches
-  # throw/assert, which is what a Home Manager assertion failure is, so this is
-  # true exactly when the customised case was rejected.
-  neg = hm { xdg.stateHome = "/tmp/screwtape-state"; };
-  negRejected = !(builtins.tryEval neg.activationPackage.drvPath).success;
+  # VT-2: the module asserts xdg.stateHome (and xdg.configHome) are their
+  # defaults. `tryEval` catches throw/assert, which is what a Home Manager
+  # assertion failure is, so `rejects` is true exactly when evaluation failed.
+  rejects = extra: !(builtins.tryEval (hm extra).activationPackage.drvPath).success;
+  negRejected = rejects {xdg.stateHome = "/home/operator/.xdg/state";};
+  # The unit's %E resolves from the user manager's default too.
+  negConfigHomeRejected = rejects {xdg.configHome = "/home/operator/.xdg/config";};
 
   # Render a unit option the way systemd does: list-ish values joined with
   # spaces, booleans as true/false, integers as digits. Lets the contract accept
@@ -63,7 +64,12 @@ let
     if lib.isList v
     then lib.concatMapStringsSep " " render v
     else if lib.isBool v
-    then (if v then "true" else "false")
+    then
+      (
+        if v
+        then "true"
+        else "false"
+      )
     else toString v;
 
   # A missing unit option reads as null, so a check fails with its own message
@@ -71,21 +77,23 @@ let
   field = set: name: set.${name} or null;
   eq = set: name: expected: render (field set name) == expected;
 
-  asList = v: if v == null then [] else lib.toList v;
+  asList = v:
+    if v == null
+    then []
+    else lib.toList v;
 
   # `Environment` is one string or a list of assignments (HM's unitOption).
   # Either spelling contains ERL_CRASH_DUMP_SECONDS=0 when some entry is that
   # exact assignment.
   envHas = expected: env:
-    if lib.isAttrs env then
-      let
-        parts = lib.splitString "=" expected;
-        name = lib.head parts;
-        value = lib.concatStringsSep "=" (lib.tail parts);
-      in
-        builtins.hasAttr name env && render env.${name} == value
-    else
-      lib.any (v: lib.elem expected (lib.splitString " " (render v))) (asList env);
+    if lib.isAttrs env
+    then let
+      parts = lib.splitString "=" expected;
+      name = lib.head parts;
+      value = lib.concatStringsSep "=" (lib.tail parts);
+    in
+      builtins.hasAttr name env && render env.${name} == value
+    else lib.any (v: lib.elem expected (lib.splitString " " (render v))) (asList env);
 
   svc = (ok.config.systemd.user.services.screwtape or {}).Service or {};
   tim = (ok.config.systemd.user.timers.screwtape or {}).Timer or {};
@@ -93,13 +101,46 @@ let
 
   # The same knobs, set to non-default values: proves they are options and that
   # the units take their values from them.
+  # A stand-in package with its own store path, so the wrapper must take
+  # services.screwtape.package rather than the flake's default.
+  otherPackage = pkgs.symlinkJoin {
+    name = "screwtape-other";
+    paths = [self.packages.${pkgs.stdenv.hostPlatform.system}.default];
+  };
   over = hm {
     services.screwtape = {
+      package = otherPackage;
+      opRef = "op://Other/Item/token";
+      sessionUrl = "https://jmap.example/session";
+      window = {
+        mailboxes = ["inbox" "Archive"];
+        maxAgeDays = null;
+        maxMessages = 10;
+      };
+      maxBodyBytes = 1000;
+      maxPages = 3;
+      maxTotalBytes = 50000;
+      requestTimeoutMs = 4000;
+      caFile = "/etc/ssl/other.pem";
       onCalendar = "hourly";
       timeoutStartSec = "1min";
       memoryMax = "512M";
     };
   };
+  overText = name: (lib.findFirst (p: (p.name or "") == name) {text = "";} over.config.home.packages).text;
+
+  # The generated config goes through the program's own parser at build time:
+  # one the parser rejects must fail to build, and say why.
+  badConfig = window: extra:
+    pkgs.testers.testBuildFailure
+    (hm {
+      services.screwtape = {inherit window;} // extra;
+    }).config.services.screwtape.configFile;
+  noWindowBound = badConfig {
+    maxAgeDays = null;
+    maxMessages = null;
+  } {};
+  plainHttp = badConfig {} {sessionUrl = "http://jmap.example/session";};
   overSvc = (over.config.systemd.user.services.screwtape or {}).Service or {};
   overTim = (over.config.systemd.user.timers.screwtape or {}).Timer or {};
 
@@ -107,20 +148,40 @@ let
   # (writeShellApplication = writeTextFile); the raw package has no text.
   packages = ok.config.home.packages;
   wrapper = lib.findFirst (p: (p.name or "") == "screwtape" && p ? text) null packages;
-  wrapperText = if wrapper == null then "" else wrapper.text;
+  wrapperText =
+    if wrapper == null
+    then ""
+    else wrapper.text;
   provision = lib.findFirst (p: (p.name or "") == "screwtape-provision") null packages;
+  provisionText =
+    if provision == null
+    then ""
+    else provision.text;
+  configFile = ok.config.services.screwtape.configFile;
 
   execLines = lib.filter (l: builtins.match " *exec .*" l != null) (lib.splitString "\n" wrapperText);
-  execLine = if lib.length execLines == 1 then lib.head execLines else "";
+  execLine =
+    if lib.length execLines == 1
+    then lib.head execLines
+    else "";
 
   # I9: the wrapper only adds --config; every other argument comes from the
   # caller. `exec <package>/bin/screwtape --config <configFile> "$@"`.
   execMatch = builtins.match "exec ([^ ]+)/bin/screwtape --config ([^ ]+) \"\\$@\"" execLine;
-  wrapperPackage = if execMatch == null then "" else lib.elemAt execMatch 0;
-  configPath = if execMatch == null then "" else lib.elemAt execMatch 1;
+  wrapperPackage =
+    if execMatch == null
+    then ""
+    else lib.elemAt execMatch 0;
+  configPath =
+    if execMatch == null
+    then ""
+    else lib.elemAt execMatch 1;
 
   screwtapePackage = ok.config.services.screwtape.package;
-  wrapperPath = if wrapper == null then "" else toString wrapper;
+  wrapperPath =
+    if wrapper == null
+    then ""
+    else toString wrapper;
   execStart = render (field svc "ExecStart");
   wantedBy = asList (field ins "WantedBy");
 
@@ -186,8 +247,8 @@ let
       "home.packages screwtape wrapper: want `exec <package>/bin/screwtape --config <configFile> \"$@\"` and no other argument (I9)")
     (lib.assertMsg (wrapperPackage == toString screwtapePackage)
       "home.packages screwtape wrapper: want --config's sibling to be services.screwtape.package")
-    (lib.assertMsg (lib.hasPrefix "/nix/store/" configPath && lib.hasSuffix "screwtape.json" configPath)
-      "home.packages screwtape wrapper: --config must be a /nix/store path ending in screwtape.json")
+    (lib.assertMsg (configPath == toString configFile)
+      "home.packages screwtape wrapper: --config must be services.screwtape.configFile")
     (lib.assertMsg (provision != null)
       "home.packages: want a screwtape-provision package")
     (lib.assertMsg (!(lib.any (p: (p.outPath or "") == toString screwtapePackage) packages))
@@ -200,6 +261,20 @@ let
       "nix/module.nix: must contain no /home/ literal (NF-006)")
     (lib.assertMsg negRejected
       "xdg.stateHome: a customised (non-default) xdg.stateHome must fail evaluation (VT-2)")
+    (lib.assertMsg negConfigHomeRejected
+      "xdg.configHome: a customised xdg.configHome must fail evaluation (%E must match the credential's path)")
+
+    # ---- screwtape-provision: the credential the unit loads ----------------
+    (lib.assertMsg (lib.hasInfix "--name=fastmail " provisionText)
+      "screwtape-provision: systemd-creds --name must be the unit's credential id, fastmail")
+    (lib.assertMsg (lib.hasInfix "/home/operator/.config/credstore.encrypted/screwtape.fastmail" provisionText)
+      "screwtape-provision: must write %E/credstore.encrypted/screwtape.fastmail, %E being xdg.configHome")
+
+    # ---- every option reaches the unit, the wrapper or the provision script --
+    (lib.assertMsg (lib.hasInfix (builtins.unsafeDiscardStringContext "exec ${otherPackage}/bin/screwtape --config ") (overText "screwtape"))
+      "home.packages screwtape wrapper: must exec services.screwtape.package")
+    (lib.assertMsg (lib.hasInfix "op://Other/Item/token" (overText "screwtape-provision"))
+      "screwtape-provision: must read services.screwtape.opRef")
   ];
 in
   # Force every check before the derivation exists; each failing check throws
@@ -207,37 +282,42 @@ in
   assert lib.all (x: x) checks;
   # The positive case must evaluate all the way to an activation package.
   assert builtins.isString ok.activationPackage.drvPath;
-  pkgs.runCommand "screwtape-module-eval" {} ''
-    set -eu
-    export HOME="$TMPDIR"
-    # builtins.match drops string context; the wrapper's closure holds the config.
-    cfg=${lib.addContextFrom wrapper configPath}
+    pkgs.runCommand "screwtape-module-eval" {} ''
+      set -eu
+      export HOME="$TMPDIR"
+      cfg=${configFile}
 
-    # D3: the generated config, key by key, as src/screwtape/config.gleam
-    # decodes it. ca_file is JSON null (the system store is trusted).
-    ${pkgs.jq}/bin/jq -e '
-      .session_url == "https://api.fastmail.com/jmap/session" and
-      .credential_name == "fastmail" and
-      .store_path == "/home/operator/.local/state/screwtape/mail.sqlite3" and
-      .window == {"mailboxes": ["inbox"], "max_age_days": 30, "max_messages": 2000} and
-      .max_body_bytes == 262144 and
-      .max_pages == 20 and
-      .max_total_bytes == 268435456 and
-      .request_timeout_ms == 30000 and
-      .ca_file == null
-    ' "$cfg" > /dev/null
+      # D3: the generated config, key by key, as src/screwtape/config.gleam
+      # decodes it. ca_file is JSON null (the system store is trusted).
+      ${pkgs.jq}/bin/jq -e '
+        .session_url == "https://api.fastmail.com/jmap/session" and
+        .credential_name == "fastmail" and
+        .store_path == "/home/operator/.local/state/screwtape/mail.sqlite3" and
+        .window == {"mailboxes": ["inbox"], "max_age_days": 30, "max_messages": 2000} and
+        .max_body_bytes == 262144 and
+        .max_pages == 20 and
+        .max_total_bytes == 268435456 and
+        .request_timeout_ms == 30000 and
+        .ca_file == null
+      ' "$cfg" > /dev/null
 
-    # The packaged binary must accept the module's config: 1 is a missing
-    # store, 2 is a rejected config.
-    status=0
-    ${screwtapePackage}/bin/screwtape --config "$cfg" mailboxes || status=$?
-    if [ "$status" -ne 1 ]; then
-      echo "screwtape --config <module config> mailboxes: exit $status (want 1; 2 means the config was rejected)" >&2
-      exit 1
-    fi
+      # Every config option, set away from its default, reaches the config.
+      ${pkgs.jq}/bin/jq -e '
+        .session_url == "https://jmap.example/session" and
+        .window == {"mailboxes": ["inbox", "Archive"], "max_age_days": null, "max_messages": 10} and
+        .max_body_bytes == 1000 and
+        .max_pages == 3 and
+        .max_total_bytes == 50000 and
+        .request_timeout_ms == 4000 and
+        .ca_file == "/etc/ssl/other.pem"
+      ' ${over.config.services.screwtape.configFile} > /dev/null
 
-    # Building it runs writeShellApplication's shellcheck over the script.
-    test -x ${provision}/bin/screwtape-provision
+      # Configs the parser rejects fail to build, for the parser's reason.
+      grep -q no_window_bound ${noWindowBound}/testBuildFailure.log
+      grep -q '"error":"config"' ${plainHttp}/testBuildFailure.log
 
-    touch $out
-  ''
+      # Building it runs writeShellApplication's shellcheck over the script.
+      test -x ${provision}/bin/screwtape-provision
+
+      touch $out
+    ''

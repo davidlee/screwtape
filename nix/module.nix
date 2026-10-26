@@ -13,23 +13,39 @@ self: {
   # One name for the credential: the config's credential_name, the unit's
   # LoadCredentialEncrypted id and the name systemd-creds embeds (it must match).
   credential = "fastmail";
+  # Relative to %E, the user manager's xdg.configHome (asserted below).
+  credentialPath = "credstore.encrypted/screwtape.${credential}";
 
   # The config holds no secret, so it lives in the store (DEC-009).
-  configFile = pkgs.writeText "screwtape.json" (builtins.toJSON {
-    session_url = cfg.sessionUrl;
-    credential_name = credential;
-    store_path = "${config.xdg.stateHome}/screwtape/mail.sqlite3";
-    window = {
-      inherit (cfg.window) mailboxes;
-      max_age_days = cfg.window.maxAgeDays;
-      max_messages = cfg.window.maxMessages;
+  configFile = pkgs.writeTextFile {
+    name = "screwtape.json";
+    text = builtins.toJSON {
+      session_url = cfg.sessionUrl;
+      credential_name = credential;
+      store_path = "${config.xdg.stateHome}/screwtape/mail.sqlite3";
+      window = {
+        inherit (cfg.window) mailboxes;
+        max_age_days = cfg.window.maxAgeDays;
+        max_messages = cfg.window.maxMessages;
+      };
+      max_body_bytes = cfg.maxBodyBytes;
+      max_pages = cfg.maxPages;
+      max_total_bytes = cfg.maxTotalBytes;
+      request_timeout_ms = cfg.requestTimeoutMs;
+      ca_file = cfg.caFile;
     };
-    max_body_bytes = cfg.maxBodyBytes;
-    max_pages = cfg.maxPages;
-    max_total_bytes = cfg.maxTotalBytes;
-    request_timeout_ms = cfg.requestTimeoutMs;
-    ca_file = cfg.caFile;
-  });
+    # The program's own parser judges the config, so no rule is restated here:
+    # it exits 2 on a rejected config, and 1 on an accepted one, since the
+    # store does not exist in the build sandbox.
+    checkPhase = ''
+      status=0
+      HOME="$TMPDIR" ${cfg.package}/bin/screwtape --config "$target" mailboxes || status=$?
+      if [ "$status" -eq 2 ]; then
+        echo "services.screwtape: the program rejects the generated config" >&2
+        exit 1
+      fi
+    '';
+  };
 
   # Only adds --config (DEC-017); the unit runs `sync` through it too (I9).
   wrapper = pkgs.writeShellApplication {
@@ -48,10 +64,13 @@ self: {
     runtimeInputs = [pkgs.coreutils pkgs.systemd];
     text = ''
       umask 077
-      dir="''${XDG_CONFIG_HOME:-$HOME/.config}/credstore.encrypted"
-      stored="$dir/screwtape.${credential}"
+      stored=${lib.escapeShellArg "${config.xdg.configHome}/${credentialPath}"}
       staged="$stored.new"
-      mkdir -p "$dir"
+      mkdir -p "$(dirname "$stored")"
+      # Whatever happens, no staged file outlives the run (after mv, none
+      # exists); a signal exits too, so the trap runs.
+      trap 'rm -f -- "$staged"' EXIT
+      trap 'exit 130' INT TERM HUP
 
       # setgid onepassword-cli: the plain op binary can't reach the app.
       set +o errexit
@@ -60,7 +79,6 @@ self: {
       steps=("''${PIPESTATUS[@]}")
       set -o errexit
       if [ "''${steps[0]}" -ne 0 ] || [ "''${steps[1]}" -ne 0 ]; then
-        rm -f -- "$staged"
         echo "screwtape-provision: op read exit ''${steps[0]}, systemd-creds encrypt exit ''${steps[1]}; stored credential unchanged" >&2
         exit 1
       fi
@@ -78,6 +96,13 @@ self: {
 in {
   options.services.screwtape = {
     enable = lib.mkEnableOption "Screwtape, the read-only JMAP mirror";
+
+    configFile = mkOption {
+      type = types.package;
+      internal = true;
+      readOnly = true;
+      description = "The generated config, as the wrapper passes it.";
+    };
 
     package = mkOption {
       type = types.package;
@@ -166,12 +191,18 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    # The unit's StateDirectory resolves from the user manager's own default,
-    # not from xdg.stateHome: the two must agree (RV-001 F-31).
+    services.screwtape.configFile = configFile;
+
+    # The unit's StateDirectory and %E resolve from the user manager's own
+    # defaults, not from xdg: the two must agree (RV-001 F-31).
     assertions = [
       {
         assertion = config.xdg.stateHome == "${config.home.homeDirectory}/.local/state";
         message = "services.screwtape: xdg.stateHome must be its default, ~/.local/state, where the unit's StateDirectory lives (RV-001 F-31).";
+      }
+      {
+        assertion = config.xdg.configHome == "${config.home.homeDirectory}/.config";
+        message = "services.screwtape: xdg.configHome must be its default, ~/.config, the unit's %E, where screwtape-provision stores the credential.";
       }
     ];
 
@@ -185,7 +216,7 @@ in {
         StateDirectory = "screwtape";
         StateDirectoryMode = "0700";
         # %E is $XDG_CONFIG_HOME in a user unit; screwtape-provision writes it.
-        LoadCredentialEncrypted = "${credential}:%E/credstore.encrypted/screwtape.${credential}";
+        LoadCredentialEncrypted = "${credential}:%E/${credentialPath}";
         TimeoutStartSec = cfg.timeoutStartSec;
         MemoryMax = cfg.memoryMax;
         # The subset of hardening that works in a user unit (design § 5.4).
