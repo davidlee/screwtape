@@ -152,6 +152,29 @@ pub type Thread {
   Thread(id: String, email_ids: List(String))
 }
 
+/// A message as `list` and `thread` print it: its `message` row, its `from`
+/// addresses in position order, and its mailbox ids sorted.
+pub type MessageSummary {
+  MessageSummary(
+    id: String,
+    thread_id: String,
+    received_at: UtcDate,
+    subject: Option(String),
+    preview: String,
+    from: List(Address),
+    is_seen: Bool,
+    is_flagged: Bool,
+    has_attachment: Bool,
+    mailbox_ids: List(String),
+  )
+}
+
+/// One message id of a thread, in thread order, with its summary when the
+/// message is held in the store (`thread` prints `in_store: false` otherwise).
+pub type ThreadEntry {
+  ThreadEntry(id: String, summary: Option(MessageSummary))
+}
+
 /// The mailboxes a window entry names: those whose role is `entry`; if none,
 /// those whose name is exactly `entry`; else none. Role beats name.
 pub fn mailboxes_matching(

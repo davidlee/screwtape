@@ -628,3 +628,417 @@ pub fn round_trip_keeps_bodies_addresses_and_header_ids_test() {
   addresses |> should.equal(Ok(expected_address_rows(message.addresses)))
   headers |> should.equal(Ok(expected_header_rows(message.header_ids)))
 }
+
+// ---------------------------------------------------------------------------
+// The read queries (design § 5.2 read verbs; PHASE-06/T3)
+//
+// Each query runs inside `store.read`'s one transaction, so every expected
+// value is the fixture's own: the store must return exactly what was written,
+// in the one order it can keep.
+// ---------------------------------------------------------------------------
+
+/// The `list` query that selects every message, in the store's order.
+fn every_message() -> store.ListQuery {
+  store.ListQuery(
+    mailbox_ids: None,
+    since_ms: None,
+    from: None,
+    unread: False,
+    limit: 50,
+    offset: 0,
+  )
+}
+
+fn listing_summaries(ids: List(String)) -> List(model.MessageSummary) {
+  let snapshot = snapshot_fixture.listing()
+  ids
+  |> list.map(fn(id) { snapshot_fixture.summary_of(message_in(snapshot, id)) })
+}
+
+fn message_in(snapshot: model.Snapshot, id: String) -> model.Message {
+  let assert Ok(message) =
+    list.find(snapshot.messages, fn(message) { message.id == id })
+  message
+}
+
+fn thread_entry(snapshot: model.Snapshot, id: String) -> model.ThreadEntry {
+  model.ThreadEntry(
+    id,
+    Some(snapshot_fixture.summary_of(message_in(snapshot, id))),
+  )
+}
+
+/// `sort_order`, then `name`, then `id`: the mailboxes query's order (design
+/// § 5.2, A8). Computed here rather than in the fixture, so the fixture's own
+/// order stays scrambled and a query without its `ORDER BY` cannot pass.
+fn mailbox_order(a: model.Mailbox, b: model.Mailbox) -> Order {
+  case int.compare(a.sort_order, b.sort_order) {
+    Eq ->
+      case string.compare(a.name, b.name) {
+        Eq -> string.compare(a.id, b.id)
+        other -> other
+      }
+    other -> other
+  }
+}
+
+fn messages_of(
+  path: String,
+  query: store.ListQuery,
+) -> Result(List(model.MessageSummary), Error) {
+  read_from(path, fn(tx) { store.messages(tx, query) })
+}
+
+/// Round trip: every message of the fixture comes back equal to its canonical
+/// form, `mailbox_ids` sorted, `attachments` by `part_id`, `addresses` by field
+/// (model order) then position. The fixture writes those relations out of
+/// order, so a query that returns its insertion order fails here.
+pub fn read_queries_round_trip_every_fixture_message_test() {
+  let snapshot = snapshot_fixture.full(account)
+  let #(dir, path) = written(snapshot)
+  let result =
+    read_from(path, fn(tx) {
+      list.try_map(snapshot.messages, fn(message) {
+        store.message(tx, message.id)
+      })
+    })
+  temp.remove_dir(dir)
+
+  let expected =
+    snapshot.messages
+    |> list.map(fn(message) { Some(snapshot_fixture.canonical(message)) })
+  result |> should.equal(Ok(expected))
+}
+
+/// An id the store does not hold is no message, not a failure.
+pub fn message_of_an_unknown_id_is_none_test() {
+  let #(dir, path) = written(snapshot_fixture.full(account))
+  let result =
+    read_from(path, fn(tx) { store.message(tx, account <> "-missing") })
+  temp.remove_dir(dir)
+
+  result |> should.equal(Ok(None))
+}
+
+/// The `sync` row carries the account the snapshot belongs to.
+pub fn account_id_is_the_snapshots_account_test() {
+  let #(dir, path) = written(snapshot_fixture.full(account))
+  let result = read_from(path, fn(tx) { store.account_id(tx) })
+  temp.remove_dir(dir)
+
+  result |> should.equal(Ok(account))
+}
+
+/// Every mailbox, ordered by `sort_order`, then `name`, then `id`. The fixture
+/// ties `sort_order` three ways (and two names once), so a query that orders on
+/// `sort_order` alone, or on `sort_order` and `name` alone, fails.
+pub fn mailboxes_are_ordered_by_sort_order_then_name_then_id_test() {
+  let snapshot = snapshot_fixture.full(account)
+  let #(dir, path) = written(snapshot)
+  let result = read_from(path, fn(tx) { store.mailboxes(tx) })
+  temp.remove_dir(dir)
+
+  let expected = list.sort(snapshot.mailboxes, mailbox_order)
+  let scrambled = expected != snapshot.mailboxes
+  scrambled |> should.be_true
+  result |> should.equal(Ok(expected))
+}
+
+/// Newest first: `received_at_ms` descending, then `id` descending. `-m4` and
+/// `-m5` share a receipt millisecond, and the higher id comes first.
+pub fn messages_are_newest_first_and_tie_on_id_descending_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result = messages_of(path, every_message())
+  temp.remove_dir(dir)
+
+  result
+  |> should.equal(
+    Ok(
+      listing_summaries([
+        "acct-l-m6",
+        "acct-l-m5",
+        "acct-l-m4",
+        "acct-l-m3",
+        "acct-l-m1",
+        "acct-l-m2",
+      ]),
+    ),
+  )
+}
+
+/// One summary, whole: `from` holds only the `From` addresses, in position
+/// order (`To` is not a `from`), and `mailbox_ids` are sorted even though the
+/// fixture names them archive first.
+pub fn messages_summary_carries_its_from_addresses_and_sorted_mailboxes_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result = messages_of(path, every_message())
+  temp.remove_dir(dir)
+
+  let assert Ok(summaries) = result
+  let assert Ok(m1) =
+    list.find(summaries, fn(summary) { summary.id == "acct-l-m1" })
+  let assert Ok(m3) =
+    list.find(summaries, fn(summary) { summary.id == "acct-l-m3" })
+
+  m1
+  |> should.equal(
+    model.MessageSummary(
+      id: "acct-l-m1",
+      thread_id: "acct-l-th1",
+      received_at: model.UtcDate(
+        raw: "2026-10-25T00:00:00Z",
+        ms: snapshot_fixture.listing_midnight_ms,
+      ),
+      subject: Some("Subject m1"),
+      preview: "Preview m1",
+      from: [
+        model.Address(model.From, Some("Acme Billing"), "billing@acme.test"),
+        model.Address(model.From, Some("ACME Support"), "support@acme.test"),
+      ],
+      is_seen: False,
+      is_flagged: False,
+      has_attachment: True,
+      mailbox_ids: ["acct-l-mb1"],
+    ),
+  )
+  m3
+  |> should.equal(
+    model.MessageSummary(
+      id: "acct-l-m3",
+      thread_id: "acct-l-th1",
+      received_at: model.UtcDate(
+        raw: "2026-10-25T00:00:00.500Z",
+        ms: snapshot_fixture.listing_midnight_ms + 500,
+      ),
+      subject: Some("Subject m3"),
+      preview: "Preview m3",
+      from: [model.Address(model.From, None, "other@example.test")],
+      is_seen: True,
+      is_flagged: False,
+      has_attachment: False,
+      mailbox_ids: ["acct-l-mb1", "acct-l-mb2"],
+    ),
+  )
+}
+
+/// `mailbox_ids` matches a message in any of the listed mailboxes, and a
+/// message in two of them appears once.
+pub fn messages_mailbox_filter_matches_any_listed_mailbox_once_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let inbox =
+    messages_of(
+      path,
+      store.ListQuery(..every_message(), mailbox_ids: Some(["acct-l-mb1"])),
+    )
+  let archive =
+    messages_of(
+      path,
+      store.ListQuery(..every_message(), mailbox_ids: Some(["acct-l-mb2"])),
+    )
+  let both =
+    messages_of(
+      path,
+      store.ListQuery(
+        ..every_message(),
+        mailbox_ids: Some(["acct-l-mb2", "acct-l-mb1"]),
+      ),
+    )
+  temp.remove_dir(dir)
+
+  inbox
+  |> should.equal(
+    Ok(listing_summaries(["acct-l-m5", "acct-l-m3", "acct-l-m1", "acct-l-m2"])),
+  )
+  archive
+  |> should.equal(Ok(listing_summaries(["acct-l-m4", "acct-l-m3"])))
+  both
+  |> should.equal(
+    Ok(
+      listing_summaries([
+        "acct-l-m5",
+        "acct-l-m4",
+        "acct-l-m3",
+        "acct-l-m1",
+        "acct-l-m2",
+      ]),
+    ),
+  )
+}
+
+/// `since_ms` is inclusive: a message at exactly `since_ms` is kept, one a
+/// millisecond before it is not, and design § 9's `00:00:00.500Z` after
+/// midnight UTC is kept.
+pub fn messages_since_includes_its_boundary_millisecond_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let midnight = snapshot_fixture.listing_midnight_ms
+  let from_midnight =
+    messages_of(
+      path,
+      store.ListQuery(..every_message(), since_ms: Some(midnight)),
+    )
+  let from_just_before =
+    messages_of(
+      path,
+      store.ListQuery(..every_message(), since_ms: Some(midnight - 1)),
+    )
+  temp.remove_dir(dir)
+
+  from_midnight
+  |> should.equal(
+    Ok(
+      listing_summaries([
+        "acct-l-m6",
+        "acct-l-m5",
+        "acct-l-m4",
+        "acct-l-m3",
+        "acct-l-m1",
+      ]),
+    ),
+  )
+  from_just_before
+  |> should.equal(
+    Ok(
+      listing_summaries([
+        "acct-l-m6",
+        "acct-l-m5",
+        "acct-l-m4",
+        "acct-l-m3",
+        "acct-l-m1",
+        "acct-l-m2",
+      ]),
+    ),
+  )
+}
+
+/// `from` is a case-insensitive substring of a `From` address's email or name.
+/// `acme` in `-m4`'s `To` and `Cc` does not match it.
+pub fn messages_from_matches_a_from_address_case_insensitively_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result =
+    messages_of(path, store.ListQuery(..every_message(), from: Some("ACME")))
+  temp.remove_dir(dir)
+
+  result |> should.equal(Ok(listing_summaries(["acct-l-m1"])))
+}
+
+/// `%` and `_` are literal in `from`, not `LIKE` wildcards: each matches only
+/// the one address that contains it.
+pub fn messages_from_treats_percent_and_underscore_literally_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let percent =
+    messages_of(path, store.ListQuery(..every_message(), from: Some("%")))
+  let underscore =
+    messages_of(path, store.ListQuery(..every_message(), from: Some("_")))
+  temp.remove_dir(dir)
+
+  percent |> should.equal(Ok(listing_summaries(["acct-l-m6"])))
+  underscore |> should.equal(Ok(listing_summaries(["acct-l-m6"])))
+}
+
+/// `unread` keeps only unseen messages; `False` filters nothing.
+pub fn messages_unread_keeps_only_unseen_messages_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let unread =
+    messages_of(path, store.ListQuery(..every_message(), unread: True))
+  let read =
+    messages_of(path, store.ListQuery(..every_message(), unread: False))
+  temp.remove_dir(dir)
+
+  unread
+  |> should.equal(
+    Ok(listing_summaries(["acct-l-m6", "acct-l-m5", "acct-l-m1", "acct-l-m2"])),
+  )
+  read
+  |> should.equal(
+    Ok(
+      listing_summaries([
+        "acct-l-m6",
+        "acct-l-m5",
+        "acct-l-m4",
+        "acct-l-m3",
+        "acct-l-m1",
+        "acct-l-m2",
+      ]),
+    ),
+  )
+}
+
+/// `limit` and `offset` slice the ordered result: after the ordering, before
+/// nothing else. A limit past the end returns what there is, and an offset past
+/// the end returns nothing.
+pub fn messages_limit_and_offset_paginate_the_ordered_result_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let one = messages_of(path, store.ListQuery(..every_message(), limit: 1))
+  let all = messages_of(path, store.ListQuery(..every_message(), limit: 100))
+  let page =
+    messages_of(path, store.ListQuery(..every_message(), limit: 2, offset: 2))
+  let beyond = messages_of(path, store.ListQuery(..every_message(), offset: 6))
+  temp.remove_dir(dir)
+
+  one |> should.equal(Ok(listing_summaries(["acct-l-m6"])))
+  all
+  |> should.equal(
+    Ok(
+      listing_summaries([
+        "acct-l-m6",
+        "acct-l-m5",
+        "acct-l-m4",
+        "acct-l-m3",
+        "acct-l-m1",
+        "acct-l-m2",
+      ]),
+    ),
+  )
+  page |> should.equal(Ok(listing_summaries(["acct-l-m4", "acct-l-m3"])))
+  beyond |> should.equal(Ok([]))
+}
+
+/// The filters combine with AND: the inbox, since midnight, unseen. `-m2` fails
+/// `since`, `-m3` is seen, and `-m6` is in another mailbox.
+pub fn messages_filters_combine_with_and_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result =
+    messages_of(
+      path,
+      store.ListQuery(
+        ..every_message(),
+        mailbox_ids: Some(["acct-l-mb1"]),
+        since_ms: Some(snapshot_fixture.listing_midnight_ms),
+        unread: True,
+      ),
+    )
+  temp.remove_dir(dir)
+
+  result |> should.equal(Ok(listing_summaries(["acct-l-m5", "acct-l-m1"])))
+}
+
+/// A thread's ids in `thread_email` position order, not receipt order. Each id
+/// the store holds carries its `list`-shaped summary; `-m0`, named by the
+/// thread but outside the snapshot, carries none.
+pub fn thread_reads_entries_in_position_order_with_summaries_for_held_messages_test() {
+  let snapshot = snapshot_fixture.listing()
+  let #(dir, path) = written(snapshot)
+  let result = read_from(path, fn(tx) { store.thread(tx, "acct-l-th1") })
+  temp.remove_dir(dir)
+
+  result
+  |> should.equal(
+    Ok(
+      Some([
+        thread_entry(snapshot, "acct-l-m5"),
+        thread_entry(snapshot, "acct-l-m3"),
+        model.ThreadEntry("acct-l-m0", None),
+        thread_entry(snapshot, "acct-l-m1"),
+      ]),
+    ),
+  )
+}
+
+/// A thread id the store does not hold is `None`, not an empty list.
+pub fn thread_of_an_unknown_id_is_none_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result = read_from(path, fn(tx) { store.thread(tx, "acct-l-th-missing") })
+  temp.remove_dir(dir)
+
+  result |> should.equal(Ok(None))
+}
