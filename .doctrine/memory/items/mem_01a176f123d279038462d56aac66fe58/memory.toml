@@ -1,0 +1,42 @@
+memory_uid = "mem_01a176f123d279038462d56aac66fe58"
+memory_key = "mem.pattern.erlang.beam-imports-for-ffi-purity"
+schema_version = 1
+memory_type = "pattern"
+status = "active"
+title = "Check what an Erlang module can call via its beam import table, not its source text"
+summary = "beam_lib:chunks(Beam,[imports]) catches quoted atoms, fun refs, literal apply; misses variable-module calls"
+created = "2026-10-26"
+updated = "2026-10-26"
+
+[scope]
+paths = []
+globs = ["test/check_imports.gleam"]
+commands = []
+tags = ["erlang", "security"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "bc03712f2ab02b73a49456d2eb6952bdd16553d2"
+ref_name = "refs/heads/main"
+checkout_state_id = "89c122ac5c8ff3d02baff9221d579b7aa2e2e43134b9846c329e2c8b88e59264"
+base_commit = "f1d6289c706d0cf1730ce8b9a742f4d208234e58"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "none"
+weight = 0
+

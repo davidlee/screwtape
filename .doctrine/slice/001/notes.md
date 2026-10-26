@@ -6,9 +6,10 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-26 · PHASE-10 completed at 54e028e; slice status started; next PHASE-03
+fresh-as-of: 2026-10-26 · PHASE-03 completed at f1d6289; slice status started; next PHASE-04
 
 ### Produced
+- PHASE-03 (75dd306, f1d6289): model, html_sax + screwtape_html_ffi (catch boundary), html_text, normalise (utc_date, body bound, compare_received), decode.document + utc_date; test/check_imports (+ beam-import FFI rule) in `just check` and checks.gleam-test; DEC-020, DEC-021; ASM-002 validated; CHR-002
 - PHASE-10 (a482012..54e028e): error, credential (control-byte rejection), config, file, jmap/request, jmap/decode, jmap/client (Budget), cli, main; test support fixture_send, jmap_fixture, cli_fixture, local_jmap.start_with/reply, temp.write, subprocess.run_env; I1 token_leak_test (VT-2); DEC-019; RV-002 concluded as waived (1fc3923)
 - PHASE-02: screwtape_http.erl (production Send), jmap/client types, test/support local_jmap (+ local_tls_ffi serve/2), transport_test; memory mem.fact.erlang.httpc-reason-shapes
 - PHASE-01 (1c76354, 8604d32, 40fbf74): gleam package + pins, screwtape_ffi, nix/package.nix + checks.gleam-test, test/support (subprocess, local_tls, temp); ASM-001 validated; memories mem.fact.gleam.shipment-compiles-test-erl, mem.pattern.gleam.guard-spawn-monitor
@@ -31,8 +32,9 @@ fresh-as-of: 2026-10-26 · PHASE-10 completed at 54e028e; slice status started; 
 - Candidates for /record-memory at close: gleam_httpc buffers whole bodies (RV-001 F-12); httpc streams only 200/206 and autoretries 503 by default, but max_body_size bounds all statuses (F-19, F-20); the systemd user manager has no network-online.target; JMAP `#ids` back-references prevent client-side dedupe (F-10); WAL needs an explicit read transaction for multi-query consistency (F-15)
 
 ### Open
-- Next: PHASE-03 (then 04 → 05 → 06 → 07 → 09; 08 independent); raw JMAP type home settled by DEC-021
-- Reconcile: design § 9 I5 row and § 5.1 module table per DEC-020 (html_text imports screwtape/html_sax, not htmgrrrl; html_sax + screwtape_html_ffi are the catch boundary); design § 5.5 'Parse failure' also covers a parser crash; CHR-002 upstream htmerl report (operator)
+- Next: PHASE-04 store (then 05 → 06 → 07 → 09; 08 independent)
+- PHASE-05 inherits (PHASE-03): the Email/get decoder builds `normalise.Email` (DEC-021) and must add its field names to `decode.path_fields`; sync calls `normalise.message(email, email_state, max_body_bytes)`; `--since` filter (PHASE-06) compares received_at_ms ≥ midnight ms
+- Reconcile: design § 9 I5 row and § 5.1 module table per DEC-020 (html_text imports screwtape/html_sax, not htmgrrrl; html_sax + screwtape_html_ffi are the catch boundary); design § 5.5 'Parse failure' also covers a parser crash; § 9 I5 row: gleam/io denied within gleam_stdlib, FFI rule is the beam import table, I6 literal scan is whole-literal only; CHR-002 upstream htmerl report (operator)
 - PHASE-05 inherits: `decode.path_fields` must grow with each new decoder (else paths truncate at the last known field); check a response's method name against its call (PHASE-10 review F8, deferred); a digits-only server map key still renders as `[n]` (accepted: digits only)
 - Reconcile: design § 5.2 premise 'an httpc worker crash logs a report holding its request' is false on OTP 28.5 (DEC-019 consequences); EX-5 crash case reading per DEC-019
 - Audit reconcile: design § 5.2 crash rules should name the linked-exit containment (guard under spawn_monitor; PHASE-01 review F2); PHASE-10/EX-5 inherits review F7 (forced crash through main)
@@ -44,6 +46,14 @@ fresh-as-of: 2026-10-26 · PHASE-10 completed at 54e028e; slice status started; 
 - RFC-020 OQ-2, OQ-5, OQ-6, OQ-10, OQ-11
 - Research host checks 8 and 9: not run
 - CHR-001: swap the quotient pin to a published tag
+
+## PHASE-03 evidence
+
+- EX-1 / ASM-002 (2026-10-26, orch erl probes, htmgrrrl 1.0.1 / htmerl 0.2.1 = latest): events suffice; htmerl raises on input ending in a tag name (87/316 truncation offsets) and on an unclosed table cell → consulted → DEC-020 (operator: option A), DEC-021 (normalise owns inputs). ASM-002 validated; CHR-002 upstream report (operator files).
+- EX-3 control (orch): per-part-only mutant fails message_limit plain/utf8/html. Not committed.
+- EX-6 / VA-1 (orch, scratch tree, `just check-imports`): conforming ok exit 0; normalise importing gleam/erlang/process → exit 1; html_text with @external → exit 1. FFI rule checks the beam import table (quoted atoms, fun refs, literal apply caught); residual: variable-module call (apply opcode) — accepted, review-visible.
+- Gate 209 passed; `nix flake check` gleam-test runs `just check-imports` then 209 tests (75dd306 + review fixes).
+- PHASE-03 review (pi `review`, deepseek-flash max, unanchored, $0.11; orch reproduced F1 by probe). F1 fixed (leading style/script before bare text dropped it silently: synthetic-head skip removed). F2 fixed (non-digit fraction chars accepted). F3 split: leap second :60 now accepted; lowercase t/z rejection kept, contested by RFC 8620 § 1.4 (letters MUST be uppercase). F4 accepted: I6 literal scan misses concatenation; closed Method + opaque Invocation is the primary guard (doc'd in check_imports). F5 fixed: gleam/io denied in governed modules. F6 accepted + doc: design § 5.2 fetches with maxBodyValueBytes = max_body_bytes. Test notes: literal `<` survival pinned; real resolver exercised only via `main` (just check, nix) — accepted.
 
 ## PHASE-01 evidence
 
@@ -124,6 +134,8 @@ Inquiry ids (`inq-N`) are the design run's; `doctrine design show 1`.
 - RFC-020 lists OQ-7 open; its Outcome records it settled (raised, unanswered).
 
 ## Review passes
+
+- Orchestration (2026-10-26, PHASE-03): orch = Opus; pi deepseek-flash. T3a html_text tests $0.01, T4a normalise tests $0.04 + continuation $0.003 (wall-clock timeout, build-lock waits), T5 check-imports $0.06, T3b html_sax/html_text $0.07 (timeout at final check; work complete), T4b normalise $0.05, FFI beam-import hardening $0.02. pi got wrong: T3a asserted hr → blank line against its own stated rule, and pinned unspecified mid-entity truncation; T4a missed MessageLimit-over-Server and scalar-field swap cases (orch added); T5's text scanner for the .erl was evadable (quoted atoms, fun refs) → orch had it replaced with a beam-import check; a worker erl probe left erl_crash.dump in the repo root. Brief tuning: three concurrent workers in one tree cost two wall-clock timeouts (gleam build lock) — max two concurrent, or stagger; give stubs with fixed types before contract-test briefs (worked well).
 
 - Orchestration (2026-10-26, PHASE-01): orch = Opus; workers = quotient pi (deepseek-flash). Observed: planner, test and code workers reliable on bounded briefs ($0.01-0.07 each); two runs hit their request ceiling exploring (TLS test debug; reviewer cloning nixpkgs) and finished on a session continuation with a "stop probing, answer now" prompt; parallel workers in one tree serialise on gleam's `build/` lock; a worker-written test was vacuous (atom logger message raising function_clause) and caught only by orch running a control. Review at `max` found two real high/medium defects orch had missed.
 
