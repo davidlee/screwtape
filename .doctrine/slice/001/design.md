@@ -210,43 +210,67 @@ pure modules are marked (DEC-006):
 ```mermaid
 flowchart TD
   main["screwtape (main)"] --> cli
+  cli --> argv["argv (pure)"]
   cli --> config
+  cli --> credential
   cli --> sync
-  cli --> store
+  cli --> query["store/query"]
   cli --> render
   cli --> http["screwtape_http.erl (production Send)"]
+  argv --> normalise
+  credential --> file
   sync --> client["jmap/client"]
   sync --> normalise
   sync --> store
   client --> request["jmap/request (pure)"]
   client --> decode["jmap/decode (pure)"]
   client --> credential
+  decode --> request
+  decode --> normalise
   normalise["normalise (pure)"] --> model["model (pure)"]
   normalise --> html["html_text (pure)"]
-  store --> model
+  normalise --> utf8["utf8 (pure)"]
+  html --> sax["html_sax"]
+  sax --> sax_ffi["screwtape_html_ffi.erl"]
+  query --> store
+  query --> codec["store/codec (pure)"]
+  store --> codec
+  codec --> model
   render["render (pure)"] --> model
-  render --> error["error (pure)"]
-  cli --> error
+  render --> utf8
 ```
+
+To keep the diagram legible, it leaves out three groups of edges: the
+imports of `screwtape/error` (by every effectful module, plus `config`,
+`argv` and `jmap/decode`), the direct imports of `model` (by `cli`, `sync`,
+`store`, `store/query` and `jmap/decode`), and `cli`'s own use of `file` to
+read the config.
 
 | Module | Responsibility | Effects |
 |---|---|---|
 | `screwtape` | `main`: silence the logger, run `cli.run` under `guard`, write its output, then `halt(code)` | process exit (FFI) |
-| `screwtape/cli` | parse argv into a `Command`; dispatch it; map the result to an exit code | reads config and credential files; reads the clock |
+| `screwtape/cli` | dispatch a parsed `Command`; open the session; map the result to an exit code | reads config and credential files; reads the clock |
+| `screwtape/argv` | parse argv into a `Command`; usage errors and their reason codes | none |
 | `screwtape/config` | decode the JSON config and validate the window and bounds | none (it takes text) |
-| `screwtape/credential` | the opaque `Token`; read it from the credentials directory | reads one file |
+| `screwtape/file` | read a whole file as UTF-8 text; any failure is `Error(Nil)`, carrying no path or contents | reads one file |
+| `screwtape/credential` | the opaque `Token`; read it from the credentials directory | via `file` |
 | `screwtape/jmap/request` | build the session and API request bodies, including back-references | none |
 | `screwtape/jmap/decode` | decode the session, the method responses, and request- and method-level errors | none |
 | `screwtape/jmap/client` | `session/2` and `call/3` over the injected `Send`; enforce the byte budget | via `Send` |
-| `screwtape/model` | the normalised types: `Mailbox`, `Message`, `Address`, `Body`, `Attachment`, `Provenance` | none |
-| `screwtape/normalise` | turn JMAP objects into model values, with HTML bodies converted | none |
-| `screwtape/html_text` | the htmgrrrl SAX fold that turns HTML into text | none |
-| `screwtape/sync` | orchestrate session → mailboxes → paged query and get → threads → snapshot | via the client and store |
-| `screwtape/store` | open the store, migrate it, write the snapshot transaction, run the read queries | SQLite |
+| `screwtape/model` | the normalised types (`Mailbox`, `Message`, `Address`, `Body`, `Attachment`, `Provenance`, the read summaries) and the pure rules over them, such as mailbox matching | none |
+| `screwtape/normalise` | turn JMAP objects into model values, with HTML bodies converted. It owns stdlib-only input records for the JMAP Email shape and `utc_date_ms`; `jmap/decode` builds those records, so a bad timestamp is `Decode(path)` (DEC-021) | none |
+| `screwtape/utf8` | byte-bounded prefixes that end on a UTF-8 boundary | none |
+| `screwtape/html_text` | the fold over `html_sax` events that turns HTML into text | none |
+| `screwtape/html_sax` | htmgrrrl's SAX parse behind a catch boundary: any parser exception becomes `Error(Nil)` (DEC-020) | none (one `@external`) |
+| `screwtape/sync` | orchestrate opening request → paged query → chunked gets → threads → snapshot | via the client and store |
+| `screwtape/store` | open the store, migrate it, write the snapshot transaction, run a read transaction | SQLite |
+| `screwtape/store/query` | the read verbs' queries, inside `store.read` | SQLite |
+| `screwtape/store/codec` | stored encodings of model values, both ways | none |
 | `screwtape/error` | the single `Error` type and its JSON diagnostic | none |
 | `screwtape/render` | the JSON output envelopes for each verb | none |
 | `screwtape_http.erl` | the production `Send`: synchronous `httpc` with a per-request body cap, no retries or redirects, and TLS verification (§ 5.2) | network |
 | `screwtape_ffi.erl` | `halt/1`, `silence_logger/0`, `guard/1` | process exit; logger |
+| `screwtape_html_ffi.erl` | calls `htmgrrrl_ffi:sax/3` inside try/catch and discards the reason, which can hold input text | none |
 
 <!-- doctrine:section sec-6 -->
 ### 5.2 Interfaces & Contracts
@@ -258,7 +282,13 @@ the wrapper and the unit both pass it as `--config <path>`. It sets
 `store_path` from `xdg.stateHome`. The unit's `StateDirectory` resolves
 from the user manager's own default, `~/.local/state`, so the module
 asserts that `xdg.stateHome` is that default. A customised value fails
-evaluation instead of splitting the two paths (RV-001 F-31).
+evaluation instead of splitting the two paths (RV-001 F-31). The module
+asserts the same for `xdg.configHome`, because the unit's `%E` and
+`screwtape-provision` both place the credential under it (§ 5.4). The
+generated file is checked at build time by the program's own parser (a
+`writeTextFile` check phase), so a config the binary would reject fails
+the build. The module exposes the file as the internal, read-only option
+`services.screwtape.configFile`.
 Nothing else is read from the environment, apart from systemd's
 `CREDENTIALS_DIRECTORY` during `sync`.
 
@@ -350,9 +380,19 @@ Example output from `list`:
 bodies (`source_type`, `text`, `is_truncated`, `is_encoding_problem`,
 `conversion_failed`), attachment metadata and provenance (`account_id`, the
 Email state at fetch time). If `--max-bytes` truncates the text it prints,
-the output marks it with `output_truncated: true`. `thread` lists the
+the output marks it with `output_truncated: true`. The cap applies to the
+bodies' texts concatenated in body order: the printed texts are a prefix
+of that concatenation, at most n bytes, cut on a UTF-8 boundary, and every
+body after the cut prints `""`. A cut body keeps its stored flags.
+`thread` lists the
 thread's message ids in order, with a `list`-shaped summary for each message
 held in the store, and `in_store: false` for those outside the window.
+
+The `list` returns messages newest first, by `received_at_ms` descending and
+then id descending (§ 5.3). An unknown message or thread id is a usage
+error, `Usage("unknown_message")` or `Usage("unknown_thread")`, exit 2.
+Optional values print as `null`, never omitted. The usage reason codes are
+listed in the `argv` module's documentation.
 
 The `version` field anticipates the contract RFC-020 OQ-11 will fix. M1 does
 not promise that this CLI is the contract.
@@ -366,20 +406,27 @@ pub fn read(dir: String, name: String) -> Result(Token, Error)  // Error.Credent
 pub fn bearer(token: Token) -> #(String, String)                // the only call to reveal
 ```
 
+`read` trims surrounding whitespace. An empty token is
+`Credential("empty")`, and one holding a control byte (below 0x20, or 0x7f)
+is `Credential("invalid")`, so a malformed file can't inject header bytes.
+
 `string.inspect` of a `Token` renders as `Token(//fn(){…})`, so a `Token`
 that leaks into a debug print still hides the secret.
 
 The closure doesn't cover crashes. A Gleam `let assert` failure, or an
 Erlang `function_clause` error, prints the offending value or the call's
-arguments. An `httpc` worker that crashes logs a report holding its
-request. Any of these, inside a frame that holds the revealed header, would
-print the token. Three rules contain crashes:
+arguments. Either one, inside a frame that holds the revealed header, would
+print the token. (`httpc` itself is not such a channel on OTP 28.5: its
+handler catches every exception into a `{shutdown, _}` stop, which OTP never
+reports, DEC-019. The logger stays silenced anyway, as defence in depth.)
+Three rules contain crashes:
 
 - `main` sets the OTP logger's primary level to `none`, through
   `screwtape_ffi:silence_logger/0`, before anything else runs.
-- `main` runs `cli.run` inside `screwtape_ffi:guard/1`. That catches any
-  exception and emits only `{"level":"error","error":"internal"}`, then
-  exits with code 1.
+- `main` runs `cli.run` inside `screwtape_ffi:guard/1`. That runs the body
+  in a process under `spawn_monitor`, so both an exception and a linked
+  process's exit are contained. Either way it emits only
+  `{"level":"error","error":"internal"}`, then exits with code 1.
 - No `let assert` or `panic` appears in `credential` or `jmap/client`.
 
 Two more channels can carry process memory out. If the VM itself crashes,
@@ -392,13 +439,14 @@ pub type HttpFailure { Timeout  ConnectFailed  TlsFailed  BadUtf8  TooLarge }
 // The second argument caps the response body bytes this call may receive.
 pub type Send = fn(Request(String), Int) -> Result(Response(String), HttpFailure)
 
-pub type Client {
-  Client(send: Send, token: Token, session: Session, budget: Budget)
-}
+// Both opaque: callers can't reach the token. Budget is a pure byte count.
+pub opaque type Client   // session_of(Client) -> Session, budget_of(Client) -> Budget
+pub opaque type Budget   // budget(max_total_bytes) -> Budget, remaining(Budget) -> Int
 pub fn session(send: Send, token: Token, url: String, budget: Budget)
   -> Result(Client, Error)
 pub fn call(client: Client, calls: List(Invocation))
   -> Result(#(Client, List(MethodResponse)), Error)   // Client carries the spent budget
+  // response i answers call i, else Decode("methodResponses")
 
 // screwtape/jmap/decode
 pub type Session {
@@ -447,8 +495,10 @@ any failure of the cap. It is containment, not the bound.
 
 ```gleam
 // screwtape/sync
-pub fn run(client: Client, store: Store, window: Window, now: Timestamp)
+pub fn run(client: Client, writer: Writer, bounds: Bounds, now: Timestamp)
   -> Result(Summary, Error)
+  // the client is already bound to its session (cli opens it);
+  // Bounds holds the window, max_pages and max_body_bytes
 
 // screwtape/store
 pub fn open_writer(path: String) -> Result(Writer, Error)  // WAL, busy_timeout; no migration yet
@@ -552,10 +602,11 @@ key for sorting and filtering (RV-001 F-17). Raw text can't serve as that
 key, because RFC 8620 §1.4 allows fractional seconds that may or may not be
 present, so text order isn't time order.
 
-The ordering contract is milliseconds, then id (RV-001 F-23). RFC 3339
-allows any number of fractional digits, so two receipt times less than a
-millisecond apart get the same key. They are then ordered by message id,
-which is stable but not chronological. A mail list does not need finer
+The ordering contract is milliseconds, then id, both descending, so
+`list` shows the newest first (RV-001 F-23). RFC 3339 allows any number of
+fractional digits, so two receipt times less than a millisecond apart get
+the same key. They are then ordered by message id, which is stable but not
+chronological. A mail list does not need finer
 order, so the extra precision is not kept.
 
 ```mermaid
@@ -577,7 +628,7 @@ erDiagram
 |---|---|---|---|
 | `sync` | `account_id` | `synced_at`, `api_url`, `window_json`, `max_objects_in_get`, `max_calls_in_request`, `is_read_only` | provenance; the `sync` summary |
 | `type_state` | `account_id, type` | `state` (opaque; the earliest one seen in the run, § 5.2) | M2 `/changes` (RFC 8620 §5.1) |
-| `query_state` | `account_id, filter_json, sort_json` | `collapse_threads`, `query_state` (the single state phase 1 settled on, § 5.2), `can_calculate_changes` | M2 `queryChanges` |
+| `query_state` | `account_id, filter_json, sort_json` | `collapse_threads`, `query_state` (the single state phase 1 settled on, § 5.2), `can_calculate_changes` | M2 `queryChanges`, while the filter is stable (see notes) |
 | `mailbox` | `account_id, id` | `name`, `parent_id`, `role`, `sort_order`, `total_emails`, `unread_emails` | `mailboxes` |
 | `message` | `account_id, id` | `thread_id`, `blob_id`, `received_at` (raw), `received_at_ms`, `sent_at`, `subject`, `preview`, `size`, `has_attachment`, `is_seen`, `is_flagged`, `keywords_json`, `email_state` | `list` filters; M4 expected state |
 | `message_mailbox` | `account_id, message_id, mailbox_id` | – | `list --mailbox` |
@@ -599,6 +650,10 @@ Notes:
   `message_mailbox(mailbox_id)`.
 - `email_state` is the Email state string of the response that delivered the
   row, as M4 needs (brief §6).
+- With `max_age_days` set, the filter's `after` moves every run. `after` is
+  part of `filter_json`, which keys the `query_state` row, so one run's row
+  never matches the next run's query. M2 must re-key or recompute the
+  filter before `Email/queryChanges` can use a stored row.
 - These tables are private to Screwtape. Names with the prefix `v<N>_` are
   reserved for versioned read views, should OQ-11 choose views.
 
@@ -648,9 +703,9 @@ sequenceDiagram
   SD->>CLI: screwtape --config C sync (CREDENTIALS_DIRECTORY set)
   CLI->>CLI: config.parse, credential.read, clock now
   CLI->>ST: open_writer (WAL, no migration yet)
-  CLI->>SY: run(client, writer, window, now)
-  SY->>CL: session
+  CLI->>CL: session
   CL->>FM: GET session_url
+  CLI->>SY: run(client, writer, bounds, now)
   SY->>CL: Mailbox/get + Email/get [] + Thread/get [] (one request)
   CL->>FM: POST apiUrl
   CL-->>SY: mailboxes; Mailbox, Email and Thread states
@@ -715,8 +770,8 @@ timeout on each request.
   does three things, without sudo:
   - runs `op read --no-newline <ref> | systemd-creds encrypt --user --name=fastmail - <staged>`;
   - if both steps succeed, moves the staged file onto
-    `~/.config/credstore.encrypted/screwtape.fastmail`, and otherwise
-    removes it;
+    `~/.config/credstore.encrypted/screwtape.fastmail`. Otherwise an `EXIT`
+    trap removes it, and `INT`, `TERM` and `HUP` exit through that trap;
   - starts `screwtape.service` once with `systemctl --user` and reports its
     result.
 
@@ -772,7 +827,9 @@ timeout on each request.
   `string.inspect` of an `Error`, or any row in the store. This holds
   through crashes too (DEC-012; crash containment in § 5.2).
 - **I2.** A run that does not commit leaves the store byte-for-byte as it
-  was, **schema included** (DEC-008, RV-001 F-14).
+  was, **schema included** (DEC-008, RV-001 F-14). Where no store existed,
+  it may leave an empty file at `user_version` 0, which reads exactly as a
+  missing store does (`no_snapshot`).
 - **I3.** After a commit, the store holds exactly the window's snapshot:
   - the id list from one `queryState`, minus the ids that came back
     `notFound`;
@@ -838,17 +895,28 @@ timeout on each request.
   longest valid UTF-8 prefix that fits, which is a byte bound, not a
   grapheme count. That part is marked `truncated_by = message_limit`. The
   parts after it are stored with empty text and the same mark.
-- **Truncated HTML.** `maxBodyValueBytes` can cut HTML mid-tag. The fold
-  must tolerate the unclosed element and emit what it has. The body keeps
-  `is_truncated` from JMAP, with `truncated_by = server`.
-- **Parse failure.** If htmgrrrl fails to parse, the body is stored with
-  `text = ""` and `conversion_failed = true`. Its count appears in the
-  summary.
+- **Truncated HTML.** `maxBodyValueBytes` can cut HTML mid-tag. Before
+  parsing, `html_text` trims an unterminated trailing `<…` (a `<` with no
+  `>` after it). The fold tolerates the unclosed element and emits what it
+  has. The body keeps `is_truncated` from JMAP, with
+  `truncated_by = server`.
+- **Parse failure.** If htmgrrrl returns an error, or htmerl raises (as
+  0.2.1 does on an unclosed table cell), `html_sax` turns it into a failure
+  (DEC-020). The body is stored with `text = ""` and
+  `conversion_failed = true`. Its count appears in the summary.
+- **Uppercase raw-text elements.** htmerl 0.2.1 mis-tokenises uppercase
+  raw-text tags such as `<SCRIPT>`. Their source may be stored as text, and text after them
+  dropped. The text is inert (I5); the upstream report is CHR-002.
 - **Membership changes during phase 1.** A `queryState` change restarts
   phase 1, up to two restarts. A third change is `Error.QueryUnstable`, and
   the previous store stands. Ids never repeat within one coherent id list.
 - **`notFound` ids.** An `Email/get` can return ids in `notFound`, for mail
   deleted after phase 1. They are left out and counted in `not_found`.
+  `Thread/get` notFound ids are left out uncounted.
+- **A mailbox outside `Mailbox/get`.** An email whose `mailboxIds` names a
+  mailbox the opening request didn't return fails the commit (its foreign
+  key) as `Store("write_failed")`. The previous store stands, and the next
+  run retries.
 - **Multiple mailboxes.** A message in several window mailboxes appears once.
   The `OR` filter returns it once, and `message_mailbox` records every
   membership from its `mailboxIds`.
@@ -859,7 +927,9 @@ timeout on each request.
   If that pushes paging past `max_pages`, the run fails with
   `LimitExceeded("max_pages")`.
 - **`isReadOnly`.** If the account reports `isReadOnly: false`, the sync
-  still runs. It records the value and writes a stderr warning (OQ-A in § 6).
+  still runs. It records the value, and a committed run writes the stderr
+  warning `account_not_read_only`; a failed run reports only its error
+  (OQ-A in § 6).
 - **Fractional seconds.** Timestamps are parsed to epoch milliseconds for
   ordering and for `--since`. Times less than a millisecond apart order by
   id (§ 5.3). An unparseable timestamp is `Error.Decode`.
@@ -880,11 +950,10 @@ timeout on each request.
 <!-- doctrine:section sec-10 -->
 ## 6. Open Questions & Unknowns
 
-- **OQ-A: should a non-read-only account fail closed?** The design records
-  `isReadOnly` and warns. It is unverified whether Fastmail reports
-  `isReadOnly: true` for a "Read-only access" token (F2, host check 9). The
-  live run will show it. If it does, the operator may want a later change
-  that refuses to sync when the value is `false`.
+- **OQ-A: should a non-read-only account fail closed?** Settled
+  (operator, 2026-10-27). The live run observed `isReadOnly: true` for the
+  read-only token. M1 keeps record-and-warn; refusing to sync on `false` is
+  the chosen later change, IMP-001.
 - **ASM-003's negative probe** (RV-001 F-13, F-21). From inside each class
   of jail that holds model output, attempt to connect to
   `@1PASSWORD_SDK_INTERGATIONS` and record the jail's groups and
@@ -892,12 +961,13 @@ timeout on each request.
   criterion. The exposure predates Screwtape, which calls `op` only at
   provisioning, so it does not gate this slice. Host check 8 (which socket
   `op` uses) still helps, but only identifies the endpoint.
-- **Lingering.** Without it, the timer runs only while the operator is
-  logged in, and `Persistent=true` catches up at the next login. Whether to
-  enable it is a host choice in `~/flakes`.
+- **Lingering.** Settled for now (operator, 2026-10-26): not enabled. The
+  timer runs only while the operator has a session, and `Persistent=true`
+  catches up at the next login. Changing it is a host choice in `~/flakes`.
 - **Fastmail rate limits** are undocumented (F5). Failing without a retry is
-  the M1 answer. The live run will show whether a single sync of the default
-  window stays within the limits.
+  the M1 answer. The live acceptance sync (419 messages) stayed within them.
+  Server-clamped limits and `total` were not exercised, because no bound was
+  reached.
 - **RFC-020 OQ-11, the contract's form**, stays open for M3. This design
   keeps both forms possible:
   - CLI JSON carries a `version` envelope;
@@ -908,7 +978,7 @@ timeout on each request.
 - **Sync failures are silent.** A failing run shows only in the journal. A
   later change could add an `OnFailure=` notification. M1 doesn't need one.
 - **The exact library versions** (`gleam_time`, `htmgrrrl`, `sqlight`/
-  esqlite) are pinned in `manifest.toml` in plan phase 1.
+  esqlite): closed. `manifest.toml` pins them (plan phase 1).
 
 <!-- doctrine:section sec-11 -->
 ## 7. Decisions, Rationale & Alternatives
@@ -1017,12 +1087,12 @@ ceiling:
 
 | Invariant | Evidence | Kind |
 |---|---|---|
-| I1 token never leaks | A sentinel token runs through each failure: 401, 403, 429, 500, a timeout, malformed JSON, a method error, an oversized response, and a crash forced inside the client. Each case runs as a subprocess of the built shipment against `local_jmap`. The sentinel must be absent from that subprocess's stdout and stderr, from the inspected errors, and from a `.dump` of the store. `module-eval` asserts `LimitCORE=0` and `ERL_CRASH_DUMP_SECONDS=0`. Provisioning is a short shell pipe, checked by review against the gateway's procedure. | unit, subprocess, eval, review |
+| I1 token never leaks | A sentinel token runs through each failure: 401, 403, 429, 500, a timeout, malformed JSON, a method error, an oversized response, and a crash in a frame holding the revealed token. The failure cases run as subprocesses of the built shipment against `local_jmap`, trusting its per-run CA through `ca_file`. httpc offers no crash trigger (DEC-019), so the crash case runs inside the shipment: the real `credential.read` and `bearer`, under the real `silence_logger` and `guard`, raise with the revealed header in the term, once as an error and once as a linked exit. The same run without `guard`, and with the default logger, must print the sentinel (the control). The sentinel must be absent from that subprocess's stdout and stderr, from the inspected errors, and from a `.dump` of the store. `module-eval` asserts `LimitCORE=0` and `ERL_CRASH_DUMP_SECONDS=0`. Provisioning is a short shell pipe, checked by review against the gateway's procedure. | unit, subprocess, eval, review |
 | I2 a failed run changes nothing | Failures injected at the session, `Mailbox/get`, each phase-1 page, `Email/get`, `Thread/get` and an insert, plus one run with a pending migration that then fails before its commit. The store's `.dump` and `PRAGMA user_version` are unchanged. A failing migration rolls back too. | unit |
 | I3 the store is exactly the snapshot | A repeated run gives identical rows. A message leaving the window is removed. A `queryState` change restarts phase 1, and a third change fails with the store unchanged. Each id is requested exactly once, checked on the recorded wire requests. `notFound` ids are left out. | unit |
 | I4 no silent bound | Server-truncated parts are marked `server`. Two parts that each fit but together exceed `max_body_bytes` (plain, and HTML after conversion) are marked `message_limit`, cut at a UTF-8 boundary. `max_pages`, `max_total_bytes` (the transport proof above) and `QueryUnstable` fail the run. | unit |
-| I5 no fetch from HTML | `just check-imports`, which runs in the `gleam-test` check, enforces an allowlist of import edges (RV-001 F-24). `model` may import only modules of the `gleam_stdlib` package. `html_text` may also import `htmgrrrl`. `normalise` may also import `screwtape/model` and `screwtape/html_text`. The check resolves each import to its package from the build's package directories, so a `gleam/*` module from an effectful package such as `gleam_erlang` is not mistaken for stdlib. The same three modules may contain no `@external` attribute, so they can't reach Erlang directly either (RV-001 F-30). A conforming fixture must pass. A fixture whose `normalise` imports `gleam/erlang/process` must fail, and so must one whose `html_text` declares an `@external`. | structural |
-| I6 only four JMAP methods | `Method` is a closed type; a test checks `method_name` over all four variants. `check-imports` also fails if any module other than `jmap/request` builds an invocation. | type, structural |
+| I5 no fetch from HTML | `just check-imports`, which runs in the `gleam-test` check, enforces an allowlist of import edges (RV-001 F-24). Six modules are governed. `model` and `utf8` may import only modules of the `gleam_stdlib` package. `html_text` may also import `screwtape/html_sax`. `normalise` may also import `screwtape/model`, `screwtape/html_text` and `screwtape/utf8`. `render` may also import `screwtape/model`, `screwtape/utf8` and `gleam_json`. `html_sax` may import `gleam_stdlib` and `htmgrrrl`. `gleam/io` is denied even though it is stdlib. The check resolves each import to its package from the build's package directories, so a `gleam/*` module from an effectful package such as `gleam_erlang` is not mistaken for stdlib. Only `html_sax` may contain an `@external` attribute, and only one that targets `screwtape_html_ffi` (RV-001 F-30, DEC-020). That Erlang module is checked through its compiled beam's import table, not its text: it may call only `htmgrrrl_ffi:sax/3`. A conforming fixture must pass. A fixture whose `normalise` imports `gleam/erlang/process` must fail, and so must one whose `html_text` declares an `@external`. | structural |
+| I6 only four JMAP methods | `Method` is a closed type; a test checks `method_name` over all four variants. `check-imports` also fails if any module other than `jmap/request` holds a method-name literal or `"methodCalls"`. It sees whole literals only, so a concatenated name is an accepted residual; the closed `Method` and opaque `Invocation` are the primary guard. | type, structural |
 | I7 only the operator's uid reads the store; jails can't, under I7's launch condition | `module-eval` asserts `StateDirectory = "screwtape"`, `StateDirectoryMode = "0700"`, `UMask = "0077"`, and a `store_path` under `xdg.stateHome`. After deployment, a smoke check runs `stat` on the store and its `-wal` and `-shm` files. The jail side has no test in this repo: it rests on the jail launcher (outside this repo) and on the accepted launch condition (RV-001 F-27). | eval, deploy |
 | I8 one snapshot per read | `read` runs its first query, pauses on an injected hook, and lets a second connection commit a new snapshot. When `read` resumes, its output must be wholly old. | unit |
 | I9 runs never overlap | `module-eval` asserts that the unit is `Type=oneshot` and that the wrapper passes only `--config`. A `sync` run outside the unit fails with `Error.Credential` (cli test). Two writers committing in reverse fetch order isn't a supported path, so it isn't tested. | eval, unit |
@@ -1033,8 +1103,9 @@ ceiling:
 - **config:** rejects an empty mailbox list, a window with neither
   `max_age_days` nor `max_messages`, a non-positive number and a non-https
   URL.
-- **credential:** a missing file, an empty file and a readable file. The
-  `inspect` of a `Token` does not contain the secret.
+- **credential:** a missing file, an empty file, a file holding a control
+  byte, and a readable file. The `inspect` of a `Token` does not contain the
+  secret.
 - **jmap/request:** the query filter for one mailbox, for several mailboxes,
   and with `after`. `limit` reflects the remaining count and the clamped
   limit.
@@ -1044,12 +1115,14 @@ ceiling:
   - request-level problem documents and method-level `error` responses;
   - malformed JSON and missing fields, which give `Decode` with a path.
 - **html_text:**
-  - script, style and head are dropped;
+  - script, style and head are dropped (lowercase tags; § 5.5 states the
+    uppercase exception);
   - block elements and `br` become newlines, `li` a bullet, `img` its alt;
   - links become inert text;
   - entities are decoded;
   - truncated mid-tag input still yields text;
-  - unparseable input sets `conversion_failed`.
+  - unparseable input, and input that makes htmerl raise, set
+    `conversion_failed`.
 - **normalise:** a multipart/alternative message keeps its text part, and an
   HTML-only message is converted. `isEncodingProblem` is carried through.
   `Message-ID` lists are kept separate. Membership in several mailboxes is
@@ -1122,14 +1195,16 @@ ceiling:
 |---|---|
 | `gleam.toml`, `manifest.toml` | new: the package `screwtape`, its dependencies (`gleam_stdlib`, `gleam_http`, `gleam_json`, `sqlight`, `htmgrrrl`, `argv`, `gleam_time`, `gleam_erlang`), the dev dependency `gleeunit`, and pinned checksums |
 | `src/screwtape.gleam` | new: `main` |
-| `src/screwtape/{cli,config,credential,model,normalise,html_text,sync,store,error,render}.gleam` | new: the modules in § 5.1 |
+| `src/screwtape/{cli,argv,config,file,credential,model,normalise,utf8,html_text,html_sax,sync,store,error,render}.gleam`, `src/screwtape/store/{query,codec}.gleam` | new: the modules in § 5.1 |
 | `src/screwtape/jmap/{request,decode,client}.gleam` | new: the thin JMAP client |
 | `src/screwtape_ffi.erl` | new: `halt/1` with flush, `silence_logger/0`, `guard/1` |
 | `src/screwtape_http.erl` | new: the byte-capped `Send` over OTP `httpc` and `ssl`, with `max_body_size`, no `autoretry` and no `autoredirect` |
+| `src/screwtape_html_ffi.erl` | new (DEC-020): calls `htmgrrrl_ffi:sax/3` inside try/catch; any exception becomes `Error(Nil)` |
 | `test/**` | new: gleeunit tests, the `fixture_send` and `local_jmap` helpers, `test/fixtures/*.json` |
 | `nix/package.nix` | new: the nix-gleam build (rebar3 with `pc`), the erlang-shipment, and a check that runs `gleam test` |
 | `nix/module.nix` | new: `homeManagerModules.default`, providing the options, user service, timer, hardening, config file, wrapper and `screwtape-provision` |
-| `flake.nix` | add the `nix-gleam` and `home-manager` inputs (the latter for `module-eval` only, with `nixpkgs.follows`), `packages.screwtape`, `homeManagerModules.default`, `checks.{gleam-test,module-eval}`; the devshell keeps its toolchain |
+| `flake.nix` | add the `nix-gleam` and `home-manager` inputs (the latter for `module-eval` only, with `nixpkgs.follows`), `packages.screwtape`, `homeManagerModules.default`, `checks.{gleam-test,module-eval}`; the devshell keeps its toolchain. `flake.lock` follows |
+| `.gitignore` | ignore `erl_crash.dump` |
 | `justfile` | add `test`, `fmt`, `check` and `check-imports` recipes |
 | `README.md` | what Screwtape is, its usage, provisioning, and the plaintext-at-rest note |
 

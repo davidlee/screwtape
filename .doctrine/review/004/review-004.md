@@ -164,3 +164,50 @@ waived by the operator at relock. It is concluded on that basis.
 
 - None. No finding bears on an ADR, policy, standard or spec. RFC-020
   drafts live in satan and are out of scope.
+
+## Reconciliation Outcome
+
+Operator approval: "agreed" (2026-10-27) to the drafted design.md edits and
+the selector changes, presented section by section.
+
+### Direct edits applied
+- design.md § 5.1: module diagram redrawn from the actual imports; table rows
+  for argv, file, utf8, html_sax, store/query, store/codec,
+  screwtape_html_ffi.erl; normalise owns the JMAP input records (DEC-021);
+  model's pure rules (F-5, F-16).
+- design.md § 5.2: configHome assertion, build-time config check, internal
+  `configFile` (F-13); `--max-bytes` prefix, list order, unknown-id usage
+  errors, null-printing, argv reason codes (F-11); credential control-byte
+  rule (F-16); crash premise corrected per DEC-019, guard under
+  spawn_monitor (F-8); opaque Client/Budget (F-16); `call` response order
+  (F-9); `sync.run(client, writer, bounds, now)` (F-10).
+- design.md § 5.3: descending ordering contract (F-11); `query_state` reuse
+  caveat (F-15).
+- design.md § 5.4: cli opens the session before `run` (F-10); provision
+  traps (F-13).
+- design.md § 5.5: I2 empty-v0 qualifier, isReadOnly warning on commit only,
+  Thread notFound uncounted, foreign mailbox → write_failed (F-12); partial-tag
+  trim and caught parser crashes (F-7); uppercase raw-text edge (F-17).
+- design.md § 6: OQ-A, lingering, library pins, rate limits settled (F-14).
+- design.md § 9: I1 crash case per DEC-019 (F-8); I5 six-module allowlist,
+  gleam/io denial, html_sax FFI rule, beam import check; I6 whole-literal
+  residual (F-6); credential and html_text cases (F-16, F-17).
+- design.md § 10: screwtape_html_ffi.erl, .gitignore and flake.lock rows;
+  full module list (F-2, F-3).
+- `doctrine design adopt` refused on the locked run ("at reconcile, edit
+  design.md directly and do not adopt"); followed.
+
+### Selector registry
+- Added (design-target): `src/screwtape_html_ffi.erl`, `flake.lock`,
+  `.gitignore` (F-2, F-3).
+- Removed: `nix/package.nix`, `nix/module.nix`, covered by `nix/**` (F-4).
+- `doctrine slice conformance 1`: undelivered 0; undeclared only
+  `.doctrine/**` records.
+
+### Code fix (audit, fix-now)
+- F-1: `ca_file:` label in the I1 suite (commit 1026e75).
+
+### REVs completed
+- None; the brief carried no governance/spec items.
+
+Reconcile pass complete — handoff to /close.

@@ -55,16 +55,6 @@ intent = "design-target"
 note = "SL-001 design § 10 Code Impact"
 
 [[selector]]
-selector = "nix/package.nix"
-intent = "design-target"
-note = "SL-001 design § 10 Code Impact"
-
-[[selector]]
-selector = "nix/module.nix"
-intent = "design-target"
-note = "SL-001 design § 10 Code Impact"
-
-[[selector]]
 selector = "justfile"
 intent = "design-target"
 note = "SL-001 design § 10 Code Impact"
@@ -78,6 +68,21 @@ note = "SL-001 design § 10 Code Impact"
 selector = "nix/**"
 intent = "design-target"
 note = "SL-001 plan PHASE-07 (module-eval check)"
+
+[[selector]]
+selector = "src/screwtape_html_ffi.erl"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact (RV-004 F-2, F-3)"
+
+[[selector]]
+selector = "flake.lock"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact (RV-004 F-2, F-3)"
+
+[[selector]]
+selector = ".gitignore"
+intent = "design-target"
+note = "SL-001 design § 10 Code Impact (RV-004 F-2, F-3)"
 
 # STRUCTURAL relations are uniform `[[relation]]` rows, never a typed
 # `[relationships]` axis. Slices carry no typed STRUCTURAL
