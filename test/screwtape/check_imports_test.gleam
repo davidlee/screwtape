@@ -25,6 +25,8 @@ const html_text_path = "src/screwtape/html_text.gleam"
 
 const normalise_path = "src/screwtape/normalise.gleam"
 
+const render_path = "src/screwtape/render.gleam"
+
 const html_sax_path = "src/screwtape/html_sax.gleam"
 
 const request_path = "src/screwtape/jmap/request.gleam"
@@ -67,6 +69,26 @@ pub fn prefix(text: String, budget: Int) -> String {
 }
 "
 
+const render_source =
+  "import gleam/json
+import gleam/option.{type Option, None, Some}
+import screwtape/model
+import screwtape/utf8
+
+pub fn envelope(kind: String, data: json.Json) -> String {
+  let _ = kind
+  let _ = data
+  \"\"
+}
+
+pub fn subject_prefix(message: model.Message) -> Option(String) {
+  case message.subject {
+    Some(text) -> Some(utf8.prefix(text, 10))
+    None -> None
+  }
+}
+"
+
 const html_sax_source =
   "import htmgrrrl
 
@@ -86,6 +108,7 @@ fn resolve(module: String) -> Result(Origin, Nil) {
   case module {
     "gleam/option" | "gleam/string" | "gleam/list" | "gleam/io" ->
       Ok(Package("gleam_stdlib"))
+    "gleam/json" -> Ok(Package("gleam_json"))
     "gleam/erlang/process" -> Ok(Package("gleam_erlang"))
     "htmgrrrl" -> Ok(Package("htmgrrrl"))
     "screwtape/model"
@@ -103,6 +126,7 @@ fn sources() -> List(#(String, String)) {
     #(utf8_path, utf8_source),
     #(html_text_path, html_text_source),
     #(normalise_path, normalise_source),
+    #(render_path, render_source),
     #(html_sax_path, html_sax_source),
   ]
 }

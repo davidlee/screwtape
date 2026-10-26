@@ -88,6 +88,12 @@ const rules = [
     NoExternal,
   ),
   Rule(
+    "src/screwtape/render.gleam",
+    ["screwtape/model", "screwtape/utf8"],
+    ["gleam_stdlib", "gleam_json"],
+    NoExternal,
+  ),
+  Rule(
     "src/screwtape/html_sax.gleam",
     [],
     ["gleam_stdlib", "htmgrrrl"],

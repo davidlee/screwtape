@@ -12,12 +12,20 @@
 //// layout.
 
 import gleam/bit_array
+import gleam/dict
+import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/string
+import screwtape/cli
 import screwtape/credential
+import screwtape/model
+import screwtape/store
+import sqlight
 import support/jmap_fixture
 import support/local_jmap
 import support/temp
@@ -196,4 +204,101 @@ pub fn error_kind(line: String) -> Result(String, Nil) {
       decode.run(document, decode.at(["error"], decode.string))
       |> result.map_error(fn(_) { Nil })
   }
+}
+
+// ---------------------------------------------------------------- read verbs
+
+/// A session URL the read verbs never contact: they need no network.
+const unused_session_url = "https://api.example.test/session"
+
+/// One temp directory holding a config file (`config_path`) whose store is
+/// `store_path`, beside it. Removing `dir` removes both.
+pub type ReadSetup {
+  ReadSetup(dir: String, store_path: String, config_path: String)
+}
+
+/// A config naming a store that does not exist yet.
+pub fn unseeded(prefix: String) -> ReadSetup {
+  let dir = temp.dir(prefix)
+  let store_path = dir <> "/mail.sqlite3"
+  let config_path = dir <> "/config.json"
+  temp.write(
+    config_path,
+    bit_array.from_string(config_text(unused_session_url, store_path, None)),
+  )
+  ReadSetup(dir, store_path, config_path)
+}
+
+/// A config naming a store that holds `snapshot`, committed by the real writer.
+pub fn seeded(prefix: String, snapshot: model.Snapshot) -> ReadSetup {
+  let setup = unseeded(prefix)
+  let assert Ok(writer) = store.open_writer(setup.store_path)
+  let assert Ok(Nil) = store.write_snapshot(writer, snapshot)
+  store.close_writer(writer)
+  setup
+}
+
+/// Run one statement on the store outside `screwtape/store`, as an operator or
+/// another binary would: how a test takes a store to an older or newer
+/// `user_version`.
+pub fn exec_sql(path: String, sql: String) -> Nil {
+  let assert Ok(connection) = sqlight.open(path)
+  let assert Ok(Nil) = sqlight.exec(sql, on: connection)
+  let assert Ok(Nil) = sqlight.close(connection)
+  Nil
+}
+
+/// Set the store's `PRAGMA user_version`, leaving its tables and rows.
+pub fn set_user_version(path: String, version: Int) -> Nil {
+  exec_sql(path, "PRAGMA user_version = " <> int.to_string(version))
+}
+
+/// The outcome's stdout as a decoded JSON document. A failure, or a stdout that
+/// is not JSON, crashes the test here with the outcome in the message.
+pub fn stdout_json(outcome: cli.Outcome) -> Dynamic {
+  let assert Some(text) = outcome.stdout as string.inspect(outcome)
+  stdout_text_json(text)
+}
+
+/// `text` (one stdout document, any trailing newline ignored) decoded as JSON.
+pub fn stdout_text_json(text: String) -> Dynamic {
+  let assert Ok(document) =
+    json.parse(string.trim_end(text), using: decode.dynamic)
+    as text
+  document
+}
+
+/// The value at `path` in `document`, decoded; `Error(Nil)` if it is absent or
+/// another type.
+pub fn field(
+  document: Dynamic,
+  path: List(String),
+  decoder: decode.Decoder(a),
+) -> Result(a, Nil) {
+  decode.run(document, decode.at(path, decoder))
+  |> result.replace_error(Nil)
+}
+
+/// The sorted keys of the object at `path`, so a case can pin a shape exactly.
+pub fn keys(
+  document: Dynamic,
+  path: List(String),
+) -> Result(List(String), Nil) {
+  field(
+    document,
+    path,
+    decode.dict(decode.string, decode.dynamic)
+      |> decode.map(fn(object) {
+        dict.keys(object) |> list.sort(string.compare)
+      }),
+  )
+}
+
+/// The `id` of every item in `data.items`, in order.
+pub fn item_ids(document: Dynamic) -> Result(List(String), Nil) {
+  field(
+    document,
+    ["data", "items"],
+    decode.list(decode.at(["id"], decode.string)),
+  )
 }
