@@ -38,6 +38,9 @@
       beamPackages.rebar3
       sqlite
       just
+      # sqlight's esqlite NIF compiles through rebar3's pc plugin.
+      gcc
+      gnumake
     ];
 
     # Delegates reach the model through the host LLM gateway on pi's key: the
@@ -54,6 +57,7 @@
       pi = jailLib.unjailed.pi;
       packages =
         toolchain
+        ++ [doctrine.packages.${system}.default]
         ++ (with pkgs; [bash findutils gnugrep gnused gawk ripgrep fd git]);
       env.LLM_GATEWAY_URL = gateway.url;
       secretEnv.LLM_GATEWAY_KEY = ''$(< "${gateway.keyFile}")'';
