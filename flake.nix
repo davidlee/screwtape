@@ -20,15 +20,22 @@
       url = "github:arnarg/nix-gleam";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # For checks.module-eval only: consumers bring their own Home Manager.
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {
+    self,
     nixpkgs,
     agents,
     jail-nix,
     quotient,
     doctrine,
     nix-gleam,
+    home-manager,
     ...
   }: let
     system = "x86_64-linux";
@@ -76,6 +83,8 @@
         (builtins.toJSON (jailLib.piGatewayConfig gateway.url gatewayModels));
     };
   in {
+    homeManagerModules.default = import ./nix/module.nix self;
+
     packages.${system} = {
       screwtape = screwtape false;
       default = screwtape false;
@@ -85,6 +94,9 @@
 
     checks.${system} = {
       gleam-test = screwtape true;
+      module-eval = import ./nix/module-eval.nix {
+        inherit self pkgs home-manager;
+      };
       quotient-forms = quotient.lib.checkFormFamily {
         inherit pkgs;
         family = formFamily;
