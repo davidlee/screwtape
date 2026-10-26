@@ -35,7 +35,8 @@ fresh-as-of: 2026-10-26 · PHASE-05 completed; slice status started; next PHASE-
 
 ### Open
 - Next: PHASE-06 read verbs (then 07 → 09; 08 independent)
-- **Operator decision pending (PHASE-05 review F1):** `type_state` Email/Thread come from the first Email/get/Thread/get, which run after phase 1; mail arriving in between advances the state past a message the id list lacks, so M2 `/changes` from it would miss that message. Proposed fix: `Email/get ids:[]` + `Thread/get ids:[]` before phase 1 (cheap; A9 already sends empty gets). Contradicts PHASE-05/EX-4 and design § 5.2 wording → needs a revision (REV) before changing code
+- PHASE-06 operator decisions (2026-10-26): `list` newest first (received_at_ms DESC, id DESC; reconcile design § 5.2/5.3 wording); unknown message/thread id → Usage, exit 2
+- ISS-001 (PHASE-05 review F1, type_state race): operator decided 2026-10-26 — fix within SL-001 after PHASE-06, before /audit; REV for design § 5.2 + PHASE-05/EX-4 first
 - M2 note (PHASE-05 D3): with `max_age_days`, `after` (in `filter_json`, part of the `query_state` key) changes every run, so a stored `query_state` row is never reusable by `queryChanges` as-is
 - Audit flags (PHASE-05): A9 empty gets on an empty window (operator accepted); A10/D4 warning only on a committed run; A13/D5 a failed first run leaves an empty v0 file; A14 `sync.run(client, writer, bounds, now)` refines the design signature (session runs in cli, so EX-5's session injection is a cli_test); review F5 accepted (a mailbox id outside Mailbox/get fails the commit as `write_failed`); N1 thread notFound uncounted
 - PHASE-09 live checks (PHASE-05 R5): server clamps/omits `limit`, `total` with `calculateTotal`, `ids: []` gets, Email/get answers every id
