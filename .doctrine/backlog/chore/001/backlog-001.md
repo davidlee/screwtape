@@ -59,6 +59,7 @@ Prerequisite for SL-001: the repo has no flake.
     `piGatewayConfig` but not the models. Design improvement: have the agents
     lib export the rendered pi `models.json`, which satan's family would also
     use.
+    Moved to `flakes:IMP-043` (2026-10-27).
   - **Approval is the operator's act:** the two `quotient allow …` record
     commands that the report prints.
   - **Hermetic `gleam test` under `nix flake check`** needs a Gleam/hex Nix
