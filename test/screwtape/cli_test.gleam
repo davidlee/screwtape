@@ -572,6 +572,7 @@ pub fn read_verb_named_usage_reasons_test() {
     #(["list", "--since", "2026/10/25"], "invalid_since"),
     #(["list", "--since", "2026-10-25T00:00:00Z"], "invalid_since"),
     #(["list", "--since", "yesterday"], "invalid_since"),
+    #(["list", "--from", ""], "invalid_from"),
     #(["list", "--mailbox", "Nope"], "unknown_mailbox"),
     #(["read", "acct-l-nope"], "unknown_message"),
     #(["thread", "acct-l-nope"], "unknown_thread"),
@@ -703,6 +704,34 @@ pub fn list_since_includes_the_midnight_boundary_test() {
   listed(["--since", "2026-10-26"]) |> should.equal([])
 }
 
+/// A2: `--since` rejects a day the calendar does not have, including 29
+/// February in a non-leap year, and accepts the real leap day.
+pub fn list_since_validates_the_calendar_test() {
+  let setup =
+    cli_fixture.seeded("cli-list-calendar", snapshot_fixture.listing())
+  let invalid =
+    list.map(["2026-02-30", "2026-02-29"], fn(date) {
+      #(date, read_verb(setup, ["list", "--since", date]))
+    })
+  let valid = read_verb(setup, ["list", "--since", "2024-02-29"])
+  temp.remove_dir(setup.dir)
+
+  list.each(invalid, fn(pair) {
+    let #(date, outcome) = pair
+    #(date, outcome.exit_code) |> should.equal(#(date, 2))
+    #(date, outcome.stdout) |> should.equal(#(date, None))
+    #(date, outcome.stderr)
+    |> should.equal(
+      #(date, [
+        "{\"level\":\"error\",\"error\":\"usage\",\"reason\":\"invalid_since\"}",
+      ]),
+    )
+  })
+
+  let document = expect_document(valid, "list")
+  cli_fixture.item_ids(document) |> should.equal(Ok(newest_first))
+}
+
 /// A3: `--from` is a case-insensitive substring of a `from` address's email or
 /// name — never a `To` or `Cc` — and `%` and `_` are literal.
 pub fn list_from_matches_from_addresses_only_test() {
@@ -758,6 +787,22 @@ pub fn list_limit_offset_and_flag_order_test() {
   cli_fixture.item_ids(combined) |> should.equal(Ok(listing_ids(["m5", "m1"])))
   cli_fixture.item_ids(expect_document(reordered, "list"))
   |> should.equal(Ok(listing_ids(["m5", "m1"])))
+}
+
+/// P-1 / O-F1: the largest `i64` is a legal offset (past the end, so an empty
+/// page); one more is not an integer this store can bind and is a `Usage`.
+pub fn list_offset_bounds_test() {
+  let setup = cli_fixture.seeded("cli-list-offset", snapshot_fixture.listing())
+  let too_large = read_verb(setup, ["list", "--offset", "9223372036854775808"])
+  let largest = read_verb(setup, ["list", "--offset", "9223372036854775807"])
+  temp.remove_dir(setup.dir)
+
+  expect_failure(too_large, "usage", 2)
+
+  let document = expect_document(largest, "list")
+  cli_fixture.field(document, ["data", "offset"], decode.int)
+  |> should.equal(Ok(9_223_372_036_854_775_807))
+  cli_fixture.item_ids(document) |> should.equal(Ok([]))
 }
 
 // ---------------------------------------------------------------- read
@@ -999,6 +1044,24 @@ pub fn thread_marks_in_store_entries_test() {
 }
 
 // ---------------------------------------------------------------- EX-3
+
+/// O-F3: a read verb leaves the store exactly as it found it: every row,
+/// index, schema line and `user_version` identical in the logical dump.
+pub fn read_verbs_leave_the_store_unchanged_test() {
+  let setup =
+    cli_fixture.seeded("cli-read-unchanged", snapshot_fixture.full("acct-a"))
+  let before = store_dump.dump(setup.store_path)
+  let outcomes =
+    list.map(read_verbs, fn(args) { #(args, read_verb(setup, args)) })
+  let after = store_dump.dump(setup.store_path)
+  temp.remove_dir(setup.dir)
+
+  list.each(outcomes, fn(pair) {
+    let #(args, outcome) = pair
+    #(args, outcome.exit_code) |> should.equal(#(args, 0))
+  })
+  after |> should.equal(before)
+}
 
 /// One argv per read verb, valid against `full("acct-a")`.
 const read_verbs = [

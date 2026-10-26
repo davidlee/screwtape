@@ -56,10 +56,21 @@ pub fn run(
   args: List(String),
   env: fn(String) -> Result(String, Nil),
 ) -> Outcome {
+  run_with(args, env, store.open_reader)
+}
+
+/// `run` with the read verbs' reader opener injected. Exposed so the I8 tests
+/// can hand every read verb a reader whose selects commit a new snapshot.
+@internal
+pub fn run_with(
+  args: List(String),
+  env: fn(String) -> Result(String, Nil),
+  open_reader: fn(String) -> Result(store.Reader, Error),
+) -> Outcome {
   case argv.parse(args) {
     Error(error) -> failure(error)
     Ok(argv.Command(path, verb)) ->
-      case dispatch(path, verb, env) {
+      case dispatch(path, verb, env, open_reader) {
         Ok(#(document, warnings)) -> Outcome(Some(document), warnings, 0)
         Error(error) -> failure(error)
       }
@@ -83,13 +94,15 @@ fn dispatch(
   path: String,
   verb: argv.Verb,
   env: fn(String) -> Result(String, Nil),
+  open_reader: fn(String) -> Result(store.Reader, Error),
 ) -> Result(#(String, List(String)), Error) {
+  let run_read = fn(query) { read_verb(path, open_reader, query) }
   case verb {
     argv.Sync -> sync(path, env)
-    argv.Mailboxes -> read_verb(path, mailboxes_document)
-    argv.List(args) -> read_verb(path, list_document(args))
-    argv.Read(id, max_bytes) -> read_verb(path, read_document(id, max_bytes))
-    argv.Thread(id) -> read_verb(path, thread_document(id))
+    argv.Mailboxes -> run_read(mailboxes_document)
+    argv.List(args) -> run_read(list_document(args))
+    argv.Read(id, max_bytes) -> run_read(read_document(id, max_bytes))
+    argv.Thread(id) -> run_read(thread_document(id))
   }
 }
 
@@ -97,10 +110,11 @@ fn dispatch(
 /// the reader closed before the result is inspected (I8).
 fn read_verb(
   path: String,
+  open_reader: fn(String) -> Result(store.Reader, Error),
   query: fn(store.Tx) -> Result(String, Error),
 ) -> Result(#(String, List(String)), Error) {
   use settings <- result.try(read_config(path))
-  use reader <- result.try(store.open_reader(settings.store_path))
+  use reader <- result.try(open_reader(settings.store_path))
   let outcome = store.read(reader, query)
   store.close_reader(reader)
   outcome |> result.map(fn(document) { #(document, []) })

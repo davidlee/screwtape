@@ -60,6 +60,10 @@ const write_failed = "write_failed"
 
 pub const read_failed = "read_failed"
 
+/// The `busy_timeout` every connection sets, in milliseconds (design § 5.5
+/// Contention).
+const busy_timeout_ms = 5000
+
 /// The schema version this binary reads and writes: the length of the
 /// migration chain.
 pub fn supported_version() -> Int {
@@ -91,8 +95,18 @@ pub fn open_writer(path: String) -> Result(Writer, Error) {
 /// and cannot be set inside a transaction, so it belongs here, before any.
 fn configure(connection: sqlight.Connection) -> Result(Nil, Error) {
   use _ <- result.try(exec("PRAGMA journal_mode=WAL", connection, open_failed))
-  use _ <- result.try(exec("PRAGMA busy_timeout=5000", connection, open_failed))
+  use _ <- result.try(busy_timeout(connection))
   exec("PRAGMA foreign_keys=ON", connection, open_failed)
+}
+
+/// Wait rather than fail at once when another connection holds the lock; the
+/// writer and every reader set the same timeout.
+fn busy_timeout(connection: sqlight.Connection) -> Result(Nil, Error) {
+  exec(
+    "PRAGMA busy_timeout=" <> int.to_string(busy_timeout_ms),
+    connection,
+    open_failed,
+  )
 }
 
 pub fn close_writer(writer: Writer) -> Nil {
@@ -498,15 +512,16 @@ fn insert(
 // Reading
 // ---------------------------------------------------------------------------
 
-/// Open the store read-only. A missing or never-written store is
-/// `no_snapshot`; any other version than `supported_version()` is
-/// `schema_mismatch`.
+/// Open the store read-only: `busy_timeout` 5 s, then the version check. A
+/// missing or never-written store is `no_snapshot`; any other version than
+/// `supported_version()` is `schema_mismatch`.
 pub fn open_reader(path: String) -> Result(Reader, Error) {
   open_reader_with(path, fn() { Nil })
 }
 
-/// `open_reader` with a hook every `select` calls once it has its rows.
-/// Exposed so the I8 test can commit a new snapshot between a read's queries.
+/// `open_reader` with a hook every `select` calls once it has its rows,
+/// whether the select succeeded or failed. Exposed so the I8 test can commit a
+/// new snapshot between a read's queries.
 @internal
 pub fn open_reader_with(
   path: String,
@@ -516,13 +531,20 @@ pub fn open_reader_with(
     sqlight.open(reader_uri(path)) |> result.map_error(open_read_error),
   )
 
-  case check_version(connection) {
+  case reader_ready(connection) {
     Ok(Nil) -> Ok(Reader(connection, after_select))
     Error(error) -> {
       let _ = sqlight.close(connection)
       Error(error)
     }
   }
+}
+
+/// A freshly opened reader's pragmas, then its version verdict. A failure here
+/// closes the connection in `open_reader_with`.
+fn reader_ready(connection: sqlight.Connection) -> Result(Nil, Error) {
+  use _ <- result.try(busy_timeout(connection))
+  check_version(connection)
 }
 
 pub fn close_reader(reader: Reader) -> Nil {

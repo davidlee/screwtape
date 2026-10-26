@@ -28,12 +28,14 @@ import gleam/erlang/process.{type Subject}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleeunit/should
+import screwtape/cli
 import screwtape/model.{
   type Message, type Snapshot, Address, Attachment, Body, From, Message,
   PlainText, Snapshot, To,
 }
 import screwtape/store
 import screwtape/store/query
+import support/cli_fixture
 import support/snapshot_fixture
 import support/temp
 
@@ -42,6 +44,71 @@ const account = "acct-a"
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+/// O-F2: each read verb through the CLI still serves the old_snapshot when a
+/// second_connection commits B during its read. These are regression guards:
+/// they pass while each verb runs all its queries inside one `store.read`.
+///
+/// They would fail if a verb split its queries across two `store.read` calls:
+/// the hook commits B after the first select of the first read, and the second
+/// `store.read` begins a fresh transaction whose snapshot is B. The verb's
+/// document would then mix A's first answer with B's later ones, differing
+/// from `expected`. `list` issues several selects (`mailboxes` for --mailbox,
+/// then `messages`), `read` assembles its relations from several selects, and
+/// `thread` reads the entries then each summary, so a split is visible in all
+/// three.
+pub fn cli_list_serves_one_snapshot_while_another_commits_test() {
+  cli_read_verb_serves_one_snapshot(
+    "cli-i8-list",
+    ["list", "--mailbox", "acct-l-mb1"],
+    "acct-l-m1",
+  )
+}
+
+pub fn cli_read_serves_one_snapshot_while_another_commits_test() {
+  cli_read_verb_serves_one_snapshot(
+    "cli-i8-read",
+    ["read", "acct-l-m1"],
+    "acct-l-m1",
+  )
+}
+
+pub fn cli_thread_serves_one_snapshot_while_another_commits_test() {
+  cli_read_verb_serves_one_snapshot(
+    "cli-i8-thread",
+    ["thread", "acct-l-th1"],
+    "acct-l-m1",
+  )
+}
+
+/// Run `args` over snapshot A without a hook, then with one whose every select
+/// commits B through a second_connection. The documented answer is A's; a
+/// plain run after it proves B is now the store's committed snapshot.
+fn cli_read_verb_serves_one_snapshot(
+  prefix: String,
+  args: List(String),
+  target_id: String,
+) -> Nil {
+  let old_snapshot = snapshot_fixture.listing()
+  let new_snapshot = rewritten(old_snapshot, target_id)
+  let setup = cli_fixture.seeded(prefix, old_snapshot)
+  let argv = ["--config", setup.config_path, ..args]
+
+  let expected = cli.run(argv, fn(_name) { Error(Nil) })
+  let actual =
+    cli.run_with(argv, fn(_name) { Error(Nil) }, fn(path) {
+      store.open_reader_with(path, commit_hook(path, new_snapshot, None))
+    })
+  let afterwards = cli.run(argv, fn(_name) { Error(Nil) })
+  temp.remove_dir(setup.dir)
+
+  expected.exit_code |> should.equal(0)
+  actual.exit_code |> should.equal(0)
+  actual.stderr |> should.equal([])
+  actual.stdout |> should.equal(expected.stdout)
+  afterwards.exit_code |> should.equal(0)
+  afterwards.stdout |> should.not_equal(expected.stdout)
+}
 
 pub fn read_serves_one_snapshot_while_another_commits_test() {
   let old_snapshot = snapshot_fixture.full(account)

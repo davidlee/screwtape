@@ -292,7 +292,10 @@ fn attachment_decoder() -> decode.Decoder(Attachment) {
 /// The whole message of one `message` row: its relations each in their own
 /// select, so one read serves one committed snapshot (I8).
 fn assemble_message(tx: store.Tx, row: MessageRow) -> Result(Message, Error) {
-  use keywords <- result.try(codec.keywords_from_json(row.keywords_json))
+  use keywords <- result.try(
+    codec.keywords_from_json(row.keywords_json)
+    |> result.replace_error(Store(store.read_failed)),
+  )
   use mailbox_ids <- result.try(mailbox_ids_of(tx, row.id))
   use header_ids <- result.try(header_ids_of(tx, row.id))
   use addresses <- result.try(addresses_of(tx, row.id))
@@ -439,7 +442,10 @@ fn address_rows(
 ) -> Result(List(Address), Error) {
   list.try_map(rows, fn(row) {
     let #(field, name, email) = row
-    use field <- result.try(codec.address_field_from_text(field))
+    use field <- result.try(
+      codec.address_field_from_text(field)
+      |> result.replace_error(Store(store.read_failed)),
+    )
     Ok(Address(field: field, name: name, email: email))
   })
 }
@@ -462,8 +468,14 @@ fn bodies_of(tx: store.Tx, message_id: String) -> Result(List(Body), Error) {
       conversion_failed,
       max_body_value_bytes,
     ) = row
-    use source <- result.try(codec.source_from_text(source_type))
-    use truncated_by <- result.try(codec.truncated_by_from_text(truncated_by))
+    use source <- result.try(
+      codec.source_from_text(source_type)
+      |> result.replace_error(Store(store.read_failed)),
+    )
+    use truncated_by <- result.try(
+      codec.truncated_by_from_text(truncated_by)
+      |> result.replace_error(Store(store.read_failed)),
+    )
     Ok(Body(
       part_id: part_id,
       source: source,
@@ -549,8 +561,9 @@ fn since_filter(
   }
 }
 
-/// A case-insensitive substring of a `From` address's email or name. `instr`
-/// keeps `%` and `_` literal, where `LIKE` would read them as wildcards.
+/// An ASCII case-insensitive substring (SQLite `lower`) of a `From` address's
+/// email or name. `instr` keeps `%` and `_` literal, where `LIKE` would read
+/// them as wildcards.
 fn from_filter(from: Option(String)) -> Option(#(String, List(sqlight.Value))) {
   case from {
     None -> None
@@ -595,9 +608,7 @@ const select_summaries_sql =
   "SELECT id, thread_id, received_at, received_at_ms, subject, preview,"
   <> " is_seen, is_flagged, has_attachment FROM message"
 
-const select_summary_sql =
-  "SELECT id, thread_id, received_at, received_at_ms, subject, preview,"
-  <> " is_seen, is_flagged, has_attachment FROM message WHERE id = ?"
+const select_summary_sql = select_summaries_sql <> " WHERE id = ?"
 
 const select_message_sql =
   "SELECT id, thread_id, blob_id, received_at, received_at_ms, sent_at,"

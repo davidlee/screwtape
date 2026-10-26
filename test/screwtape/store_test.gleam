@@ -389,6 +389,24 @@ pub fn open_reader_reads_the_fixture_message_ids_in_order_test() {
   result |> should.equal(Ok(sorted_message_ids(snapshot)))
 }
 
+/// P-2 / design § 5.5 Contention: a reader waits for a writer rather than
+/// failing at once, so it opens with `busy_timeout` 5000.
+pub fn reader_runs_with_busy_timeout_5000_test() {
+  let #(dir, path) = written(snapshot_fixture.full(account))
+  let result =
+    read_from(path, fn(tx) {
+      store.select(
+        tx,
+        "PRAGMA busy_timeout",
+        with: [],
+        expecting: decode.field(0, decode.int, decode.success),
+      )
+    })
+  temp.remove_dir(dir)
+
+  result |> should.equal(Ok([5000]))
+}
+
 /// VT-3: the reader opens read-only, so a write inside its transaction fails
 /// with `read_failed` and leaves the store as it was.
 pub fn a_read_transaction_refuses_a_write_with_read_failed_test() {

@@ -47,7 +47,8 @@ pub type ListArgs {
 }
 
 /// The page size and start `list` uses when no flag names them, and the range
-/// `--limit` and `--offset` accept (A5).
+/// `--limit` and `--offset` accept (A5): `--offset` reaches SQLite's signed
+/// 64-bit maximum, because a larger value cannot be bound.
 const default_limit = 50
 
 const default_offset = 0
@@ -55,6 +56,8 @@ const default_offset = 0
 const min_limit = 1
 
 const max_limit = 500
+
+const max_offset = 9_223_372_036_854_775_807
 
 /// The accepted command line: `--config <path> <verb> [args]`. Every other
 /// shape is a `Usage` whose reason is a fixed code, never an argument.
@@ -205,13 +208,7 @@ fn parse_list_flags(
             fn(flags, value) { ListFlags(..flags, since: Some(value)) },
             flags,
           )
-        "--from" ->
-          parse_text_flag(
-            rest,
-            flags.from,
-            fn(flags, value) { ListFlags(..flags, from: Some(value)) },
-            flags,
-          )
+        "--from" -> parse_from_flag(rest, flags)
         "--limit" ->
           parse_int_flag(
             rest,
@@ -224,12 +221,33 @@ fn parse_list_flags(
           parse_int_flag(
             rest,
             flags.offset,
-            fn(value) { value >= 0 },
+            offset_in_range,
             fn(flags, value) { ListFlags(..flags, offset: Some(value)) },
             flags,
           )
         _ -> usage("unknown_argument")
       }
+  }
+}
+
+/// `--offset` accepts only a value the store can bind: zero or more, up to
+/// `max_offset`.
+fn offset_in_range(value: Int) -> Bool {
+  value >= 0 && value <= max_offset
+}
+
+/// `--from` takes a non-empty text: an empty one selects nothing and is
+/// `Usage("invalid_from")`.
+fn parse_from_flag(
+  args: List(String),
+  flags: ListFlags,
+) -> Result(ListFlags, Error) {
+  use _ <- result.try(fresh(is_some(flags.from)))
+  use pair <- result.try(value_flag(args))
+  let #(value, rest) = pair
+  case value {
+    "" -> usage("invalid_from")
+    _ -> parse_list_flags(rest, ListFlags(..flags, from: Some(value)))
   }
 }
 
