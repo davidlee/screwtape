@@ -282,6 +282,10 @@ Nothing else is read from the environment, apart from systemd's
 - At least one of `max_age_days` and `max_messages` is set.
 - Every number is positive.
 - `session_url` is `https`.
+- `ca_file`, which is optional, is an absolute path. When it is set, the
+  transport trusts that CA bundle instead of the system CAs (DEC-018). Tests
+  point it at a CA generated per run; the module may point it at the Nix
+  `cacert` bundle.
 
 A failure is `Error.Config`, which exits with code 2.
 
@@ -421,8 +425,9 @@ options are:
   `Retry-After` without telling the caller. That would hide the first
   response's bytes from the budget and break the no-retry rule.
 - **`{autoredirect, false}`**, and the configured timeout.
-- **`ssl` options** `verify_peer`, with the system CA certificates from
-  `public_key:cacerts_get/0`.
+- **`ssl` options** `verify_peer` with hostname verification, trusting the
+  system CA certificates from `public_key:cacerts_get/0`, or `{cacertfile,
+  ca_file}` when the config sets `ca_file` (DEC-018).
 
 Every failure maps onto `HttpFailure`, discarding any term that could hold
 the request. `Send` returns any status, and `jmap/client` charges the body
@@ -917,6 +922,7 @@ The decisions are recorded as knowledge records, which you can read with
 | DEC-013 | satan's `op-unjailed` launcher scan | mandating `--unshare-net` |
 | DEC-014 | One `Error` type, diagnostics of type strings only | free-text errors containing response bodies |
 | DEC-015 | Amend the scope now; draft RFC-020 revisions; SPEC-002 at M3 | an SPEC-002 entry now |
+| DEC-018 | An optional `ca_file` replaces the system CAs; tests serve TLS from a CA generated per run | http allowed for loopback hosts; I1 tested in-process only |
 
 These choices were made while drafting, within the decisions above:
 
@@ -946,7 +952,7 @@ These choices were made while drafting, within the decisions above:
 |---|---|---|
 | The esqlite NIF won't build offline under nix-gleam (ASM-001) | medium / blocks the slice | Plan phase 1 builds it before any domain code. Fallback 1 is `ESQLITE_USE_SYSTEM` against nixpkgs `sqlite`. Fallback 2 is to consult. |
 | `halt` drops buffered stdout | low / truncated JSON | The phase 1 spike checks it; use `erlang:halt(Code, [{flush, true}])`. |
-| `httpc` has no CA bundle on NixOS | medium / every sync fails on TLS | The phase 1 spike checks it; pass `cacertfile` explicitly from the Nix `cacert` package if needed. |
+| `httpc` has no CA bundle on NixOS | medium / every sync fails on TLS | The phase 1 spike checks it; if needed, the module sets `ca_file` to the Nix `cacert` bundle (DEC-018). |
 | Fastmail rate limits or caps are lower than expected | low / failed runs | Batch sizes come from the session; there is one request at a time; the next tick is the retry. |
 | A token leaks through an error path or a crash report | low / high | `Token` wraps a closure; errors carry no requests or bodies; the logger is silenced and `main` guards against crashes; sentinel tests cover every error path and a forced crash (I1). |
 | BEAM fails under the user unit's hardening, or a user-scoped credential won't encrypt or decrypt (ASM-005) | medium / the first deploy fails | Validate in the deployment phase by inspecting the journal, and relax only the key that fails. |
@@ -970,9 +976,12 @@ through a fake `Send`, built by the test helper `fixture_send(script)`:
 - it records the requests it received, so tests can assert on the wire
   shape.
 
-A second helper, `local_jmap(script)`, serves the same fixtures from an OTP
-`inets` httpd on loopback, which the Nix build sandbox provides. Tests use
-it to exercise the production `screwtape_http` transport. Its script can
+A second helper, `local_jmap(script)`, serves the same fixtures over TLS
+on loopback, which the Nix build sandbox provides. Its CA and server
+certificate (SANs `localhost` and `127.0.0.1`) are generated per run by
+`public_key:pkix_test_data/1`, and tests set `ca_file` to that CA
+(DEC-018), so the production https checks stay in force. Tests use it to
+exercise the production `screwtape_http` transport. Its script can
 also send raw responses: a chosen status, a `Content-Length` or chunked
 framing, a body withheld before its end, and `Retry-After`. It counts the
 requests it receives.

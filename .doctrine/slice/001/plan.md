@@ -7,20 +7,22 @@ authored in the TOML. Use this for the plan's rationale and sequencing.
 
 ## Overview
 
-Nine phases. Seven build this repo bottom-up, from packaging to the
+Ten phases. Eight build this repo bottom-up, from packaging to the
 deployment module. One does the out-of-repo satan work. The last deploys
 through `~/flakes` and runs the live acceptance.
 
 ```text
 PHASE-01 packaging skeleton ─┐
                              ▼
-PHASE-02 transport proof + client + thin CLI   (RV-001 F-1, F-12, F-19, F-20)
+PHASE-02 HTTP transport proof                  (RV-001 F-12, F-19, F-20)
+                             ▼
+PHASE-10 client + thin CLI + token-leak suite  (RV-001 F-1, F-20 client half)
                              ▼
 PHASE-03 pure core + import check              (RV-001 F-9; ASM-002)
                              ▼
 PHASE-04 store                                 (RV-001 F-14, F-22)
                              ▼
-PHASE-05 sync orchestration                    (extends F-1; needs PHASE-02's proof)
+PHASE-05 sync orchestration                    (extends F-1; needs PHASE-02/10's proof)
                              ▼
 PHASE-06 read verbs                            (RV-001 F-15)
                              ▼
@@ -40,12 +42,20 @@ PHASE-01 and PHASE-02 retire both before any domain code depends on them. A
 failure in either changes the design, so it should surface while little is
 built on top.
 
-**PHASE-02 is the token path, whole.** RV-001 F-1 places the I1 sentinel
-suite in the phase that introduces the client and credential. That suite runs
-the built code as a subprocess, so PHASE-02 also needs `main`, `cli`,
-`config` and `error`. Its `sync` stops after `Mailbox/get`, and PHASE-05
-replaces that stub with the orchestration. A stub `sync` lives only on an
-undeployed branch of history; nothing deploys before PHASE-09.
+**The transport proof stands alone; the token path follows whole.** PHASE-02
+proves httpc's behaviour on the raw `Send`, so the riskiest empirical claims
+close before any client code exists (plan review, 2026-10-26). RV-001 F-1
+places the I1 sentinel suite in the phase that introduces the client and
+credential, and that suite runs the built code as a subprocess, so PHASE-10
+carries the client, `main`, `cli`, `config` and `error` together. Phase ids
+are immutable, so the split-off phase is PHASE-10, ordered after PHASE-02.
+PHASE-10's `sync` stops after `Mailbox/get`, and PHASE-05 replaces that stub
+with the orchestration. Nothing deploys before PHASE-09.
+
+**TLS in tests** (DEC-018). Production accepts only https, so `local_jmap`
+serves TLS from a CA generated per run, and tests set `ca_file` to it.
+PHASE-01/EX-7 proves that works inside the Nix sandbox before PHASE-02 builds
+on it.
 
 **Pure core before store before sync.** `normalise` and `html_text` don't
 depend on I/O, so they're quickest to test and they fix the model types that
@@ -67,16 +77,17 @@ finding inline.
 
 | Finding | Host phase | Criterion |
 |---|---|---|
-| F-1 crash reports | PHASE-02 | EX-8, extended by PHASE-05/EX-7 |
+| F-1 crash reports | PHASE-10 | EX-5, extended by PHASE-05/EX-7 |
 | F-9 per-message body bound | PHASE-03 | EX-3 |
 | F-12, F-19 oversized bodies | PHASE-02 | EX-3 |
-| F-20 hidden retry | PHASE-02 | EX-4 |
+| F-20 hidden retry | PHASE-02, PHASE-10 | PHASE-02/EX-4 (one request, capped), PHASE-10/EX-2 (surfaces as an error) |
 | F-14 migrations in the transaction | PHASE-04 | EX-3 |
 | F-22 newer schema refused | PHASE-04 | EX-4 |
 | F-15 one snapshot per read | PHASE-06 | EX-2 |
 
 Each control must also reject its named wrong implementation. PHASE-02/VA-1
-records that demonstration for the transport and crash controls. For the
+and PHASE-10/VA-1 record that demonstration for the transport and crash
+controls. For the
 others, the test's design does that work (for example, migrate-on-open would
 fail F-14's assertion directly).
 
@@ -91,23 +102,24 @@ fail F-14's assertion directly).
 
 ## Risks for the phase plans
 
-- **Forcing a crash inside the client** (PHASE-02/EX-8). The I1 suite needs
+- **Forcing a crash inside the client** (PHASE-10/EX-5). The I1 suite needs
   a crash in a frame that holds the revealed header, triggered in the built
   code with no test hook in production. Candidate triggers are a sentinel
   token with header-illegal bytes, or a response that httpc fails on. This is
   the phase's first unknown. If only a production hook would work, stop and
   /consult.
 - **Withholding a body end.** The transport proof needs exact control of
-  framing and timing. If inets httpd can't withhold the end of a body,
-  `local_jmap` serves raw responses over `gen_tcp`. That is a test-helper
-  detail and doesn't change the design.
+  framing and timing. PHASE-02/EX-2 states the capability, not the mechanism:
+  inets httpd if it can withhold the end of a body, raw `ssl` sockets
+  otherwise.
 - **Where raw JMAP types live** (PHASE-03). The import allowlist confines
   `normalise` to stdlib, `model` and `html_text`. So the decoded JMAP email
   type belongs in `model` or `normalise`, and `jmap/decode` imports it from
   there.
-- **PHASE-02's size.** It spans eight modules and two helpers. Its phase
-  sheet should split it into tasks in this order: transport, client, the CLI
-  edge, then I1.
+- **F-20's "charged to the Budget".** `call` returns an error on a 503 and
+  the run ends, so no later balance is observable. The criterion is read as:
+  the 503 body is received under the remaining-budget cap (PHASE-02/EX-4's
+  oversized 503), after exactly one request.
 
 ## Notes
 

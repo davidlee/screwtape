@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 18
+slug = "screwtape-trusts-an-optional-configured-ca-file-tests-serve-tls-from-a-per-run-generated-ca"
+title = "Screwtape trusts an optional configured CA file; tests serve TLS from a per-run generated CA"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-26"
+updated = "2026-10-26"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Design § 5.2 requires https for session_url and apiUrl and verifies peers against system CAs only, while § 9 runs the I1 sentinel suite as subprocesses of the built shipment against local_jmap on loopback. No seam let the built code trust a test CA (plan review, 2026-10-26)."
+choice = "config gains an optional ca_file (absolute path). When set, screwtape_http passes {cacertfile, ca_file} instead of {cacerts, public_key:cacerts_get()}; verify_peer and hostname verification are unchanged, and https stays mandatory for session_url and apiUrl. local_jmap serves TLS with a CA and server certificate (SANs localhost and 127.0.0.1) generated per run by public_key:pkix_test_data/1; tests write the CA PEM to a temporary directory and point ca_file at it. The Home Manager module may set ca_file to the Nix cacert bundle, which also serves as design § 8's empty-CA-store fallback."
+alternatives = ["http accepted for loopback hosts only", "I1 in-process only with an injected Send", "a host Caddy proxy with its own CA"]
+rationale = "Production never accepts a cleartext URL; the I1 subprocess suite exercises the real TLS path, including crashes in ssl frames that hold the header; one mechanism also retires the NixOS CA-store risk. Loopback http would put a cleartext exception in production code; in-process I1 weakens RV-001 F-1's control; a host Caddy is unreachable from the Nix build sandbox and still needs the CA trusted."
+consequences = ["Design § 5.2 (config example and checks, production Send ssl options), § 7 (decision table), § 8 (CA risk row) and § 9 (local_jmap serves TLS) change", "Plan PHASE-01 checks TLS from a generated CA on loopback inside the sandbox"]
+decided_by = "agent proposal; operator choice (david)"
+decided_on = "2026-10-26"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

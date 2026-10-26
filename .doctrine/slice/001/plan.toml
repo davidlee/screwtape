@@ -30,22 +30,23 @@ name      = "Packaging walking skeleton"
 objective = "Prove the toolchain end to end before any domain code (DEC-005, ASM-001): a Gleam package with the full design § 10 dependency set builds offline under nix-gleam into an erlang-shipment, gleam test runs inside nix flake check, and the main/FFI edge (halt flush, silenced logger, guard) and httpc TLS work on this host."
 entrance_criteria = [
   { id = "EN-1", text = "CHR-001's flake (devshell, quotient forms, quotient-forms check) is on main and `nix flake check` passes; its open quotient-pin swap does not block this phase." },
-  { id = "EN-2", text = "SL-001 design run dr-01a17546 is locked (rev 102)." },
+  { id = "EN-2", text = "SL-001 design run dr-01a17546 is locked, including the DEC-018 amendment (optional ca_file; local_jmap over TLS)." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "gleam.toml and manifest.toml declare the design § 10 dependency set (gleam_stdlib, gleam_http, gleam_json, sqlight, htmgrrrl, argv, gleam_time, gleam_erlang; dev gleeunit) with exact versions and checksums pinned; this closes design § 6 'library versions'." },
   { id = "EX-2", text = "`nix build .#screwtape` (nix/package.nix, nix-gleam, rebar3 with pc) builds the esqlite NIF in the sandbox with no network and yields an erlang-shipment whose bin entry runs. If the vendored NIF fails, fallback 1 (ESQLITE_USE_SYSTEM against nixpkgs sqlite) is taken; if that fails, stop and /consult (design § 8)." },
   { id = "EX-3", text = "`checks.gleam-test` runs `gleam test` offline under `nix flake check`, including a sqlight round trip on a temporary file." },
   { id = "EX-4", text = "src/screwtape_ffi.erl provides halt/1 (erlang:halt with flush), silence_logger/0 and guard/1. A subprocess test shows a large stdout document written immediately before halt arrives whole, and that guard turns a raised exception into exactly the stderr line {\"level\":\"error\",\"error\":\"internal\"} with exit 1." },
-  { id = "EX-5", text = "httpc verifies a real https host (verify_peer with public_key:cacerts_get/0) from the built code on this NixOS host; if the system CA store is empty, an explicit cacertfile from Nix cacert is adopted and the choice recorded in notes (design § 8)." },
+  { id = "EX-5", text = "httpc verifies a real https host (verify_peer with public_key:cacerts_get/0) from the built code on this NixOS host; if the system CA store is empty, ca_file pointing at the Nix cacert bundle is the production default (DEC-018) and the choice is recorded in notes (design § 8)." },
   { id = "EX-6", text = "justfile gains test, fmt and check recipes; `gleam format --check` and `gleam build` are warning-free." },
-  { id = "EX-7", text = "Under `nix flake check`, a gleam test starts an OTP server on loopback and reaches it with httpc, and spawns the built code as a subprocess. The local_jmap helper and the I1 subprocess suite of PHASE-02 depend on both; if the sandbox refuses either, stop and /consult." },
+  { id = "EX-7", text = "Under `nix flake check`, a gleam test generates a CA and server certificate (SANs localhost, 127.0.0.1) with public_key:pkix_test_data/1, serves TLS on loopback, and reaches it with httpc using verify_peer and cacertfile (DEC-018); and it spawns the built code as a subprocess. local_jmap (PHASE-02) and the I1 subprocess suite (PHASE-10) depend on both; if the sandbox refuses either, stop and /consult." },
 ]
 verification = [
   { id = "VT-1", expects = "sqlight opens a temporary file, writes a row and reads it back", test_file = "test/screwtape/skeleton_test.gleam", keywords = ["sqlight", "round_trip"], waived = false },
   { id = "VT-2", expects = "subprocess runs of the built code: large stdout survives halt; guard yields the internal error line and exit 1", test_file = "test/screwtape/ffi_test.gleam", keywords = ["halt", "guard", "internal"], waived = false },
   { id = "VT-3", expects = "the Nix package builds the shipment with rebar3/pc and its check runs gleam test", test_file = "nix/package.nix", keywords = ["gleam test", "rebar3"], waived = false },
-  { id = "VT-4", expects = "inside the Nix check, a loopback server answers httpc and a subprocess of the built code runs", test_file = "test/screwtape/skeleton_test.gleam", keywords = ["loopback", "subprocess"], waived = false },
+  { id = "VT-4", expects = "inside the Nix check, a loopback TLS server with a generated CA answers verified httpc, and a subprocess of the built code runs", test_file = "test/screwtape/skeleton_test.gleam", keywords = ["loopback", "pkix_test_data", "cacertfile", "subprocess"], waived = false },
+  { id = "VT-5", expects = "the manifest pins the design § 10 dependencies", test_file = "manifest.toml", keywords = ["sqlight", "htmgrrrl", "gleam_time", "gleam_json", "argv"], waived = false },
   { id = "VA-1", text = "ASM-001 is settled through `doctrine knowledge` with the observed outcome (vendored NIF, fallback 1, or consult)." },
   { id = "VA-2", text = "The TLS check of EX-5 was run from the devshell against a real host (network; outside the sandbox) and its result is in notes." },
 ]
@@ -54,32 +55,48 @@ requirements = []
 
 [[phase]]
 id        = "PHASE-02"
-name      = "Transport proof and JMAP client"
-objective = "Build the token path end to end and prove the byte ceiling empirically before anything relies on it: the production Send over httpc, the Budget-enforcing client, credential, config, error, request/decode for the session and Mailbox/get, and a thin CLI whose `sync` reaches Mailbox/get, with the I1 sentinel suite."
+name      = "HTTP transport proof"
+objective = "Prove the byte ceiling and the no-retry rule empirically on the production Send, before anything relies on them (RV-001 F-12, F-19, F-20): screwtape_http over httpc, and the local_jmap TLS test server."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-01 exit criteria hold: the shipment builds offline and `checks.gleam-test` runs." },
+  { id = "EN-1", text = "PHASE-01 exit criteria hold: the shipment builds offline, `checks.gleam-test` runs, and loopback TLS from a generated CA works in the sandbox (PHASE-01/EX-7)." },
 ]
 exit_criteria = [
-  { id = "EX-1", text = "src/screwtape_http.erl makes one synchronous httpc:request/4: {max_body_size, Cap} in Options; {autoretry, 0}, {autoredirect, false} and the timeout in HttpOptions; ssl verify_peer with system CAs. Every failure maps onto HttpFailure (Timeout, ConnectFailed, TlsFailed, BadUtf8, TooLarge) and keeps no term that could hold the request (design § 5.2, RV-001 F-29 option placement)." },
-  { id = "EX-2", text = "Test helpers exist: fixture_send(script), which matches by method and position, honours its byte cap and records requests; and local_jmap(script), an inets httpd on loopback that serves fixtures and raw responses (chosen status, Content-Length or chunked framing, a withheld body end, Retry-After) and counts requests." },
-  { id = "EX-3", text = "Transport proof, oversized error bodies (RV-001 F-12, F-19): from local_jmap, a fixed-length 500 and a chunked 500, each over the cap with its terminal bytes withheld, yield TooLarge while local_jmap is still withholding. The test must fail a buffer-then-check adapter (plain gleam_httpc, or httpc without max_body_size)." },
-  { id = "EX-4", text = "Transport proof, no hidden retry (RV-001 F-20): a 503 with Retry-After: 0 reaches jmap/client as a failure, local_jmap counts exactly one request, and the 503 body is charged to the Budget. The test must fail an adapter left at OTP's default autoretry." },
-  { id = "EX-5", text = "Transport proof, exhausted budget (RV-001 F-29): with 0 bytes left, the next call fails with LimitExceeded(\"max_total_bytes\") and local_jmap counts no request." },
-  { id = "EX-6", text = "credential (opaque Token, read, bearer as the only reveal), config.parse (§ 5.2 checks), error (one Error type, type-string diagnostics), jmap/request (closed Method of the four calls; session and Mailbox/get bodies with the core and mail `using`), jmap/decode (session incl. apiUrl https, primary mail account, maxObjectsInGet, maxCallsInRequest, isReadOnly; request-level problem documents; method-level errors; Decode with a path) and jmap/client (session/4, call/2 threading Budget). No let assert or panic in credential or jmap/client." },
-  { id = "EX-7", text = "src/screwtape.gleam and cli: main silences the logger and runs cli.run under guard; --config parsing; one stdout JSON envelope {version, kind, data}; stderr JSON lines; exit 0/1/2. `sync` reads the credential from $CREDENTIALS_DIRECTORY and runs the session and Mailbox/get only (orchestration lands in PHASE-05); run outside the unit it fails with Error.Credential (I9)." },
-  { id = "EX-8", text = "I1 sentinel suite (RV-001 F-1): a sentinel token runs through 401, 403, 429, 500, a timeout, malformed JSON, a method error, an oversized response and a crash forced inside the client, each as a subprocess of the built code against local_jmap; the sentinel is absent from stdout, stderr and every inspected Error. Any later phase that adds a token-holding code path extends this suite." },
+  { id = "EX-1", text = "src/screwtape_http.erl makes one synchronous httpc:request/4: {max_body_size, Cap} in Options; {autoretry, 0}, {autoredirect, false} and the timeout in HttpOptions; ssl verify_peer with hostname verification, trusting system CAs or {cacertfile, ca_file} when set (DEC-018). Every failure maps onto HttpFailure (Timeout, ConnectFailed, TlsFailed, BadUtf8, TooLarge) and keeps no term that could hold the request (design § 5.2, RV-001 F-29 option placement)." },
+  { id = "EX-2", text = "Test helper local_jmap(script) serves TLS on loopback from a CA generated per run (DEC-018), and can serve fixtures and raw responses: a chosen status, Content-Length or chunked framing, a body whose end is withheld until the test releases it, and Retry-After; it counts requests. Its mechanism (inets httpd or raw ssl sockets) is the implementer's choice." },
+  { id = "EX-3", text = "Oversized error bodies (RV-001 F-12, F-19): from local_jmap, a fixed-length 500 and a chunked 500, each over the cap with its terminal bytes withheld, make Send return TooLarge while local_jmap is still withholding. The test must fail a buffer-then-check adapter (plain gleam_httpc, or httpc without max_body_size)." },
+  { id = "EX-4", text = "No hidden retry (RV-001 F-20): a 503 with Retry-After: 0 comes back from Send as a 503 response after exactly one request; an oversized 503 with Retry-After: 0 fails TooLarge after exactly one request, so the 503 body is received under the remaining-budget cap. The test must fail an adapter left at OTP's default autoretry. (The client-side half, the 503 surfacing as a failure, is PHASE-10/EX-2.)" },
 ]
 verification = [
-  { id = "VT-1", expects = "fixed-length and chunked oversized 500s fail TooLarge while local_jmap withholds the body end", test_file = "test/screwtape/transport_test.gleam", keywords = ["fixed_length_500", "chunked_500", "TooLarge", "local_jmap"], waived = false },
-  { id = "VT-2", expects = "503 with Retry-After: 0 is one request, surfaces as a failure, and is charged to the budget", test_file = "test/screwtape/transport_test.gleam", keywords = ["retry_after", "request_count"], waived = false },
-  { id = "VT-3", expects = "an exhausted budget fails max_total_bytes without sending", test_file = "test/screwtape/jmap/client_test.gleam", keywords = ["max_total_bytes", "exhausted"], waived = false },
-  { id = "VT-4", expects = "the sentinel token never appears across every failure path and a forced crash, run as subprocesses", test_file = "test/screwtape/token_leak_test.gleam", keywords = ["sentinel", "local_jmap", "forced_crash"], waived = false },
-  { id = "VT-5", expects = "Method is closed: method_name over all four variants", test_file = "test/screwtape/jmap/request_test.gleam", keywords = ["method_name", "MailboxGet", "EmailQuery", "EmailGet", "ThreadGet"], waived = false },
-  { id = "VT-6", expects = "config rejects empty mailboxes, no window bound, non-positive numbers and non-https URLs", test_file = "test/screwtape/config_test.gleam", keywords = ["empty_mailboxes", "non_https", "non_positive"], waived = false },
-  { id = "VT-7", expects = "credential: missing, empty and readable file; inspect of a Token hides the secret", test_file = "test/screwtape/credential_test.gleam", keywords = ["inspect", "missing", "empty"], waived = false },
-  { id = "VT-8", expects = "decode: session with and without mail, problem documents, method errors, Decode paths on malformed input", test_file = "test/screwtape/jmap/decode_test.gleam", keywords = ["session", "problem", "isReadOnly"], waived = false },
-  { id = "VT-9", expects = "argv usage errors exit 2; sync outside the unit fails with Error.Credential", test_file = "test/screwtape/cli_test.gleam", keywords = ["exit_code", "CREDENTIALS_DIRECTORY"], waived = false },
-  { id = "VA-1", text = "Negative controls demonstrated and recorded in notes: the VT-1/VT-2 tests fail against a deliberately misconfigured adapter (no max_body_size; default autoretry), and the VT-4 forced crash prints the sentinel when run without guard/1 and with the logger at its default level. The demonstration code is not committed." },
+  { id = "VT-1", expects = "fixed-length and chunked oversized 500s fail TooLarge while local_jmap withholds the body end", test_file = "test/screwtape/transport_test.gleam", keywords = ["fixed_length_500", "chunked_500", "TooLarge", "local_jmap", "withhold"], waived = false },
+  { id = "VT-2", expects = "a 503 with Retry-After: 0 is one request, plain or oversized", test_file = "test/screwtape/transport_test.gleam", keywords = ["retry_after", "request_count", "oversized_503"], waived = false },
+  { id = "VA-1", text = "Negative controls demonstrated and recorded in notes: VT-1 fails against an adapter without max_body_size (or with it in the wrong option list), and VT-2 fails against one at OTP's default autoretry. The demonstration code is not committed." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-10"
+name      = "JMAP client, CLI edge and token-leak suite"
+objective = "Build the token path end to end on the proven transport: credential, config, error, request/decode for the session and Mailbox/get, the Budget-enforcing client, and a thin CLI whose `sync` reaches Mailbox/get, carrying the I1 sentinel suite (RV-001 F-1's placement: the phase that introduces the client and credential)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-02 exit criteria hold." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Test helper fixture_send(script) matches each request by method and position, honours its byte cap, and records the requests it received." },
+  { id = "EX-2", text = "Budget (RV-001 F-20, F-29): call passes the remaining budget as Send's cap and charges each body received; a non-2xx response, including the 503 of PHASE-02/EX-4, surfaces from call as an error, which ends the run. After 2xx responses spend the budget to 0, the next call fails with LimitExceeded(\"max_total_bytes\") and local_jmap counts no request." },
+  { id = "EX-3", text = "credential (opaque Token, read, bearer as the only reveal), config.parse (design § 5.2 checks, including optional absolute ca_file), error (one Error type, type-string diagnostics), jmap/request (closed Method of the four calls; session and Mailbox/get bodies with the core and mail `using`), jmap/decode (session incl. apiUrl https, primary mail account, maxObjectsInGet, maxCallsInRequest, isReadOnly; request-level problem documents; method-level errors; Decode with a path) and jmap/client (session/4, call/2 threading Budget). No let assert or panic in credential or jmap/client." },
+  { id = "EX-4", text = "src/screwtape.gleam and cli: main silences the logger and runs cli.run under guard; --config parsing; one stdout JSON envelope {version, kind, data}; stderr JSON lines; exit 0/1/2. `sync` reads the credential from $CREDENTIALS_DIRECTORY and runs the session and Mailbox/get only (orchestration lands in PHASE-05); run outside the unit it fails with Error.Credential (I9)." },
+  { id = "EX-5", text = "I1 sentinel suite (RV-001 F-1): a sentinel token runs through 401, 403, 429, 500, a timeout, malformed JSON, a method error, an oversized response and a crash forced inside the client, each as a subprocess of the built code against local_jmap over TLS (ca_file set to the per-run CA); the sentinel is absent from stdout, stderr and every inspected Error. Any later phase that adds a token-holding code path extends this suite." },
+]
+verification = [
+  { id = "VT-1", expects = "budget spent by 2xx bodies makes the next call fail max_total_bytes without sending; a 503 surfaces as an error", test_file = "test/screwtape/jmap/client_test.gleam", keywords = ["max_total_bytes", "exhausted", "request_count", "503"], waived = false },
+  { id = "VT-2", expects = "the sentinel token never appears across every failure path and a forced crash, run as subprocesses over TLS", test_file = "test/screwtape/token_leak_test.gleam", keywords = ["sentinel", "local_jmap", "forced_crash", "ca_file"], waived = false },
+  { id = "VT-3", expects = "Method is closed: method_name over all four variants", test_file = "test/screwtape/jmap/request_test.gleam", keywords = ["method_name", "MailboxGet", "EmailQuery", "EmailGet", "ThreadGet"], waived = false },
+  { id = "VT-4", expects = "config rejects empty mailboxes, a window with no bound, non-positive numbers, non-https URLs and a relative ca_file", test_file = "test/screwtape/config_test.gleam", keywords = ["empty_mailboxes", "no_window_bound", "non_https", "non_positive", "ca_file"], waived = false },
+  { id = "VT-5", expects = "credential: missing, empty and readable file; inspect of a Token hides the secret", test_file = "test/screwtape/credential_test.gleam", keywords = ["inspect", "missing", "empty"], waived = false },
+  { id = "VT-6", expects = "decode: session with and without mail, non-https apiUrl, problem documents, method errors, Decode paths on malformed input", test_file = "test/screwtape/jmap/decode_test.gleam", keywords = ["session", "problem", "isReadOnly", "apiUrl"], waived = false },
+  { id = "VT-7", expects = "argv usage errors exit 2; sync outside the unit fails with Error.Credential", test_file = "test/screwtape/cli_test.gleam", keywords = ["exit_code", "CREDENTIALS_DIRECTORY"], waived = false },
+  { id = "VA-1", text = "Negative control demonstrated and recorded in notes: the VT-2 forced crash prints the sentinel when run without guard/1 and with the logger at its default level. The demonstration code is not committed." },
 ]
 specs        = []
 requirements = []
@@ -89,7 +106,7 @@ id        = "PHASE-03"
 name      = "Pure core: model, html_text, normalise, import check"
 objective = "Build the pure modules that turn JMAP objects into the normalised model, enforce the per-message body bound, and prove structurally that they cannot do I/O."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-02 exit criteria hold (jmap/request exists, so the I6 structural check has its subject)." },
+  { id = "EN-1", text = "PHASE-10 exit criteria hold (jmap/request exists, so the I6 structural check has its subject)." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "ASM-002 settled: htmgrrrl's events suffice for the fold. If they do not, stop and /consult before writing a parser." },
@@ -102,8 +119,9 @@ exit_criteria = [
 verification = [
   { id = "VT-1", expects = "html_text cases of design § 9", test_file = "test/screwtape/html_text_test.gleam", keywords = ["script", "truncated", "conversion_failed", "entity"], waived = false },
   { id = "VT-2", expects = "cumulative per-message bound: second part cut at a UTF-8 boundary and marked message_limit; server truncation marked server", test_file = "test/screwtape/normalise_test.gleam", keywords = ["message_limit", "utf8", "server", "html"], waived = false },
-  { id = "VT-3", expects = "timestamp parsing and ms-then-id ordering", test_file = "test/screwtape/normalise_test.gleam", keywords = ["fractional", "00:00:00.500Z"], waived = false },
-  { id = "VT-4", expects = "check-imports recipe exists and runs in the gleam-test check against positive and negative fixtures", test_file = "justfile", keywords = ["check-imports"], waived = false },
+  { id = "VT-3", expects = "timestamp parsing and ms-then-id ordering", test_file = "test/screwtape/normalise_test.gleam", keywords = ["fractional", "00:00:00.500Z", "same_millisecond"], waived = false },
+  { id = "VT-4", expects = "check-imports runs inside the gleam-test check against positive and negative fixtures", test_file = "nix/package.nix", keywords = ["check-imports"], waived = false },
+  { id = "VT-5", expects = "normalise: multipart/alternative keeps text, HTML-only converted, isEncodingProblem carried, RFC 5322 id lists kept apart, several mailbox memberships, Unicode intact", test_file = "test/screwtape/normalise_test.gleam", keywords = ["multipart_alternative", "html_only", "is_encoding_problem", "in_reply_to", "references", "mailbox_ids", "unicode"], waived = false },
   { id = "VA-1", text = "The two negative check-imports fixtures were seen to fail the check, and the conforming one to pass, recorded in notes." },
 ]
 specs        = []
@@ -128,6 +146,7 @@ verification = [
   { id = "VT-1", expects = "pending migration then failure before commit leaves .dump and user_version unchanged", test_file = "test/screwtape/store_test.gleam", keywords = ["pending_migration", "user_version", "dump"], waived = false },
   { id = "VT-2", expects = "user_version + 1 with an unknown column fails schema_mismatch, store unchanged", test_file = "test/screwtape/store_test.gleam", keywords = ["schema_mismatch", "newer"], waived = false },
   { id = "VT-3", expects = "reader refuses missing and mismatched stores; repeat writes are idempotent; account change clears", test_file = "test/screwtape/store_test.gleam", keywords = ["no_snapshot", "open_reader", "identical"], waived = false },
+  { id = "VT-4", expects = "the schema carries the § 5.3 tables, indexes and pragmas, including received_at_ms", test_file = "src/screwtape/store.gleam", keywords = ["received_at_ms", "foreign_keys", "journal_mode", "busy_timeout", "user_version", "thread_email"], waived = false },
 ]
 specs        = []
 requirements = []
@@ -137,24 +156,26 @@ id        = "PHASE-05"
 name      = "Sync orchestration"
 objective = "The two-phase bounded sync of design § 5.2 and § 5.4: session, mailboxes, a coherent id list under one queryState, each id fetched once, threads, normalise, and one snapshot write; the CLI `sync` complete."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-02/EX-3, PHASE-02/EX-4 and PHASE-02/EX-5 (the transport proof) pass: this phase relies on the max_total_bytes ceiling." },
+  { id = "EN-1", text = "PHASE-02/EX-3, PHASE-02/EX-4 and PHASE-10/EX-2 (the transport proof and the client budget) pass: this phase relies on the max_total_bytes ceiling." },
   { id = "EN-2", text = "PHASE-03 and PHASE-04 exit criteria hold." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "jmap/request and decode cover Email/query (ids only; OR of inMailbox, with after when max_age_days is set; receivedAt descending; collapseThreads false; position; limit = messages still wanted), Email/get (model properties, fetchTextBodyValues, maxBodyValueBytes = max_body_bytes) and Thread/get, in chunks of maxObjectsInGet." },
   { id = "EX-2", text = "Phase 1 paging stops on a full window, a short page or position = total; a server-clamped limit is followed; paging past max_pages is LimitExceeded(\"max_pages\"). A queryState change restarts from position 0 at most twice; a third is Error.QueryUnstable with the store unchanged." },
   { id = "EX-3", text = "Phase 2 requests each id exactly once (asserted on fixture_send's recorded requests); notFound ids are left out and counted." },
-  { id = "EX-4", text = "type_state holds the earliest state per type (Mailbox from Mailbox/get, Email from the first Email/get, Thread from the first Thread/get); the query_state row holds the settled queryState." },
+  { id = "EX-4", text = "type_state holds the earliest state per type (Mailbox from Mailbox/get, Email from the first Email/get, Thread from the first Thread/get); the query_state row holds the settled queryState and the canCalculateChanges value of the Email/query response." },
   { id = "EX-5", text = "I2: failures injected at the session, Mailbox/get, each phase-1 page, Email/get, Thread/get and an insert each leave .dump and PRAGMA user_version unchanged. A max_total_bytes breach mid-run fails the run with the store unchanged." },
   { id = "EX-6", text = "I3: a repeated run gives identical rows; a message that leaves the window is removed. An unknown mailbox name is Error.Config (exit 2); an empty window commits; isReadOnly false records the value and warns on stderr." },
-  { id = "EX-7", text = "cli `sync` runs the whole orchestration and prints the summary envelope of design § 5.2. The I1 suite (PHASE-02/EX-8, RV-001 F-1) is extended to the full sync path, and the sentinel is also absent from the store's .dump." },
+  { id = "EX-7", text = "cli `sync` runs the whole orchestration and prints the summary envelope of design § 5.2. The I1 suite (PHASE-10/EX-5, RV-001 F-1) is extended to the full sync path, and the sentinel is also absent from the store's .dump." },
+  { id = "EX-8", text = "`just check` is green, including check-imports (I5, I6) over the new sync code." },
 ]
 verification = [
   { id = "VT-1", expects = "paging across three pages, short-page stop, clamped limit, max_pages", test_file = "test/screwtape/sync_test.gleam", keywords = ["max_pages", "clamped", "short_page"], waived = false },
   { id = "VT-2", expects = "queryState restarts and QueryUnstable leave the store unchanged; each id requested once; notFound excluded", test_file = "test/screwtape/sync_test.gleam", keywords = ["QueryUnstable", "notFound", "exactly_once"], waived = false },
   { id = "VT-3", expects = "I2 injected failures at every stage leave .dump and user_version unchanged", test_file = "test/screwtape/sync_test.gleam", keywords = ["inject", "dump", "user_version"], waived = false },
-  { id = "VT-4", expects = "earliest type_state; repeat run identical; window leaver removed; empty window commits", test_file = "test/screwtape/sync_test.gleam", keywords = ["type_state", "earliest", "empty_window"], waived = false },
+  { id = "VT-4", expects = "earliest type_state; repeat run identical; window leaver removed; empty window commits", test_file = "test/screwtape/sync_test.gleam", keywords = ["type_state", "earliest", "empty_window", "unknown_mailbox", "is_read_only"], waived = false },
   { id = "VT-5", expects = "the sentinel suite covers the full sync and the store dump", test_file = "test/screwtape/token_leak_test.gleam", keywords = ["sentinel", "dump"], waived = false },
+  { id = "VT-6", expects = "recorded wire arguments: Email/query filter for one mailbox, several (OR of inMailbox), with after; limit = remaining and after clamping; Email/get with fetchTextBodyValues and maxBodyValueBytes", test_file = "test/screwtape/jmap/request_test.gleam", keywords = ["inMailbox", "OR", "after", "limit", "fetchTextBodyValues", "maxBodyValueBytes"], waived = false },
 ]
 specs        = []
 requirements = []
@@ -170,10 +191,11 @@ exit_criteria = [
   { id = "EX-1", text = "render produces the {version: 1, kind, data} envelopes. mailboxes; list with --mailbox (id, role or name), --since, --from, --unread, --limit 1..500 default 50, --offset, ordered by received_at_ms then id; read with headers, the id lists, bodies and their flags, attachment metadata, provenance and --max-bytes setting output_truncated; thread with in_store false for messages outside the window." },
   { id = "EX-2", text = "One snapshot per read (RV-001 F-15, I8): read runs its first query, pauses on an injected hook while a second connection commits a new snapshot, and resumes; its output is wholly from the old snapshot. The test must fail per-query autocommit reads under WAL." },
   { id = "EX-3", text = "Each read verb on a missing store, an older schema and a newer one fails with Error.Store (no_snapshot or schema_mismatch) and exit 1." },
+  { id = "EX-4", text = "`just check` is green, including check-imports (I5, I6) over the new read code." },
 ]
 verification = [
   { id = "VT-1", expects = "a commit between a read's queries does not reach its output", test_file = "test/screwtape/read_snapshot_test.gleam", keywords = ["hook", "second_connection", "old_snapshot"], waived = false },
-  { id = "VT-2", expects = "list filters, limit bounds, offset; read --max-bytes; thread in_store; store errors exit 1", test_file = "test/screwtape/cli_test.gleam", keywords = ["--unread", "output_truncated", "in_store", "no_snapshot"], waived = false },
+  { id = "VT-2", expects = "list filters, limit bounds, offset; read --max-bytes; thread in_store; store errors exit 1", test_file = "test/screwtape/cli_test.gleam", keywords = ["--unread", "--since", "--from", "--offset", "--limit", "output_truncated", "in_store", "no_snapshot"], waived = false },
 ]
 specs        = []
 requirements = []
@@ -186,15 +208,17 @@ entrance_criteria = [
   { id = "EN-1", text = "PHASE-06 exit criteria hold (the CLI is complete)." },
 ]
 exit_criteria = [
-  { id = "EX-1", text = "nix/module.nix exports homeManagerModules.default: options for the op:// ref, window and bounds, OnCalendar (default *:0/15), TimeoutStartSec (default 5min) and MemoryMax (default 1G); screwtape.service Type=oneshot with StateDirectory=screwtape, StateDirectoryMode 0700, LoadCredentialEncrypted=fastmail:%E/credstore.encrypted/screwtape.fastmail, NoNewPrivileges, PrivateTmp, ProtectSystem=strict, ProtectHome=tmpfs, RestrictAddressFamilies, SystemCallFilter=@system-service, UMask=0077, LimitCORE=0, ERL_CRASH_DUMP_SECONDS=0; screwtape.timer with Persistent=true." },
+  { id = "EX-1", text = "nix/module.nix exports homeManagerModules.default: options for the op:// ref, window and bounds, ca_file (DEC-018; set to the Nix cacert bundle if PHASE-01/EX-5 found the system CA store empty), OnCalendar (default *:0/15), TimeoutStartSec (default 5min) and MemoryMax (default 1G); screwtape.service Type=oneshot with StateDirectory=screwtape, StateDirectoryMode 0700, LoadCredentialEncrypted=fastmail:%E/credstore.encrypted/screwtape.fastmail, NoNewPrivileges, PrivateTmp, ProtectSystem=strict, ProtectHome=tmpfs, RestrictAddressFamilies, SystemCallFilter=@system-service, UMask=0077, LimitCORE=0, ERL_CRASH_DUMP_SECONDS=0; screwtape.timer with Persistent=true." },
   { id = "EX-2", text = "The generated JSON config takes store_path from xdg.stateHome, and the module asserts that xdg.stateHome is the default (RV-001 F-31). The screwtape wrapper only adds --config and execs the binary (DEC-017). screwtape-provision pipes op read --no-newline into systemd-creds encrypt --user to a staged file, moves it into place only if both succeed, otherwise removes it, then starts the service once and reports the result." },
-  { id = "EX-3", text = "flake.nix gains the home-manager input (nixpkgs.follows) and checks.module-eval, which evaluates the module in a minimal Home Manager configuration without a VM and asserts every EX-1 key, the config, Type=oneshot and the wrapper's arguments (I7, I9 eval halves); a customised xdg.stateHome fails evaluation; the module source contains no /home/ (NF-006)." },
+  { id = "EX-3", text = "flake.nix gains the home-manager input (nixpkgs.follows) and checks.module-eval, which evaluates the flake output self.homeManagerModules.default (not the file path) in a minimal Home Manager configuration without a VM and asserts every EX-1 key, the config, Type=oneshot and the wrapper's arguments (I7, I9 eval halves); a customised xdg.stateHome fails evaluation; the module source contains no /home/ (NF-006)." },
   { id = "EX-4", text = "README: what Screwtape is, the CLI, provisioning, `sync` as service-only, and the plaintext-at-rest note (DEC-016)." },
   { id = "EX-5", text = "Hygiene: `gleam format --check`, a warning-free `gleam build`, and `nix flake check` all clean, the 'unknown flake output homeManagerModules' warning excepted (RV-001 F-31)." },
 ]
 verification = [
-  { id = "VT-1", expects = "module-eval asserts the hardening keys, crash-dump closure, state directory mode and credential load", test_file = "nix/module-eval.nix", keywords = ["ProtectHome", "LimitCORE", "ERL_CRASH_DUMP_SECONDS", "StateDirectoryMode", "LoadCredentialEncrypted"], waived = false },
+  { id = "VT-1", expects = "module-eval asserts the hardening keys, crash-dump closure, state directory mode and credential load", test_file = "nix/module-eval.nix", keywords = ["homeManagerModules", "oneshot", "--config", "ProtectHome", "LimitCORE", "ERL_CRASH_DUMP_SECONDS", "StateDirectoryMode", "LoadCredentialEncrypted", "MemoryMax", "OnCalendar"], waived = false },
+  { id = "VT-2", expects = "a customised xdg.stateHome fails evaluation (the negative case)", test_file = "nix/module-eval.nix", keywords = ["stateHome", "tryEval"], waived = false },
   { id = "VA-1", text = "screwtape-provision is reviewed against the llm-gateway credentials procedure (staging rule, no token in argv or files outside the staged credential), as I1's provisioning evidence." },
+  { id = "VA-2", text = "README covers EX-4's points, checked against design § 5.4 and DEC-016." },
 ]
 specs        = []
 requirements = []
@@ -231,7 +255,7 @@ entrance_criteria = [
 exit_criteria = [
   { id = "EX-1", text = "~/flakes: the screwtape input (nixpkgs.follows, home-manager.follows); features/satan/screwtape.nix whose homeManager key imports the module and sets the ref and window; lingering per EN-4; SATAN.md host facts and smoke checks." },
   { id = "EX-2", text = "ASM-005: provisioned, service started, journal read. The unit succeeds under the EX-1 hardening of PHASE-07, or only a failing key is relaxed and recorded; whether the user credential is TPM-bound is recorded; ASM-005 is settled." },
-  { id = "EX-3", text = "I7 smoke: stat shows the store and its -wal and -shm files owned by the operator, mode 0600, in a 0700 directory." },
+  { id = "EX-3", text = "I7 smoke: stat shows the store directory owned by the operator at 0700 (the load-bearing check) and the store at 0600; the -wal and -shm files are stat'ed while a connection holds the store open (WAL removes them when the last connection closes), and show the same owner and mode." },
   { id = "EX-4", text = "Live acceptance (RFC-020 M1): one sync puts a bounded set of real messages in the store; Mailbox and Email states from a separate read-only session, taken before and after, are equal; the session's capabilities, isReadOnly and canCalculateChanges are recorded (F2, F4, F6); ASM-004 is settled from the session's accounts." },
   { id = "EX-5", text = "OQ-A is decided by the operator from the observed isReadOnly value and recorded (a decision record, or a backlog item for fail-closed)." },
 ]
