@@ -91,8 +91,8 @@ pub fn cli_thread_serves_one_snapshot_while_another_commits_test() {
 /// C4 (PHASE-05): a `read --after` stream whose B deletes one of the messages
 /// the page selected. A two-transaction stream selects `-m1` among the ids and
 /// then reads it in a second `store.read`, which begins after B has committed:
-/// the line for `-m1` would be missing, and `expected` (A's six lines) would
-/// differ. Inside one `store.read`, WAL serves A throughout and the stream
+/// `messages_of` would find `-m1` gone and fail `read_failed`, exiting non-zero
+/// with no stdout. Inside one `store.read`, WAL serves A throughout and the stream
 /// still prints all six lines.
 pub fn cli_read_after_stream_serves_one_snapshot_when_a_message_is_deleted_test() {
   cli_read_verb_serves_one_snapshot(

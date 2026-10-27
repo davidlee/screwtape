@@ -8,8 +8,9 @@
 //// quiet before anything can crash, and both the body and the writing of what
 //// it returned run in a process the guard owns, so no crash inside either —
 //// and no reason it carries — reaches stderr. Silence and guard are the only
-//// two effects that must happen here; a document is printed through `io.print`
-//// so that halt's flush writes a byte-complete document, and each stderr line
+//// two effects that must happen here; the stdout text (one document, or a
+//// `read` selection's lines) is printed through `io.print` so that halt's
+//// flush writes it byte-complete, and each stderr line
 //// through `io.println_error`.
 ////
 //// The externals live here rather than in a `screwtape/ffi` wrapper because
@@ -43,7 +44,7 @@ pub fn main() -> Nil {
   halt(guard(fn() { write(cli.run(argv.load().arguments, getenv)) }))
 }
 
-/// Write what the outcome holds — one document, then one line per error — and
+/// Write what the outcome holds — the stdout text, then one line per error — and
 /// answer its exit code.
 fn write(outcome: cli.Outcome) -> Int {
   case outcome.stdout {

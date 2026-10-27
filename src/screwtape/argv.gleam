@@ -178,7 +178,7 @@ fn max_bytes_value(raw: String) -> Result(Int, Error) {
 /// this order, a required `--after`, no `--offset` beside it, and a required
 /// `--max-bytes` (RV-010 N-2).
 fn parse_selection(args: List(String)) -> Result(Verb, Error) {
-  use flags <- result.try(parse_list_flags(args, empty_flags()))
+  use flags <- result.try(parse_list_flags(args, empty_flags(True)))
   use filters <- result.try(filters_of(flags))
   use after <- result.try(required(flags.after, "missing_after"))
   use _ <- result.try(no_offset_with_after(flags))
@@ -207,9 +207,11 @@ fn parse_thread(args: List(String)) -> Result(#(String, Int), Error) {
 }
 
 /// `list`'s flags, and the `read` selection's, in any order, each at most once
-/// (A5). Only the selection takes `--max-bytes`.
+/// (A5). Only the selection takes `--max-bytes`: `takes_max_bytes` says which
+/// grammar is reading, so `list` refuses the flag itself as unknown.
 type ListFlags {
   ListFlags(
+    takes_max_bytes: Bool,
     mailbox: Option(String),
     since: Option(String),
     from: Option(String),
@@ -225,18 +227,14 @@ type ListFlags {
 /// are separate so `read`'s selection can reuse the filters. `--max-bytes` is
 /// the selection's alone, and is an unknown flag here.
 fn parse_list(args: List(String)) -> Result(#(Filters, Page), Error) {
-  use flags <- result.try(parse_list_flags(args, empty_flags()))
-  use _ <- result.try(case flags.max_bytes {
-    Some(_) -> usage("unknown_argument")
-    None -> Ok(Nil)
-  })
+  use flags <- result.try(parse_list_flags(args, empty_flags(False)))
   use filters <- result.try(filters_of(flags))
   use page <- result.try(page_of(flags))
   Ok(#(filters, page))
 }
 
-fn empty_flags() -> ListFlags {
-  ListFlags(None, None, None, False, None, None, None, None)
+fn empty_flags(takes_max_bytes: Bool) -> ListFlags {
+  ListFlags(takes_max_bytes, None, None, None, False, None, None, None, None)
 }
 
 fn parse_list_flags(
@@ -299,7 +297,7 @@ fn parse_list_flags(
             fn(flags, value) { ListFlags(..flags, after: Some(value)) },
             flags,
           )
-        "--max-bytes" ->
+        "--max-bytes" if flags.takes_max_bytes ->
           parse_value_flag(
             rest,
             is_some(flags.max_bytes),

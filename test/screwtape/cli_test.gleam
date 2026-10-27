@@ -1286,6 +1286,8 @@ pub fn read_after_usage_reasons_test() {
     ),
     // `list` does not select: --max-bytes stays an unknown flag there.
     #(["list", "--after", "", "--max-bytes", "5"], "unknown_argument"),
+    #(["list", "--max-bytes", "-1"], "unknown_argument"),
+    #(["list", "--max-bytes"], "unknown_argument"),
     // `--limit` keeps its 1..500 range under a selection too.
     #(
       ["read", "--after", "", "--max-bytes", "5", "--limit", "0"],
