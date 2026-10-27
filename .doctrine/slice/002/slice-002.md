@@ -114,6 +114,8 @@ is not reopened here.
 - `src/screwtape/jmap/request.gleam`, `jmap/decode.gleam`: `Email/changes`
   and the light `Email/get` (`mailboxIds`, `keywords`).
 - `src/screwtape/retain.gleam` (new, pure): the shared merge (DEC-025).
+- `src/screwtape/normalise.gleam`: the light refresh, sharing the keyword
+  flag derivation.
 - `src/screwtape/cli.gleam`: load the `Prior`; the summary gains `mode` and
   `fallback_reason`.
 - `src/screwtape/store/query.gleam`: load the `Prior` (account id,
@@ -122,7 +124,8 @@ is not reopened here.
   `query.message`.
 - `src/screwtape/config.gleam`: `retain_messages` and its validation.
 - `nix/module.nix`: the `retain_messages` option.
-- `src/screwtape/model.gleam`: only if the changes result needs a type.
+- `src/screwtape/model.gleam`: the `Prior` type.
+- `test/check_imports.gleam`: the `retain` purity rule.
 - `test/support/**`, `test/screwtape/sync_test.gleam`,
   `test/screwtape/jmap/*`, `test/screwtape/store_test.gleam`.
 - `README.md`: the sync behaviour section.

@@ -12,7 +12,7 @@ after = []                      # slice→work soft sequence: { to, rank }
 
 [[selector]]
 selector = "src/screwtape/sync.gleam"
-intent = "scope-relevant"
+intent = "design-target"
 
 [[selector]]
 selector = "src/screwtape/jmap/**"
@@ -28,7 +28,7 @@ intent = "scope-relevant"
 
 [[selector]]
 selector = "src/screwtape/model.gleam"
-intent = "scope-relevant"
+intent = "design-target"
 
 [[selector]]
 selector = "test/**"
@@ -36,23 +36,75 @@ intent = "scope-relevant"
 
 [[selector]]
 selector = "README.md"
-intent = "scope-relevant"
+intent = "design-target"
 
 [[selector]]
 selector = "src/screwtape/config.gleam"
-intent = "scope-relevant"
+intent = "design-target"
 
 [[selector]]
 selector = "nix/module.nix"
-intent = "scope-relevant"
+intent = "design-target"
 
 [[selector]]
 selector = "src/screwtape/retain.gleam"
-intent = "scope-relevant"
+intent = "design-target"
 
 [[selector]]
 selector = "src/screwtape/cli.gleam"
-intent = "scope-relevant"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/store/query.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/jmap/request.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/jmap/decode.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/normalise.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/check_imports.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/support/jmap_fixture.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/support/sync_fixture.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/retain_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/sync_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/store_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/config_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/cli_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/jmap/decode_test.gleam"
+intent = "design-target"
 
 [[relation]]
 label = "governed_by"
