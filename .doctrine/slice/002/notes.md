@@ -9,6 +9,8 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 fresh-as-of: 2026-10-27 · closed (RV-009 reconciled) · 2986782
 
 ### Produced
+- plan.toml PHASE-03: VT-3 waived (stale keyword), VT-4 appended (opening_pairs) — operator, RV-009 F-1
+- satan:RFC-020 amended (satan e91d89f): D8 M2 as built, OQ-10 partly answered
 - RV-005 hostile pass (Codex) disposed, integrated; design run locked rev 37 (8173079)
 - DEC-024 accepted; DEC-024/025/026 amended per RV-005 (8173079, 176932c)
 - plan.toml/plan.md: 9 phases, order 01-02-03-04-05-08-06-09-07 (68f52ce..5b4e7e7)
@@ -29,10 +31,8 @@ fresh-as-of: 2026-10-27 · closed (RV-009 reconciled) · 2986782
 - sync fixture gotchas (expect_unchanged probe commit; spec bounds) — § PHASE-06 notes
 
 ### Open
-- PHASE-03 VT-3 stale keyword — operator: waive or append a corrected VT (RV-009 F-1)
 - unpinned by design: method-name guard; cannotCalculateChanges on a later page — § PHASE-09 notes
 - api_url as server identity — a Fastmail apiUrl change costs one full refetch
-- satan:RFC-020 D8 amendment — drafted below (§ satan:RFC-020 D8 amendment draft); landing it in ~/dev/satan is the operator's call
 - research/ untracked and drifted (`doctrine slice research 2`) — operator to decide
 - CHR-004 — remaining items stay open
 - no request-level logging: VH-1's "no Email/get with ids" is inferred, not observed (§ PHASE-07 notes)
@@ -364,10 +364,10 @@ brief: `doctrine review show RV-009 --full`.
 - Gates after the fixes: `just check` (430), `gleam format --check`,
   `nix flake check`.
 
-## satan:RFC-020 D8 amendment draft
+## satan:RFC-020 D8 amendment
 
-Proposed replacement for item 2 of satan:RFC-020 § D8 (Sequencing). The text
-below is a draft for the satan repo; nothing there has been edited.
+Landed in satan e91d89f (2026-10-27), with the status line (M3 next) and an
+OQ-10 partial answer. The D8 item 2 text as drafted:
 
 > 2. **M2: incremental sync.** Upstream half only (D1): `Email/changes` from
 >    the stored Email state picks which stored messages need a light refresh

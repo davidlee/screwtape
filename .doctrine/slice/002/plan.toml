@@ -86,9 +86,10 @@ exit_criteria = [
 verification = [
   { id = "VT-1", expects = "changes and light decoders: shapes, method error, malformed input", test_file = "test/screwtape/jmap/decode_test.gleam", keywords = ["email_changes", "light_emails", "cannotCalculateChanges"], waived = false },
   { id = "VT-2", expects = "the two new invocations carry their arguments", test_file = "test/screwtape/jmap/request_test.gleam", keywords = ["email_changes", "email_get_light", "maxChanges"], waived = false },
-  { id = "VT-3", expects = "behavioural: opening_entries over a call list of the wrong length fails instead of returning a truncated list", test_file = "test/screwtape/jmap_fixture_test.gleam", keywords = ["opening_entries"], waived = false },
+  { id = "VT-3", expects = "behavioural: opening_entries over a call list of the wrong length fails instead of returning a truncated list", test_file = "test/screwtape/jmap_fixture_test.gleam", keywords = ["opening_entries"], waived = true, waived_reason = "stale keyword: the guard moved into opening_pairs; superseded by VT-4 (RV-009 F-1; operator, 2026-10-27)" },
   { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before the next phase." },
   { id = "VA-2", text = "CHR-004 records that its opening_entries item is done in SL-002 PHASE-03; its other items stay open." },
+  { id = "VT-4", expects = "behavioural: opening_pairs (the seam opening_entries pairs through) fails on a call/argument-set count mismatch in either direction and pairs each call with its own arguments in order (supersedes VT-3, RV-009 F-1)", test_file = "test/screwtape/jmap_fixture_test.gleam", keywords = ["opening_pairs_requires_one_argument_set_per_call_test", "opening_pairs_test"], waived = false },
 ]
 specs        = []
 requirements = []
