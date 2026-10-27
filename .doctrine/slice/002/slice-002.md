@@ -8,8 +8,8 @@ replaces the account's rows (DEC-008). The schema already stores the JMAP state
 string for each type (DEC-007; ISS-001 fixed which state is recorded), so
 incremental sync can be added without a schema break.
 
-RFC-020 (in `~/dev/satan`) D8 defines M2 as "state tokens, `queryChanges`,
-invalidation and resync, no duplicate fetches". RFC-020 D1 splits `changes` in
+satan:RFC-020 (`~/dev/satan`) D8 defines M2 as "state tokens, `queryChanges`,
+invalidation and resync, no duplicate fetches". satan:RFC-020 D1 splits `changes` in
 two:
 
 - **upstream:** the mirror asks JMAP what changed;
@@ -63,7 +63,7 @@ is not reopened here.
 - `Email/queryChanges` and `Mailbox/changes`. Membership is filtered locally;
   mailboxes are refetched.
 - The consumer-side cursor (a store query such as "new since X"). That belongs
-  to M3 and the Screwtape↔SATAN contract (RFC-020 OQ-11).
+  to M3 and the Screwtape↔SATAN contract (satan:RFC-020 OQ-11).
 - Any new security mechanism. Credential handling, the error allowlists and
   the crash containment from SL-001 are reused unchanged.
 - Changing the schema, beyond what a config-window fingerprint needs, if
@@ -137,4 +137,4 @@ new tests extend shared support code rather than sprawl.
 
 - POL: DRY, no parallel implementation (operator request, 2026-10-27).
   Authored separately, ideally before design locks, so it governs this slice.
-- Consumer cursor: M3 and the RFC-020 OQ-11 contract.
+- Consumer cursor: M3 and the satan:RFC-020 OQ-11 contract.
