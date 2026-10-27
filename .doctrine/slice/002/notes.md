@@ -6,25 +6,32 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · ready (plan materialised, PHASE-01 next) · 176932c
+fresh-as-of: 2026-10-27 · executing (01-05, 08 completed; 06 in_progress, review pending) · 3db888e
 
 ### Produced
 - RV-005 hostile pass (Codex) disposed, integrated; design run locked rev 37 (8173079)
 - DEC-024 accepted; DEC-024/025/026 amended per RV-005 (8173079, 176932c)
-- plan.toml/plan.md: 9 phases, order 01-02-03-04-05-08-06-09-07; revised after a pi plan review (68f52ce..5b4e7e7)
-- POL-001 · EVD-001 · DEC-025 (supersedes DEC-022) · DEC-026 (supersedes DEC-023) · CHR-004 · design.md (sec-1..sec-10)
-- no code yet; no gate run needed
+- plan.toml/plan.md: 9 phases, order 01-02-03-04-05-08-06-09-07 (68f52ce..5b4e7e7)
+- POL-001 · EVD-001 · DEC-025 · DEC-026 · CHR-004 · design.md (sec-1..sec-10)
+- code: PHASE-01 90c37b1 · 02 2b6f47b · 03 108994b · 04 54885c7 · 05 d15afc9 · 08 fc0d1b3 · 06 3db888e (checkpoint)
+- CHR-004 opening_entries guard recorded done (108994b)
+- per-phase passes + review dispositions: § Execution passes (below)
 
 ### Learned
 - mem.fact.jmap.fastmail-email-changes — EVD-001's Fastmail Email/changes behaviour
 - mem.fact.doctrine.design-section-order — design section ordering
+- pi form: no nix/curl/perl — `nix flake check` is the orchestrator's (§ Execution passes)
+- sync fixture gotchas (expect_unchanged probe commit; spec bounds) — § PHASE-06 notes
 
 ### Open
-- RV-005 — optional raiser verify/contest round (Codex thread resume) not run
-- api_url as server identity — a Fastmail apiUrl change would cost one full refetch (see § Further review passes)
-- satan:RFC-020 D8 amendment draft (no queryChanges; query-driven membership; retention) — at close
+- PHASE-06 VA-1 review (GPT strong) not yet run
+- Thread/get ids now sorted, not first-seen (M1 A8 superseded) — reconcile at audit (§ PHASE-08 decisions)
+- PHASE-02 phase delta tightened past foreign commit 0103779 (DEC-013) — check at audit
+- RV-005 — optional raiser verify/contest round not run
+- api_url as server identity — a Fastmail apiUrl change costs one full refetch
+- satan:RFC-020 D8 amendment draft — at close
 - research/ untracked and drifted (`doctrine slice research 2`) — operator to decide
-- CHR-004 — SL-002 absorbs only the opening_entries guard (PHASE-03 VA-2)
+- CHR-004 — remaining items stay open
 
 ## Design triage (2026-10-27, exploring)
 
