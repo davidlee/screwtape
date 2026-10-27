@@ -207,5 +207,20 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
   tests' fixtures); pi `implement` green (21 req, $0.029; correct first time;
   orchestrator refactored cli's two query arms into `list_page` +
   `list_query` and collapsed the text/from flag parsers). Review RV-013 (Opus
-  adversarial subagent, ~105k tokens): 2 nits, both fix-now; handback failed
-  again, findings read off the ledger.
+  adversarial subagent, ~105k tokens): 2 nits, both fix-now; verdict solid;
+  handback failed again, findings read off the ledger, report arrived late
+  by message.
+- Post-review (RV-012 adversary's late notes): SQLite treats a negative
+  LIMIT as none, so `Oldest(limit: Some(n))` relies on argv's 1..500;
+  `list --after "" --limit 0/-1/501` → `invalid_integer` now pinned. The `id`
+  column has no COLLATE (byte order), so the cursor predicate and ORDER BY
+  agree; no Gleam code orders ids (checked: no sort over ids in
+  query/cli/render/argv).
+- **For PHASE-05** (adversary's open questions): `--max-bytes` must join
+  the closed `ListFlags` table and `list` must then reject it; pull the
+  `offset_with_after` check out of `page_of` to share it; the pre-existing
+  `parse_sole_int_flag` (read `--max-bytes`, thread `--limit`) repeats
+  `parse_value_flag`'s steps — fold it in there.
+- Gotcha: one `just check` run failed 30 token_leak tests with
+  "erlang-shipment not found" right after `gleam export erlang-shipment`; an
+  immediate rerun was green. Likely a concurrent build in the same tree.

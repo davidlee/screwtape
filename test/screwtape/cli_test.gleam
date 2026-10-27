@@ -1149,6 +1149,11 @@ pub fn list_after_usage_reasons_test() {
         "invalid_since",
       ),
       #(["list", "--after"], "missing_value"),
+      // `--limit` keeps its 1..500 range under `--after`: SQLite reads a
+      // negative LIMIT as no limit at all.
+      #(["list", "--after", "", "--limit", "0"], "invalid_integer"),
+      #(["list", "--after", "", "--limit", "-1"], "invalid_integer"),
+      #(["list", "--after", "", "--limit", "501"], "invalid_integer"),
     ])
 
   let outcomes =

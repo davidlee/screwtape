@@ -31,7 +31,7 @@ Lines of attack:
 
 ## Synthesis
 
-- **Overall**: acceptable.
+- **Overall**: solid (the adversary's verdict, from its late report).
 - **Synopsis**: PHASE-04 publishes `cursor` on every summary and pages
   `list` by it. The argv split makes `--after` with `--offset` unrepresentable
   past the parse, and one value-flag parser now serves every `list` flag but
@@ -43,6 +43,12 @@ Lines of attack:
   `cli.list_document`'s name (F-2). Standing note: render_test's dates carry
   `ms: 0`, so the cursor's ms is pinned only through cli_test. The adversary's
   handback failed; its verify and conclude acts were recorded by the
-  orchestrator from the ledger.
+  orchestrator from the ledger. Adversary's discarded candidates: filter
+  plus a mid-walk cursor untested through the CLI (store VT-1d covers the
+  AND); render_test's `cursor_json` reusing `cursor.to_string` (cli_test's
+  hand-built cursor and render's literal case are independent oracles).
+  Post-review, from the RV-012 adversary: `--limit`'s 1..500 range under
+  `--after` is now pinned in `list_after_usage_reasons_test` (SQLite reads a
+  negative LIMIT as none).
 - **Haiku**: past the last seen mail / one millisecond, two ids — / order
   breaks the tie.
