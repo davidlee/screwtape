@@ -260,3 +260,32 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
   and synthesis recorded by the orchestrator, noted on the ledger.
 - Gotcha (orchestrator cost): calling `pi_agent_wait` several times in one
   turn returns the full result each time once the run settles — wait once.
+
+### PHASE-06 (charter 4) — completed (90e9808); VH-1 pending
+
+- README: CLI table (`list --after`, `read --after … --max-bytes`, `thread
+  --limit`), stdout wording (one document, or `read --after`'s lines), the
+  new usage codes, and § Contract (envelope, DEC-029 rule, six field tables,
+  cursor and paging rule incl. the drop-after-reading case, line-delimited
+  `read --after` with a paging pipe, bounds, DEC-028's four limits, DEC-031
+  reader needs).
+- VA-1: README tables checked mechanically against cli_test `summary_keys`,
+  `read_keys`, the mailbox and thread key lists, and render's body,
+  attachment and provenance keys: all match.
+- VA-2: live, host store, freshly built erlang-shipment (the installed
+  binary predates SL-003): `list --after '' --limit 5` → after/items/limit,
+  5 items with `cursor`; continuation from the last cursor echoes it, 5
+  more; `read --after '' --limit 3 --max-bytes 200` → 3 lines, each `read`
+  v1 with 26 data keys and a cursor; `thread <id> --limit 1` →
+  id/items/total/truncated, 1 item. Only shapes printed.
+- satan:RFC-020 amendment drafted, uncommitted (`rfc-020.md`,
+  `rfc-020.toml`): D1 consumer cursor (DEC-028) with known limits; D2 OQ-11
+  answered (CLI JSON, reasons, DEC-029/030/032 bounds, DEC-031 reader needs,
+  IDE-001 composing by pipe); D8 M3 names SL-003; Outcome: OQ-11 settled,
+  open OQ-11 entry removed; toml `updated`. **VH-1 owed by the operator.**
+- Decision: README calls the cursor opaque except the DEC-028 future-date
+  check (the ms before the first `:`) — "do not parse" would contradict it.
+  **For /reconcile:** design § 5.2's "opaque" and DEC-028's consumer check
+  pull the same way; say so in the design.
+- Passes: pi `implement` README draft (19 req, $0.032; fields all correct;
+  four prose corrections by the orchestrator).
