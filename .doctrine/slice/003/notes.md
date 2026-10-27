@@ -224,3 +224,39 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
 - Gotcha: one `just check` run failed 30 token_leak tests with
   "erlang-shipment not found" right after `gleam export erlang-shipment`; an
   immediate rerun was green. Likely a concurrent build in the same tree.
+
+### PHASE-05 (charter 4) — completed (d616d8f, 01e622a)
+
+- argv: `Verb.ReadAfter(filters, after, limit, max_bytes)`; `read` with a
+  first argument matching `"--" <> _` is the selection. `parse_selection` =
+  `parse_list_flags` → `filters_of` → `required(after, "missing_after")` →
+  `no_offset_with_after` (pulled out of `page_of`, shared) →
+  `required(max_bytes, "missing_max_bytes")`; `--limit` defaults to 50.
+  `ListFlags` gains `max_bytes` and `takes_max_bytes` (which grammar is
+  reading); the `--max-bytes` arm is guarded by it, so `list` refuses the
+  token as `unknown_argument` (RV-014 F-1 replaced a post-hoc check).
+  `flag_value(args, taken, parse)` is now the one once-only value reader,
+  used by `parse_value_flag` and `parse_sole_int_flag`; `value_flag` deleted.
+- cli: `dispatch` → `Result(#(Option(String), List(String)), Error)`;
+  single-document verbs go through a local `run_document` (wraps `Some`),
+  `sync` returns `Some` itself. `read_stream` in one `read_store`:
+  `account_id`, `list_query(tx, filters, Oldest(after, Some(limit)))`,
+  `message_ids`, `messages_of`, `render.read(.., Some(max_bytes))` joined by
+  `\n`; `[]` → `None`. `main`'s `write` needed no change.
+- C6 audit: no existing expectation changed. The PHASE-04 walk test became
+  `after_walks_the_whole_listing_in_ascending_order_test` (list and read
+  pagers, both insert orders, same expectations); the I8 helper's third
+  argument is now the B rewrite fn (existing callers pass `rewritten`).
+- Tests: C1 is pinned as line-for-line equality with `read <id>
+  --max-bytes 7`; filters as equality with `list --after`'s ids; C4 by two
+  new I8 callers (B deletes / re-dates `-m1`).
+- Negative control (orchestrator): a two-`read_store` stream fails both C4
+  callers (deletion → `read_failed`; re-dating → changed cursor).
+- Passes: pi `implement` red tests (21 req, $0.041; correct; mislabelled two
+  test docs as C4, orchestrator fixed). Orchestrator wrote src (cheaper than
+  a brief: the design was already the code). Review RV-014 (Opus
+  adversarial subagent, ~94k tokens): 1 minor + 2 nits, all fix-now and
+  verified; handback failed again, findings read off the ledger; verify acts
+  and synthesis recorded by the orchestrator, noted on the ledger.
+- Gotcha (orchestrator cost): calling `pi_agent_wait` several times in one
+  turn returns the full result each time once the run settles — wait once.

@@ -1,0 +1,115 @@
+id    = 14
+slug  = "sl-003-phase-05-code-review-read-after-stream-selection-argv-dispatch-option"
+title = "SL-003 PHASE-05 code review (read --after stream, selection argv, dispatch Option)"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "code-review"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "adversary"
+responder = "orchestrator"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = '''
+Examined d616d8f (argv.gleam, cli.gleam, cli_test, read_snapshot_test) against plan PHASE-05 EX-1..EX-5/VT-1/VT-2, design § 5.2 argv/cli and stdout, § 5.5 C1/C3/C4/C6, § 9 rows, POL-001, and D1..D3. One transaction: read_stream runs account_id, list_query (incl. mailbox resolution), message_ids, messages_of and render inside the single read_store closure; VT-2 delete and re-date variants would fail a split (exit_code/stdout asserts). argv precedence matches EX-2 and is tabled in read_after_usage_reasons_test incl. --limit 0/-1/501. Framing: "\n" join + main's trailing newline; empty -> None, exit 0 (two edges tested). Filter and ordering tests use narrowing filters and both insert orders, so ignored filters / list order would fail. POL-001: flag_value consolidates the once-only value reader; read_stream reuses list_query, message_ids, messages_of, render.read. D2, D3 sound; D1 challenged as F-1 (minor). F-2, F-3 prose nits. EX-5 not executed by me (orchestrator gates).
+'''
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+phase = "PHASE-05"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "list's --max-bytes refusal is post-hoc, so list now reports the selection's value errors for a flag it does not take"
+detail = """
+Expected: `list` does not take `--max-bytes` (EX-1 adds it to read's selection only; test comment cli_test.gleam:1287 "--max-bytes stays an unknown flag there"). An unknown flag should be `unknown_argument` wherever and however it appears, as it was before d616d8f (parse_list_flags' `_ -> usage("unknown_argument")` fired on the token itself).
+
+Observed: `--max-bytes` was added to the shared `parse_list_flags` (argv.gleam:302-309) and `parse_list` rejects a *set* `max_bytes` only after every flag has parsed (argv.gleam:229-232, D1). So list's diagnosis of the unknown flag now depends on the selection's value grammar and on later flags:
+- `list --max-bytes -1`  -> invalid_max_bytes   (was unknown_argument)
+- `list --max-bytes`     -> missing_value       (was unknown_argument)
+- `list --max-bytes 5 --max-bytes 5` -> repeated_argument (was unknown_argument)
+- `list --max-bytes 5 --limit 0` -> invalid_integer (was unknown_argument)
+(Derived by reading flag_value/max_bytes_value argv.gleam:169-174, 343-356 and the left-to-right recursion; not executed.) Only the well-formed-value case is pinned (cli_test.gleam:1288), which is the one case D1's ordering leaves unchanged, so the drift is untested. None of these invocations worked before, so C6 is not breached in letter, but `list` now names a value constraint of a flag it rejects - a misleading diagnostic - and ListFlags carries a field that one of its two grammars must remember to refuse (coupling list's grammar to the selection's; a future third consumer of ListFlags inherits the same trap).
+
+D1's rationale ("a malformed value names its own error") is right for the selection and backwards for list. Suggestion: let parse_list_flags know whether `--max-bytes` is admitted (e.g. a Bool/grammar parameter, or the selection consuming `--max-bytes` via a wrapper before delegating), so list hits `unknown_argument` on the token; add one of the malformed cases above to the usage table.
+"""
+disposition = "fix-now"
+response = "Confirmed by reading argv.gleam. Fixed: ListFlags gains takes_max_bytes (which grammar is reading); the --max-bytes arm is guarded 'if flags.takes_max_bytes', so list hits unknown_argument on the token itself; parse_list's post-hoc check removed. D1 superseded. Pinned: list --max-bytes -1 and list --max-bytes (no value) -> unknown_argument in read_after_usage_reasons_test (both would fail under the post-hoc version)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Confirmed by reading argv.gleam. Fixed: ListFlags gains takes_max_bytes (which grammar is reading); the --max-bytes arm is guarded 'if flags.takes_max_bytes', so list hits unknown_argument on the token itself; parse_list's post-hoc check removed. D1 superseded. Pinned: list --max-bytes -1 and list --max-bytes (no value) -> unknown_argument in read_after_usage_reasons_test (both would fail under the post-hoc version)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Recorded by the orchestrator (sl003-charter4) on the adversary's behalf: the review subagent's hand-back failed; the fix matches the finding's suggestion and just check is green (477)."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "nit"
+title = "Deletion C4 test's docstring misstates how a split stream fails"
+detail = """
+Expected: the docstring explains the failure a two-transaction implementation would show.
+Observed: read_snapshot_test.gleam:91-95 says a split stream "then reads it in a second store.read ... the line for -m1 would be missing, and expected (A's six lines) would differ". It would not print five lines: ids selected in A include acct-l-m1, and query.messages_of (store/query.gleam:225-233) maps a missing id to Store(read_failed), so the split run exits non-zero with no stdout. The test still fails such an implementation (it asserts actual.exit_code == 0 and stdout equality, read_snapshot_test.gleam:141-143), so coverage is fine; only the stated mechanism is wrong, which misleads the next reader about what the guard pins. Suggest: "messages_of would find -m1 gone and fail read_failed".
+"""
+disposition = "fix-now"
+response = "Confirmed (messages_of maps a missing id to Store(read_failed)). Docstring now says messages_of would find -m1 gone and fail read_failed, exiting non-zero with no stdout; matches the orchestrator's two-read_store negative control, where both C4 tests failed."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Confirmed (messages_of maps a missing id to Store(read_failed)). Docstring now says messages_of would find -m1 gone and fail read_failed, exiting non-zero with no stdout; matches the orchestrator's two-read_store negative control, where both C4 tests failed."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Recorded by the orchestrator (sl003-charter4) on the adversary's behalf: the review subagent's hand-back failed; the fix matches the finding's suggestion and just check is green (477)."
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "nit"
+title = "Entry-point docs still say stdout is one document"
+detail = '''
+Expected: with C1, read's selection prints a line per message (cli.gleam module doc was updated, lines 16-18).
+Observed: src/screwtape.gleam:11-12 ("a document is printed through io.print so that halt's flush writes a byte-complete document") and the `write` doc at src/screwtape.gleam:46 ("Write what the outcome holds — one document, then one line per error") still describe exactly one document. Behaviour is correct (Some(text) -> io.print(text <> "\n") gives each line its newline; None prints nothing); the prose is stale. Suggest "the stdout text (one document, or read's selection lines)".
+'''
+disposition = "fix-now"
+response = "Confirmed. src/screwtape.gleam module doc and write's doc now say 'the stdout text (one document, or a read selection's lines)'."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Confirmed. src/screwtape.gleam module doc and write's doc now say 'the stdout text (one document, or a read selection's lines)'."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Recorded by the orchestrator (sl003-charter4) on the adversary's behalf: the review subagent's hand-back failed; the fix matches the finding's suggestion and just check is green (477)."
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.
