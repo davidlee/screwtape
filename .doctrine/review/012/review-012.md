@@ -30,3 +30,17 @@ Lines of attack:
   bind order: each fails ≥1 test.)
 - Fixture tie is m4/m5 (design § 9 says m5/m6; plan VT text amended).
 
+
+## Synthesis
+
+- **Overall**: solid.
+- **Synopsis**: PHASE-03 gives `query` an oldest-first cursor page without
+  changing the CLI. One statement builder (`list_sql(select, query)`) serves
+  `messages` and `message_ids`; the cursor is one more ANDed filter, so
+  `--since` and a cursor combine by AND for free. `messages_of` is extracted
+  from `prior`, whose behaviour and tests are unchanged. The one finding
+  (F-1): the `id ASC` tie-break was pinned only by insertion order; fixed by
+  writing the fixture in both message orders. Orchestrator mutations of the
+  predicate, the bind order and the limit each fail a test. Standing risk:
+  PHASE-04's CLI walk needs the same both-orders discipline.
+- **Haiku**: two letters, one tick — / the id breaks the tie, not / the order they came.
