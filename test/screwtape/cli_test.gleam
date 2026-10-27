@@ -998,30 +998,40 @@ pub fn list_items_carry_their_arrival_cursor_test() {
   )
 }
 
-/// VT-1 (PHASE-04), C2 through the CLI: `list --after` walks the whole listing
-/// once, oldest first, in `(received_at_ms, id)` order, for a page of one, of
-/// two and the whole store. Each store is written in both message orders:
-/// SQLite breaks an `ORDER BY` tie by scan order, and `-m4` and `-m5` share a
-/// millisecond, so an order without its `id` column would still pass with one
-/// order (RV-012 F-1).
-pub fn list_after_walks_the_whole_listing_in_ascending_order_test() {
+/// VT-1 (PHASE-04/05), C2: `list --after` and `read --after` each walk the
+/// whole listing once, oldest first, in `(received_at_ms, id)` order, for a page
+/// of one, of two and the whole store. A read page is the lines its stream
+/// printed, read for the same `(id, cursor)` pair a list page carries. Each
+/// store is written in both message orders: SQLite breaks an `ORDER BY` tie by
+/// scan order, and `-m4` and `-m5` share a millisecond, so an order without its
+/// `id` column would still pass with one order (RV-012 F-1).
+pub fn after_walks_the_whole_listing_in_ascending_order_test() {
   let listing = snapshot_fixture.listing()
   let reversed =
     model.Snapshot(..listing, messages: list.reverse(listing.messages))
   use snapshot <- list.each([listing, reversed])
-  let setup = cli_fixture.seeded("cli-list-after-walk", snapshot)
+  let setup = cli_fixture.seeded("cli-after-walk", snapshot)
+  let pagers = [
+    #("list", fn(after: String, limit: Int) { after_page(setup, after, limit) }),
+    #("read", fn(after: String, limit: Int) {
+      read_after_page(setup, after, limit)
+    }),
+  ]
   let walks =
-    list.map([1, 2, 500], fn(limit) {
-      #(
-        limit,
-        paging.walk(
-          from: "",
-          page: fn(after) { after_page(setup, after, limit) },
-          next: fn(pair) { pair.1 },
-          bound: list.length(snapshot_fixture.listing_ascending_ids()),
+    list.flat_map(pagers, fn(pager) {
+      let #(verb, page) = pager
+      list.map([1, 2, 500], fn(limit) {
+        #(
+          #(verb, limit),
+          paging.walk(
+            from: "",
+            page: fn(after) { page(after, limit) },
+            next: fn(pair) { pair.1 },
+            bound: list.length(snapshot_fixture.listing_ascending_ids()),
+          )
+            |> result.map(list.map(_, fn(pair) { pair.0 })),
         )
-          |> result.map(list.map(_, fn(pair) { pair.0 })),
-      )
+      })
     })
   temp.remove_dir(setup.dir)
 
@@ -1172,6 +1182,246 @@ pub fn list_after_usage_reasons_test() {
         <> "\"}",
       ]),
     )
+  })
+}
+
+// ---------------------------------------------------------------- read --after
+//
+// PHASE-05 C1: `read --after` is `list --after`'s selection, printed as
+// `read <id>` prints each message — one stdout line per selected message, oldest
+// first — so a consumer can stream a whole listing from a cursor it holds.
+
+/// The document each line of a `read --after` stream carries: one version-1
+/// `read` envelope per selected message, oldest first. An empty selection is no
+/// stdout at all (`None`), which is the empty page.
+fn streamed_documents(
+  outcome: cli.Outcome,
+) -> Result(List(dynamic.Dynamic), Nil) {
+  case outcome.stdout {
+    None -> Ok([])
+    Some(text) ->
+      Ok(list.map(string.split(text, "\n"), cli_fixture.stdout_text_json))
+  }
+}
+
+/// The `(id, cursor)` pair of every line of a `read --after` stream, in order:
+/// the two strings a walk reads from a page, as `list --after` carries them.
+fn streamed_cursors(
+  outcome: cli.Outcome,
+) -> Result(List(#(String, String)), Nil) {
+  let assert Ok(documents) = streamed_documents(outcome)
+  Ok(
+    list.map(documents, fn(document) {
+      let assert Ok(id) =
+        cli_fixture.field(document, ["data", "id"], decode.string)
+      let assert Ok(cursor) =
+        cli_fixture.field(document, ["data", "cursor"], decode.string)
+      #(id, cursor)
+    }),
+  )
+}
+
+/// One `read --after <after> --limit <limit> --max-bytes 0` page against
+/// `setup`: its lines' `(id, cursor)` pairs, oldest first. `--max-bytes 0` keeps
+/// every body empty, so a walk page stays small and is read only for the two
+/// strings paging needs.
+fn read_after_page(
+  setup: cli_fixture.ReadSetup,
+  after: String,
+  limit: Int,
+) -> Result(List(#(String, String)), Nil) {
+  let outcome =
+    read_verb(setup, [
+      "read",
+      "--after",
+      after,
+      "--limit",
+      int.to_string(limit),
+      "--max-bytes",
+      "0",
+    ])
+  streamed_cursors(outcome)
+}
+
+/// C3 (PHASE-05): the usage reasons a `read` selection adds. A `read` whose
+/// first argument starts with `--` is a selection, so it requires `--after` and
+/// `--max-bytes`. Both are checked only once every flag has parsed, and in that
+/// order: a value error, an unknown flag or an extra positional still names
+/// itself first, `missing_after` beats `offset_with_after`, and
+/// `offset_with_after` beats `missing_max_bytes`. `list` still refuses
+/// `--max-bytes` as the unknown flag it is.
+pub fn read_after_usage_reasons_test() {
+  let setup =
+    cli_fixture.seeded("cli-read-after-reasons", snapshot_fixture.listing())
+  let cases = [
+    // No --after at all: missing_after, even with --offset present.
+    #(["read", "--max-bytes", "5"], "missing_after"),
+    #(["read", "--limit", "2", "--max-bytes", "5"], "missing_after"),
+    #(["read", "--offset", "0", "--max-bytes", "5"], "missing_after"),
+    // --after with --offset: offset_with_after, with or without --max-bytes.
+    #(
+      ["read", "--after", "", "--offset", "0", "--max-bytes", "5"],
+      "offset_with_after",
+    ),
+    #(["read", "--after", "", "--offset", "0"], "offset_with_after"),
+    // --after without --max-bytes.
+    #(["read", "--after", ""], "missing_max_bytes"),
+    #(["read", "--after", "", "--limit", "2"], "missing_max_bytes"),
+    // A value error still wins over missing_max_bytes.
+    #(["read", "--after", "x"], "invalid_cursor"),
+    #(["read", "--after", "", "--max-bytes", "-1"], "invalid_max_bytes"),
+    // A repeated flag, an extra positional, an unknown flag.
+    #(
+      ["read", "--after", "", "--max-bytes", "5", "--max-bytes", "6"],
+      "repeated_argument",
+    ),
+    #(
+      ["read", "--after", "", "--after", "", "--max-bytes", "5"],
+      "repeated_argument",
+    ),
+    #(["read", "--after", "", "--max-bytes", "5", "extra"], "unknown_argument"),
+    #(
+      ["read", "--after", "", "--max-bytes", "5", "--bogus"],
+      "unknown_argument",
+    ),
+    // `list` does not select: --max-bytes stays an unknown flag there.
+    #(["list", "--after", "", "--max-bytes", "5"], "unknown_argument"),
+    // `--limit` keeps its 1..500 range under a selection too.
+    #(
+      ["read", "--after", "", "--max-bytes", "5", "--limit", "0"],
+      "invalid_integer",
+    ),
+    #(
+      ["read", "--after", "", "--max-bytes", "5", "--limit", "-1"],
+      "invalid_integer",
+    ),
+    #(
+      ["read", "--after", "", "--max-bytes", "5", "--limit", "501"],
+      "invalid_integer",
+    ),
+  ]
+
+  let outcomes =
+    list.map(cases, fn(case_) { #(case_, read_verb(setup, case_.0)) })
+  temp.remove_dir(setup.dir)
+
+  list.each(outcomes, fn(pair) {
+    let #(#(args, reason), outcome) = pair
+    #(args, outcome.exit_code) |> should.equal(#(args, 2))
+    #(args, outcome.stdout) |> should.equal(#(args, None))
+    #(args, outcome.stderr)
+    |> should.equal(
+      #(args, [
+        "{\"level\":\"error\",\"error\":\"usage\",\"reason\":\""
+        <> reason
+        <> "\"}",
+      ]),
+    )
+  })
+}
+
+/// C1 (PHASE-05): `read --after` over the whole listing prints exactly the
+/// documents `read <id> --max-bytes 7` prints for the same ids, one line each,
+/// oldest first: each line is a version-1 `read` envelope whose data keys are
+/// `read_keys`, cursor included. Streaming a page and reading its ids one by
+/// one therefore cannot disagree.
+pub fn read_after_streams_the_listing_one_line_per_message_test() {
+  let setup =
+    cli_fixture.seeded("cli-read-after-stream", snapshot_fixture.listing())
+  let streamed = read_verb(setup, ["read", "--after", "", "--max-bytes", "7"])
+  let singles =
+    list.map(snapshot_fixture.listing_ascending_ids(), fn(id) {
+      read_verb(setup, ["read", id, "--max-bytes", "7"])
+    })
+  temp.remove_dir(setup.dir)
+
+  streamed.exit_code |> should.equal(0)
+  streamed.stderr |> should.equal([])
+  let assert Some(text) = streamed.stdout as string.inspect(streamed)
+  string.split(text, "\n")
+  |> should.equal(
+    list.map(singles, fn(outcome) {
+      let assert Some(single) = outcome.stdout as string.inspect(outcome)
+      single
+    }),
+  )
+
+  let assert Ok(documents) = streamed_documents(streamed)
+  list.each(documents, fn(document) {
+    cli_fixture.keys(document, [])
+    |> should.equal(Ok(["data", "kind", "version"]))
+    cli_fixture.field(document, ["version"], decode.int) |> should.equal(Ok(1))
+    cli_fixture.field(document, ["kind"], decode.string)
+    |> should.equal(Ok("read"))
+    cli_fixture.keys(document, ["data"]) |> should.equal(Ok(read_keys))
+  })
+}
+
+/// C1 and § 5.5 Edge (PHASE-05): a selection that selects nothing prints nothing and exits 0
+/// — no stdout, no stderr. Both edges are here: a cursor past the last message,
+/// and a filter no message answers.
+pub fn read_after_empty_selection_prints_nothing_test() {
+  let snapshot = snapshot_fixture.listing()
+  let setup = cli_fixture.seeded("cli-read-after-empty", snapshot)
+  let assert Ok(last) = list.last(snapshot_fixture.listing_ascending_ids())
+  let past =
+    read_verb(setup, [
+      "read",
+      "--after",
+      expected_cursor(snapshot, last),
+      "--max-bytes",
+      "0",
+    ])
+  let filtered =
+    read_verb(setup, [
+      "read", "--after", "", "--from", "nobody@nowhere.test", "--max-bytes", "0",
+    ])
+  temp.remove_dir(setup.dir)
+
+  list.each([past, filtered], fn(outcome) {
+    outcome.exit_code |> should.equal(0)
+    outcome.stdout |> should.equal(None)
+    outcome.stderr |> should.equal([])
+  })
+}
+
+/// EX-4 (PHASE-05): a selection's filters select what `list --after` selects —
+/// the same ids in the same oldest-first order — so streaming a filter is the
+/// same answer as listing it. Every filter here narrows the listing, so a
+/// selection that ignored it would not pass the equality by accident.
+pub fn read_after_filter_selects_what_list_after_does_test() {
+  let setup =
+    cli_fixture.seeded("cli-read-after-filter", snapshot_fixture.listing())
+  let filters = [
+    ["--mailbox", "acct-l-mb1"],
+    ["--since", "2026-10-25"],
+    ["--from", "billing@acme.test"],
+    ["--unread"],
+  ]
+  let outcomes =
+    list.map(filters, fn(filter) {
+      #(
+        filter,
+        read_verb(setup, ["list", "--after", "", ..filter]),
+        read_verb(setup, ["read", "--after", "", "--max-bytes", "0", ..filter]),
+      )
+    })
+  temp.remove_dir(setup.dir)
+
+  list.each(outcomes, fn(pair) {
+    let #(filter, listed, streamed) = pair
+    let assert Ok(listed_ids) =
+      cli_fixture.item_ids(expect_document(listed, "list"))
+      as string.inspect(#(filter, listed))
+    let assert Ok(streamed_pairs) = streamed_cursors(streamed)
+      as string.inspect(#(filter, streamed))
+    let streamed_ids = list.map(streamed_pairs, fn(pair) { pair.0 })
+    #(filter, streamed_ids) |> should.equal(#(filter, listed_ids))
+    listed_ids |> list.is_empty |> should.be_false
+    let narrowed =
+      list.length(listed_ids)
+      < list.length(snapshot_fixture.listing_ascending_ids())
+    narrowed |> should.be_true
   })
 }
 

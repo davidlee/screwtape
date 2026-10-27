@@ -23,6 +23,11 @@
 //// after BEGIN. SQLite's deferred BEGIN takes the snapshot at the first read,
 //// and the hook first fires only after the first `select` has its rows, so the
 //// snapshot is already pinned to A either way.
+////
+//// PHASE-05 adds the same guard for `read --after`, whose stream selects a page
+//// of message ids and then reads each message. B there either deletes a message
+//// the page selected or re-dates it, so a stream split across two read
+//// transactions would print A's selection with B's documents.
 
 import gleam/erlang/process.{type Subject}
 import gleam/list
@@ -31,7 +36,7 @@ import gleeunit/should
 import screwtape/cli
 import screwtape/model.{
   type Message, type Snapshot, Address, Attachment, Body, From, Message,
-  PlainText, Snapshot, To,
+  PlainText, Snapshot, Thread, To, UtcDate,
 }
 import screwtape/store
 import screwtape/store/query
@@ -56,12 +61,14 @@ const account = "acct-a"
 /// from `expected`. `list` issues several selects (`mailboxes` for --mailbox,
 /// then `messages`), `read` assembles its relations from several selects, and
 /// `thread` reads the entries then each summary, so a split is visible in all
-/// three.
+/// three. `read --after` selects its page of ids and then reads each message:
+/// split, it would print A's selection with B's documents, so a deletion or a
+/// re-dating of a selected message shows.
 pub fn cli_list_serves_one_snapshot_while_another_commits_test() {
   cli_read_verb_serves_one_snapshot(
     "cli-i8-list",
     ["list", "--mailbox", "acct-l-mb1"],
-    "acct-l-m1",
+    rewritten(_, "acct-l-m1"),
   )
 }
 
@@ -69,7 +76,7 @@ pub fn cli_read_serves_one_snapshot_while_another_commits_test() {
   cli_read_verb_serves_one_snapshot(
     "cli-i8-read",
     ["read", "acct-l-m1"],
-    "acct-l-m1",
+    rewritten(_, "acct-l-m1"),
   )
 }
 
@@ -77,20 +84,48 @@ pub fn cli_thread_serves_one_snapshot_while_another_commits_test() {
   cli_read_verb_serves_one_snapshot(
     "cli-i8-thread",
     ["thread", "acct-l-th1"],
-    "acct-l-m1",
+    rewritten(_, "acct-l-m1"),
+  )
+}
+
+/// C4 (PHASE-05): a `read --after` stream whose B deletes one of the messages
+/// the page selected. A two-transaction stream selects `-m1` among the ids and
+/// then reads it in a second `store.read`, which begins after B has committed:
+/// the line for `-m1` would be missing, and `expected` (A's six lines) would
+/// differ. Inside one `store.read`, WAL serves A throughout and the stream
+/// still prints all six lines.
+pub fn cli_read_after_stream_serves_one_snapshot_when_a_message_is_deleted_test() {
+  cli_read_verb_serves_one_snapshot(
+    "cli-i8-read-after-deleted",
+    ["read", "--after", "", "--max-bytes", "4096"],
+    fn(snapshot) { without(snapshot, "acct-l-m1") },
+  )
+}
+
+/// C4 (PHASE-05): the same walk with B re-dating a selected message instead.
+/// A two-transaction stream selects `-m1`'s id at A's position and then reads
+/// the message from B, so its line would carry B's `cursor` and `received_at`
+/// (and B's place in the order), where A's line is what `read acct-l-m1` over A
+/// prints.
+pub fn cli_read_after_stream_serves_one_snapshot_when_a_message_is_redated_test() {
+  cli_read_verb_serves_one_snapshot(
+    "cli-i8-read-after-redated",
+    ["read", "--after", "", "--max-bytes", "4096"],
+    fn(snapshot) { redated(snapshot, "acct-l-m1") },
   )
 }
 
 /// Run `args` over snapshot A without a hook, then with one whose every select
-/// commits B through a second_connection. The documented answer is A's; a
-/// plain run after it proves B is now the store's committed snapshot.
+/// commits B — `rewrite` of A — through a second_connection. The documented
+/// answer is A's; a plain run after it proves B is now the store's committed
+/// snapshot.
 fn cli_read_verb_serves_one_snapshot(
   prefix: String,
   args: List(String),
-  target_id: String,
+  rewrite rewrite: fn(Snapshot) -> Snapshot,
 ) -> Nil {
   let old_snapshot = snapshot_fixture.listing()
-  let new_snapshot = rewritten(old_snapshot, target_id)
+  let new_snapshot = rewrite(old_snapshot)
   let setup = cli_fixture.seeded(prefix, old_snapshot)
   let argv = ["--config", setup.config_path, ..args]
 
@@ -247,4 +282,37 @@ fn changed(message: Message) -> Message {
       ),
     ],
   )
+}
+
+/// `snapshot` without message `id`. `write_snapshot` deletes every row of every
+/// table before it inserts, so B's write drops the message row with its
+/// addresses, bodies, attachments and mailbox memberships; its thread stops
+/// naming it so B holds no reference the model would call dangling.
+fn without(snapshot: Snapshot, id: String) -> Snapshot {
+  Snapshot(
+    ..snapshot,
+    messages: list.filter(snapshot.messages, fn(message) { message.id != id }),
+    threads: list.map(snapshot.threads, fn(thread) {
+      Thread(thread.id, list.filter(thread.email_ids, fn(held) { held != id }))
+    }),
+  )
+}
+
+/// `snapshot` with message `id` re-dated a minute past the listing's newest
+/// message, so its `(received_at_ms, id)` position — and so its cursor — is not
+/// the one a stream over `snapshot` selected.
+fn redated(snapshot: Snapshot, id: String) -> Snapshot {
+  let received_at =
+    UtcDate(
+      raw: "2026-10-25T02:01:00Z",
+      ms: snapshot_fixture.listing_midnight_ms + 7_260_000,
+    )
+  let messages =
+    list.map(snapshot.messages, fn(message) {
+      case message.id == id {
+        True -> Message(..message, received_at: received_at)
+        False -> message
+      }
+    })
+  Snapshot(..snapshot, messages: messages)
 }

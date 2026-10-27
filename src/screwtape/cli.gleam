@@ -1,8 +1,8 @@
 //// The CLI edge (PHASE-10, D7; design § 5.2): argv and the environment in, an
 //// `Outcome` out.
 ////
-//// `run` neither prints nor exits — it returns the one stdout document, the
-//// stderr lines and the exit code, and `main` writes them and halts — so the
+//// `run` neither prints nor exits — it returns the stdout text, the stderr
+//// lines and the exit code, and `main` writes them and halts — so the
 //// whole command surface is a plain function the contract tests call in
 //// process. Every failure is the one `Error` type: its JSON line is the only
 //// thing an `Error` adds to stderr, and no variant carries server text, file
@@ -13,7 +13,9 @@
 ////
 //// The read verbs need no credential and no network: the config, one
 //// `open_reader`, one `store.read` holding every query of the verb, then
-//// `close_reader`, then a document from `render` (I8).
+//// `close_reader`, then a document from `render` (I8). `read`'s selection is
+//// the one verb whose stdout is other than one document: a line per selected
+//// message, or nothing at all (C1, C4).
 ////
 //// `sync` is the token path end to end: config file, the Prior from a
 //// short-lived reader closed again, credential from `$CREDENTIALS_DIRECTORY`,
@@ -33,10 +35,12 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/string
 import gleam/time/timestamp
 import screwtape/argv
 import screwtape/config
 import screwtape/credential
+import screwtape/cursor
 import screwtape/error.{type Error}
 import screwtape/file
 import screwtape/jmap/client
@@ -72,7 +76,7 @@ pub fn run_with(
     Error(error) -> failure(error)
     Ok(argv.Command(path, verb)) ->
       case dispatch(path, verb, env, open_reader) {
-        Ok(#(document, warnings)) -> Outcome(Some(document), warnings, 0)
+        Ok(#(stdout, warnings)) -> Outcome(stdout, warnings, 0)
         Error(error) -> failure(error)
       }
   }
@@ -90,20 +94,26 @@ pub fn production_send(
 
 // ---------------------------------------------------------------- verbs
 
-/// Run the parsed verb: `sync`, or one read verb over the config's store.
+/// Run the parsed verb: `sync`, or one read verb over the config's store. The
+/// stdout is `None` only for a selection that selected nothing.
 fn dispatch(
   path: String,
   verb: argv.Verb,
   env: fn(String) -> Result(String, Nil),
   open_reader: fn(String) -> Result(store.Reader, Error),
-) -> Result(#(String, List(String)), Error) {
+) -> Result(#(Option(String), List(String)), Error) {
   let run_read = fn(query) { read_verb(path, open_reader, query) }
+  let run_document = fn(document) {
+    run_read(fn(tx) { document(tx) |> result.map(Some) })
+  }
   case verb {
     argv.Sync -> sync(path, env, open_reader)
-    argv.Mailboxes -> run_read(mailboxes_document)
-    argv.List(filters, page) -> run_read(list_document(filters, page))
-    argv.Read(id, max_bytes) -> run_read(read_document(id, max_bytes))
-    argv.Thread(id, limit) -> run_read(thread_document(id, limit))
+    argv.Mailboxes -> run_document(mailboxes_document)
+    argv.List(filters, page) -> run_document(list_document(filters, page))
+    argv.Read(id, max_bytes) -> run_document(read_document(id, max_bytes))
+    argv.ReadAfter(filters, after, limit, max_bytes) ->
+      run_read(read_stream(filters, after, limit, max_bytes))
+    argv.Thread(id, limit) -> run_document(thread_document(id, limit))
   }
 }
 
@@ -111,8 +121,8 @@ fn dispatch(
 fn read_verb(
   path: String,
   open_reader: fn(String) -> Result(store.Reader, Error),
-  query: fn(store.Tx) -> Result(String, Error),
-) -> Result(#(String, List(String)), Error) {
+  query: fn(store.Tx) -> Result(Option(String), Error),
+) -> Result(#(Option(String), List(String)), Error) {
   use settings <- result.try(read_config(path))
   let document = read_store(open_reader, settings.store_path, query)
   document |> result.map(fn(document) { #(document, []) })
@@ -226,6 +236,38 @@ fn read_document(
   }
 }
 
+/// `read`'s selection (C1, C4): `list --after`'s page, each message rendered
+/// as `read <id> --max-bytes n` renders it, one line each, oldest first — all
+/// inside the one transaction `read_store` holds. Nothing selected is `None`.
+fn read_stream(
+  filters: argv.Filters,
+  after: cursor.Cursor,
+  limit: Int,
+  max_bytes: Int,
+) -> fn(store.Tx) -> Result(Option(String), Error) {
+  fn(tx) {
+    use account_id <- result.try(query.account_id(tx))
+    let page = query.Oldest(after: after, limit: Some(limit))
+    use list_query <- result.try(list_query(tx, filters, page))
+    use ids <- result.try(query.message_ids(tx, list_query))
+    use messages <- result.try(query.messages_of(tx, ids))
+    case messages {
+      [] -> Ok(None)
+      _ ->
+        list.map(messages, fn(message) {
+          render.read(
+            account_id: account_id,
+            message: message,
+            max_bytes: Some(max_bytes),
+          )
+        })
+        |> string.join("\n")
+        |> Some
+        |> Ok
+    }
+  }
+}
+
 fn thread_document(
   id: String,
   limit: Int,
@@ -249,7 +291,7 @@ fn sync(
   path: String,
   env: fn(String) -> Result(String, Nil),
   open_reader: fn(String) -> Result(store.Reader, Error),
-) -> Result(#(String, List(String)), Error) {
+) -> Result(#(Option(String), List(String)), Error) {
   use settings <- result.try(read_config(path))
   use prior <- result.try(load_prior(open_reader, settings.store_path))
   use dir <- result.try(credentials_directory(env))
@@ -273,7 +315,7 @@ fn sync(
   // leave the writer (and its connection) behind.
   store.close_writer(writer)
   use summary <- result.try(run)
-  Ok(#(render.envelope("sync", data(summary)), warnings(summary)))
+  Ok(#(Some(render.envelope("sync", data(summary))), warnings(summary)))
 }
 
 /// The store's Prior, or `None` when it holds no snapshot (design § 5.2

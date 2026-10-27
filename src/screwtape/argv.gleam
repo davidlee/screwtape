@@ -13,6 +13,9 @@
 //// position the consumer held, oldest first (C2, C3); it may not be combined
 //// with `--offset`. `read <id> [--max-bytes n]` and `thread <id> [--limit n]`
 //// (A7) take no other flag, and `sync` and `mailboxes` take no argument at all.
+//// A `read` whose first argument is a flag is instead a selection: `list`'s
+//// flags plus `--max-bytes`, of which `--after` and `--max-bytes` are required
+//// (C1, C4).
 
 import gleam/int
 import gleam/option.{type Option, None, Some, is_some, unwrap}
@@ -33,6 +36,7 @@ pub type Verb {
   Mailboxes
   List(filters: Filters, page: Page)
   Read(id: String, max_bytes: Option(Int))
+  ReadAfter(filters: Filters, after: Cursor, limit: Int, max_bytes: Int)
   Thread(id: String, limit: Int)
 }
 
@@ -95,6 +99,9 @@ fn verb_command(
         let #(filters, page) = parsed
         Command(path, List(filters, page))
       })
+    "read", ["--" <> _, ..] ->
+      parse_selection(args)
+      |> result.map(fn(verb) { Command(path, verb) })
     "read", _ ->
       parse_read(args)
       |> result.map(fn(parsed) {
@@ -153,10 +160,7 @@ fn parse_sole_int_flag(
   case args {
     [] -> Ok(found)
     [name, ..rest] if name == flag -> {
-      use _ <- result.try(fresh(is_some(found)))
-      use pair <- result.try(value_flag(rest))
-      let #(raw, rest) = pair
-      use parsed <- result.try(value(raw))
+      use #(parsed, rest) <- result.try(flag_value(rest, is_some(found), value))
       parse_sole_int_flag(rest, flag, value, Some(parsed))
     }
     _ -> usage("unknown_argument")
@@ -168,6 +172,22 @@ fn max_bytes_value(raw: String) -> Result(Int, Error) {
     Ok(value) if value >= 0 -> Ok(value)
     _ -> usage("invalid_max_bytes")
   }
+}
+
+/// `read`'s selection (C1, C4): `list`'s flags plus `--max-bytes`, then, in
+/// this order, a required `--after`, no `--offset` beside it, and a required
+/// `--max-bytes` (RV-010 N-2).
+fn parse_selection(args: List(String)) -> Result(Verb, Error) {
+  use flags <- result.try(parse_list_flags(args, empty_flags()))
+  use filters <- result.try(filters_of(flags))
+  use after <- result.try(required(flags.after, "missing_after"))
+  use _ <- result.try(no_offset_with_after(flags))
+  use max_bytes <- result.try(required(flags.max_bytes, "missing_max_bytes"))
+  Ok(ReadAfter(filters, after, unwrap(flags.limit, default_limit), max_bytes))
+}
+
+fn required(flag: Option(a), reason: String) -> Result(a, Error) {
+  option.to_result(flag, error.Usage(reason))
 }
 
 /// `thread <id> [--limit n]`, whose page defaults to `default_limit` (A7).
@@ -186,7 +206,8 @@ fn parse_thread(args: List(String)) -> Result(#(String, Int), Error) {
   }
 }
 
-/// `list`'s flags, in any order, each at most once (A5).
+/// `list`'s flags, and the `read` selection's, in any order, each at most once
+/// (A5). Only the selection takes `--max-bytes`.
 type ListFlags {
   ListFlags(
     mailbox: Option(String),
@@ -196,20 +217,26 @@ type ListFlags {
     limit: Option(Int),
     offset: Option(Int),
     after: Option(Cursor),
+    max_bytes: Option(Int),
   )
 }
 
 /// `list`'s flags in, the filters and the page out (design § 5.2); the two
-/// are separate so PHASE-05's `read --after` can reuse the filters.
+/// are separate so `read`'s selection can reuse the filters. `--max-bytes` is
+/// the selection's alone, and is an unknown flag here.
 fn parse_list(args: List(String)) -> Result(#(Filters, Page), Error) {
   use flags <- result.try(parse_list_flags(args, empty_flags()))
+  use _ <- result.try(case flags.max_bytes {
+    Some(_) -> usage("unknown_argument")
+    None -> Ok(Nil)
+  })
   use filters <- result.try(filters_of(flags))
   use page <- result.try(page_of(flags))
   Ok(#(filters, page))
 }
 
 fn empty_flags() -> ListFlags {
-  ListFlags(None, None, None, False, None, None, None)
+  ListFlags(None, None, None, False, None, None, None, None)
 }
 
 fn parse_list_flags(
@@ -272,6 +299,14 @@ fn parse_list_flags(
             fn(flags, value) { ListFlags(..flags, after: Some(value)) },
             flags,
           )
+        "--max-bytes" ->
+          parse_value_flag(
+            rest,
+            is_some(flags.max_bytes),
+            max_bytes_value,
+            fn(flags, value) { ListFlags(..flags, max_bytes: Some(value)) },
+            flags,
+          )
         _ -> usage("unknown_argument")
       }
   }
@@ -301,11 +336,23 @@ fn parse_value_flag(
   store: fn(ListFlags, a) -> ListFlags,
   flags: ListFlags,
 ) -> Result(ListFlags, Error) {
-  use _ <- result.try(fresh(taken))
-  use pair <- result.try(value_flag(args))
-  let #(raw, rest) = pair
-  use parsed <- result.try(parse(raw))
+  use #(parsed, rest) <- result.try(flag_value(args, taken, parse))
   parse_list_flags(rest, store(flags, parsed))
+}
+
+/// The value after a flag that may appear once (A5), read and checked by
+/// `parse`, with the arguments after it. A flag already `taken` is
+/// `repeated_argument`; a flag with nothing after it is `missing_value`.
+fn flag_value(
+  args: List(String),
+  taken: Bool,
+  parse: fn(String) -> Result(a, Error),
+) -> Result(#(a, List(String)), Error) {
+  use _ <- result.try(fresh(taken))
+  case args {
+    [raw, ..rest] -> parse(raw) |> result.map(fn(parsed) { #(parsed, rest) })
+    [] -> usage("missing_value")
+  }
 }
 
 fn int_value(raw: String, allowed: fn(Int) -> Bool) -> Result(Int, Error) {
@@ -342,7 +389,7 @@ fn cursor_value(raw: String) -> Result(Cursor, Error) {
   }
 }
 
-/// The filters `list`, and in PHASE-05 `read --after`, select by (A2).
+/// The filters `list` and `read`'s selection select by (A2).
 fn filters_of(flags: ListFlags) -> Result(Filters, Error) {
   use since_ms <- result.try(optional_since(flags.since))
   Ok(Filters(
@@ -356,22 +403,20 @@ fn filters_of(flags: ListFlags) -> Result(Filters, Error) {
 /// The page `list` asks for: `--after` may not be combined with `--offset`,
 /// and the other flags' defaults apply otherwise (A5, C2).
 fn page_of(flags: ListFlags) -> Result(Page, Error) {
+  use _ <- result.try(no_offset_with_after(flags))
   let limit = unwrap(flags.limit, default_limit)
   case flags.after {
-    Some(after) ->
-      case is_some(flags.offset) {
-        True -> usage("offset_with_after")
-        False -> Ok(After(limit, after))
-      }
+    Some(after) -> Ok(After(limit, after))
     None -> Ok(Offset(limit, unwrap(flags.offset, default_offset)))
   }
 }
 
-/// The value after a flag; a flag with nothing after it is `Usage`.
-fn value_flag(args: List(String)) -> Result(#(String, List(String)), Error) {
-  case args {
-    [value, ..rest] -> Ok(#(value, rest))
-    [] -> usage("missing_value")
+/// `--after` starts a page at a cursor, so it may not be combined with
+/// `--offset` (C2).
+fn no_offset_with_after(flags: ListFlags) -> Result(Nil, Error) {
+  case flags.after, flags.offset {
+    Some(_), Some(_) -> usage("offset_with_after")
+    _, _ -> Ok(Nil)
   }
 }
 
