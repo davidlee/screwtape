@@ -1,0 +1,46 @@
+memory_uid = "mem_01a17f611a1777338d48e16e1ab9b87b"
+memory_key = "mem.pattern.doctrine.nested-review-handback"
+schema_version = 1
+memory_type = "pattern"
+status = "active"
+title = "Nested review subagents: ledger first, message fallback"
+summary = "A review subagent spawned by a sub-orchestrator often cannot SubagentHandback; have it write findings to the RV ledger and SendMessage its report by name"
+created = "2026-10-27"
+updated = "2026-10-27"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["review", "orchestration"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "commit"
+commit = "c09d4dc1aa639f2ba66922cea0c056eb4f01b3fb"
+tree = "66c10969e6264fedd13f7b05f80a38f61b68df73"
+ref_name = "refs/heads/main"
+checkout_state_id = ""
+base_commit = "c09d4dc1aa639f2ba66922cea0c056eb4f01b3fb"
+verified_sha = ""
+normalizer = ""
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "slice"
+ref = "SL-003"
+

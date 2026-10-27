@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-28 · audit (RV-015 concluded) · 12a0202
+fresh-as-of: 2026-10-28 · close (reconciled c09d4dc)
 
 ### Produced
 - slice-003.md · research/research.md · design.md · plan.toml / plan.md
@@ -23,9 +23,10 @@ fresh-as-of: 2026-10-28 · audit (RV-015 concluded) · 12a0202
 - Erlang `binary_to_integer` accepts `+05`/`007` (RV-010 F-5) → canonical-only parse
 - SQLite breaks ORDER BY ties by scan order: tie tests insert both orders (RV-012 F-1)
 - plan criterion corrections: append, don't edit in place (RV-015 F-10)
+- mem.pattern.doctrine.nested-review-handback — nested reviewers: ledger first, SendMessage fallback
 
 ### Open
-- RV-015 reconciliation brief: design § 3/4/5.2/9/10, selector + boundary registry, DEC-028
+- none from SL-003. RV-015 brief reconciled in c09d4dc (design § 3/4/5.2/9/10, selectors, PHASE-04 delta, DEC-028)
 - IMP-001 declined for now (operator); no open QUE/ASM
 
 ## Design
