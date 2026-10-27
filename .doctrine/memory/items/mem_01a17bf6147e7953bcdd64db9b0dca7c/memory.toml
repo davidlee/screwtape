@@ -1,0 +1,59 @@
+memory_uid = "mem_01a17bf6147e7953bcdd64db9b0dca7c"
+memory_key = "mem.pattern.testing.sync-mutant-killing-fixtures"
+schema_version = 1
+lifespan = "semantic"
+memory_type = "pattern"
+status = "active"
+title = "Sync tests that kill paging and budget mutants"
+summary = "Paging-fold and budget-charge bugs survive sync tests unless the decisive change is on a non-final page and budgets are byte-exact"
+created = "2026-10-27"
+updated = "2026-10-27"
+
+[scope]
+paths = ["test/screwtape/sync_test.gleam", "test/support/sync_fixture.gleam", "src/screwtape/sync.gleam"]
+globs = []
+commands = []
+tags = ["testing", "jmap"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "1f462e8891178df5a784758a9037d997834ba233"
+ref_name = "refs/heads/main"
+checkout_state_id = "028950bb786cece58f7d416e49293a4b8276a26cb50e79a0e2af5a00e57a659b"
+base_commit = "50ed117ea128d9d05977291b1682a1d76db78bca"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "medium"
+weight = 0
+
+[[source]]
+kind = "review"
+ref = "RV-006"
+
+[[source]]
+kind = "review"
+ref = "RV-007"
+
+[[relation]]
+label = "related"
+target = "mem_01a17ac009d978a0bf5a4f86531c7414"
+
+[[relation]]
+label = "related"
+target = "mem_01a1777d4e507313ac70c5579a49d81d"
+
