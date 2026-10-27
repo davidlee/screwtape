@@ -146,7 +146,7 @@ entrance_criteria = [
   { id = "EN-1", text = "PHASE-05 is complete and reviewed: the output the README describes exists." },
 ]
 exit_criteria = [
-  { id = "EX-1", text = "README's CLI table lists list --after, read --after and thread --limit; a § Contract states the envelope, version 1 and the compatibility rule, one field table per kind matching design § 5.2 Published shape v1, the cursor (opaque, \"\" starts, paging rule), the line-delimited read --after, the bounds, the four known limits (DEC-028) and reader needs (DEC-031)." },
+  { id = "EX-1", text = "README's CLI table lists list --after, read --after and thread --limit; a § Contract states the envelope, version 1 and the compatibility rule, one field table per kind matching design § 5.2 Published shape v1, the cursor (opaque, \"\" starts, paging rule), the line-delimited read --after, the bounds (--limit ≤ 500; --max-bytes caps body text only, per message, shared across its bodies in body order, so a stream's body text is at most limit × max_bytes while headers, addresses and attachment metadata are uncapped; thread total/truncated), the four known limits (DEC-028) and reader needs (DEC-031)." },
   { id = "EX-2", text = "~/dev/satan/.doctrine/rfc/020 carries an uncommitted amendment: OQ-11 answered (CLI JSON contract, with the reasoning), D1's consumer cursor (arrival cursor, consumer-held, known limits), and a note on IDE-001 composing by pipe. Only rfc-020 files change; the operator's other uncommitted satan work is untouched." },
 ]
 verification = [
