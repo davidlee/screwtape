@@ -88,6 +88,7 @@ verification = [
   { id = "VT-2", expects = "the two new invocations carry their arguments", test_file = "test/screwtape/jmap/request_test.gleam", keywords = ["email_changes", "email_get_light", "maxChanges"], waived = false },
   { id = "VT-3", expects = "fixture builders exist and the opening guard is in place", test_file = "test/support/jmap_fixture.gleam", keywords = ["changes_response", "cannotCalculateChanges"], waived = false },
   { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before PHASE-04." },
+  { id = "VA-2", text = "CHR-004 records that its opening_entries item is done in SL-002 PHASE-03; its other items stay open." },
 ]
 specs        = []
 requirements = []
@@ -121,7 +122,7 @@ entrance_criteria = [
 ]
 exit_criteria = [
   { id = "EX-1", text = "sync.run(client, writer, bounds, prior, now); Bounds carries window, max_pages and max_body_bytes; Summary gains mode: Mode and fallback_reason: Option(String). cli passes None until PHASE-07 wires the Prior." },
-  { id = "EX-2", text = "The Prior is unusable (no_state) when api_url, account_id or the stored bodies' max_body_value_bytes differ; window_changed when window_json or the resolved mailbox ids differ. Both run full, the latter keeping and light-refreshing every stored id." },
+  { id = "EX-2", text = "The Prior is unusable (no_state) when api_url, account_id or the stored bodies' max_body_value_bytes differ; window_changed when window_json or the resolved mailbox ids differ. Both run full, the latter keeping and light-refreshing every stored id. A store with no bodies has no body limit to differ, so it does not make the Prior unusable." },
   { id = "EX-3", text = "get_chunked is the one chunked get loop over in_chunks, only_requested and all_answered; get_emails and the light get both use it." },
   { id = "EX-4", text = "With no Prior, the run's ids, store and requests equal M1's apart from the summary fields: the existing sync tests pass with only the run signature changed." },
   { id = "EX-5", text = "sync_fixture gains string_argument, a public type_state and run_twice; expect_unchanged accepts any seeded store, not a sibling helper." },
@@ -149,6 +150,7 @@ exit_criteria = [
   { id = "EX-4", text = "Stored Email state: the last Email/changes newState on the incremental path, the opening state on the full path." },
   { id = "EX-5", text = "Every § 9 invariant test passes: deletion_backfills_test, incremental_equals_full_test, age_out_without_changes_test, unchanged_account_fetches_no_email_test, outside_window_change_ignored_test, concurrent_move_converges_test, stored_email_state_test, failure_then_retry_test; plus paging, destroyed-wins and both fallbacks." },
   { id = "EX-6", text = "TDD scaffolding that duplicates these tests is pruned; gleam format --check and just check are clean; the phase diff has been reviewed before PHASE-07 starts." },
+  { id = "EX-7", text = "sync_fixture gains a changes step built on jmap_fixture.changes_response, used by every test above; no sibling harness." },
 ]
 verification = [
   { id = "VT-1", expects = "the § 9 invariant tests for I-M1..I-M4", test_file = "test/screwtape/sync_test.gleam", keywords = ["deletion_backfills_test", "incremental_equals_full_test", "age_out_without_changes_test", "unchanged_account_fetches_no_email_test", "outside_window_change_ignored_test", "concurrent_move_converges_test", "stored_email_state_test", "failure_then_retry_test"], waived = false },
