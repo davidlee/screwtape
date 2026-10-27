@@ -6,21 +6,25 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · design/reviewing (draft complete, RV-005 open) · 4796c6d
+fresh-as-of: 2026-10-27 · ready (plan materialised, PHASE-01 next) · 176932c
 
 ### Produced
-POL-001 · EVD-001 · DEC-024 · DEC-025 (supersedes DEC-022) · DEC-026 (supersedes DEC-023) · CHR-004 · design.md (sec-1..sec-10) · RV-005 · mem.fact.jmap.fastmail-email-changes · mem.fact.doctrine.design-section-order
+- RV-005 hostile pass (Codex) disposed, integrated; design run locked rev 37 (8173079)
+- DEC-024 accepted; DEC-024/025/026 amended per RV-005 (8173079, 176932c)
+- plan.toml/plan.md: 9 phases, order 01-02-03-04-05-08-06-09-07; revised after a pi plan review (68f52ce..5b4e7e7)
+- POL-001 · EVD-001 · DEC-025 (supersedes DEC-022) · DEC-026 (supersedes DEC-023) · CHR-004 · design.md (sec-1..sec-10)
+- no code yet; no gate run needed
 
 ### Learned
-mem.fact.jmap.fastmail-email-changes (EVD-001) · mem.fact.doctrine.design-section-order
+- mem.fact.jmap.fastmail-email-changes — EVD-001's Fastmail Email/changes behaviour
+- mem.fact.doctrine.design-section-order — design section ordering
 
 ### Open
-- RV-005 hostile pass: operator chose GPT (Codex) as raiser — not yet run
-- section-reviewed (user lane, 14 sections), review-disposed, design-accepted — operator acts, after the pass
-- review.selectors runbook step: re-confirm after the pass (20 design-target selectors match § 10)
+- RV-005 — optional raiser verify/contest round (Codex thread resume) not run
+- api_url as server identity — a Fastmail apiUrl change would cost one full refetch (see § Further review passes)
 - satan:RFC-020 D8 amendment draft (no queryChanges; query-driven membership; retention) — at close
-- research/ untracked: skill says gitignored, .gitignore does not cover it — operator to decide; research.md's "count-capped divergence no longer applies" is disproved (see GPT design review below)
-- CHR-004 (test debt; SL-002 absorbs only the opening_entries guard)
+- research/ untracked and drifted (`doctrine slice research 2`) — operator to decide
+- CHR-004 — SL-002 absorbs only the opening_entries guard (PHASE-03 VA-2)
 
 ## Design triage (2026-10-27, exploring)
 
