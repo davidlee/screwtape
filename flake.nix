@@ -3,12 +3,12 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    # pi, the LLM gateway client and jail.nix: one pin shared with every jail.
+    # pi, the LLM gateway client, jail.nix and the quotient form wiring: one
+    # pin shared with every jail.
     agents = {
       url = "github:davidlee/nix-config?dir=flakes/agents";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    jail-nix.follows = "agents/jail-nix";
     # The form-family builder (quotient SL-003), pinned to the commit the
     # forms were built against; a published tag is CHR-003.
     quotient = {
@@ -31,7 +31,6 @@
     self,
     nixpkgs,
     agents,
-    jail-nix,
     quotient,
     doctrine,
     nix-gleam,
@@ -60,24 +59,16 @@
       gnumake
     ];
 
-    # Delegates reach the model through the host LLM gateway on pi's key: the
-    # URL is a literal, the key is read at launch outside the jail, and pi's
-    # provider list is bound read-only.
-    gateway = jailLib.gatewayClient "pi";
-
     # quotient's per-call forms for this root (`quotient help form`): linked
     # at .quotient/forms/<capability> by `just quotient-forms`, then approved
-    # with `quotient allow`.
-    formFamily = quotient.lib.mkFormFamily {
-      inherit pkgs jail-nix;
-      pi = jailLib.unjailed.pi;
+    # with `quotient allow`. Delegates reach the model through the host LLM
+    # gateway on pi's key; the agents lib supplies that wiring.
+    formFamily = jailLib.quotientFormFamily {
+      inherit quotient;
       packages =
         toolchain
         ++ [doctrine.packages.${system}.default]
         ++ (with pkgs; [bash findutils gnugrep gnused gawk ripgrep fd git]);
-      env.LLM_GATEWAY_URL = gateway.url;
-      secretEnv.LLM_GATEWAY_KEY = ''$(< "${gateway.keyFile}")'';
-      piFiles."models.json" = jailLib.piGatewayModels;
     };
   in {
     homeManagerModules.default = import ./nix/module.nix self;

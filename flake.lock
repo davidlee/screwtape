@@ -11,11 +11,11 @@
       },
       "locked": {
         "dir": "flakes/agents",
-        "lastModified": 1793053588,
-        "narHash": "sha256-mliCs+W9sY+WIkjd31tV1rgzVJQP0bM48h6+rvJwgJs=",
+        "lastModified": 1793066558,
+        "narHash": "sha256-8cxuItGg5lf5wq2pMFvHhsJEpaH9djdM736r94fy9bs=",
         "owner": "davidlee",
         "repo": "nix-config",
-        "rev": "73516b60cfa668f9d977f5f4575ea32f104414da",
+        "rev": "aba69ce89ceca51c26fe32b30902375f42080662",
         "type": "github"
       },
       "original": {
@@ -550,10 +550,6 @@
         "agents": "agents",
         "doctrine": "doctrine",
         "home-manager": "home-manager",
-        "jail-nix": [
-          "agents",
-          "jail-nix"
-        ],
         "nix-gleam": "nix-gleam",
         "nixpkgs": "nixpkgs_7",
         "quotient": "quotient"
