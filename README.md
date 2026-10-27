@@ -87,6 +87,61 @@ verb fails with a credential error. To sync on demand:
 systemctl --user start screwtape.service
 ```
 
+## How `sync` works
+
+A run takes one of two paths and reports which in its summary:
+
+```text
+"mode": "incremental" | "full"
+"fallback_reason": null | "no_state" | "window_changed" | "cannot_calculate_changes" | "too_many_changes"
+```
+
+```text
+stored snapshot? ──no──────────────────────────────▶ full (no_state)
+      │yes
+same server, account, maxBodyBytes? ────no─────────▶ full (no_state)
+      │yes
+same window and mailbox ids? ──no──────────────────▶ full (window_changed)
+      │yes
+Email/changes ── cannotCalculateChanges ───────────▶ full (cannot_calculate_changes)
+      │       └─ still more changes after maxPages ─▶ full (too_many_changes)
+      ▼
+incremental
+```
+
+- **Incremental** asks the server what changed since the stored Email
+  state (`Email/changes`). When nothing changed, the run sends no `Email/get`
+  with ids and only re-reads the threads. When something changed, it re-runs
+  the window query, fetches new messages in full and refreshes the changed
+  stored ones (their mailboxes and keywords).
+- **Full** fetches everything in the window. When it has a usable stored
+  snapshot (every reason but `no_state`), stored bodies are kept and only
+  their mailboxes and keywords are refreshed.
+
+`fallback_reason` is `null` on an incremental run and names the reason on a
+full one. `maxPages` bounds the `Email/changes` pages as well as the
+`Email/query` pages.
+
+**After upgrading** from a version without incremental sync, the first run
+is full with `window_changed`: the stored window gained a key
+(`retain_messages`). This happens once, and stored bodies are kept.
+
+**Retention.** `window.retainMessages` (`retain_messages` in the config)
+keeps up to that many messages in the store, newest first, while each run
+fetches only the window. It requires `window.maxMessages` and must be at
+least that. Unset, the store holds exactly the window. With it set,
+retention ignores `maxAgeDays`.
+
+Retention covers the configured mailboxes only: a message moved out of
+every configured mailbox, for example archived, is dropped from the store.
+To keep archived mail, add the archive mailbox to `window.mailboxes`.
+
+**Budget.** `maxTotalBytes` bounds the bytes a run receives, with one
+exception. When the server answers `cannotCalculateChanges` (its change log
+no longer reaches the stored state), the bytes of that error reply are not
+charged to the full run that follows, so the run can receive up to about
+twice `maxTotalBytes`. The overspend is bounded, and expected to be rare.
+
 ## Installation (Home Manager)
 
 The flake exports `homeManagerModules.default`:
@@ -113,8 +168,9 @@ Options:
 | `window.mailboxes` | `["inbox"]` | Mailboxes to mirror, each matched by role first, then by name. |
 | `window.maxAgeDays` | `30` | Mirror messages received within this many days. |
 | `window.maxMessages` | `2000` | Mirror at most this many messages, newest first. |
+| `window.retainMessages` | `null` | Keep at most this many messages in the store; requires `window.maxMessages` and is at least it (see [How `sync` works](#how-sync-works)). |
 | `maxBodyBytes` | `262144` | Bound on one message's stored body text, summed over its parts. |
-| `maxPages` | `20` | Bound on `Email/query` pages per sync. |
+| `maxPages` | `20` | Bound on `Email/query` pages, and on `Email/changes` pages, per sync. |
 | `maxTotalBytes` | `268435456` | Bound on every HTTP response body received in one sync, summed. |
 | `requestTimeoutMs` | `30000` | Per-request timeout. |
 | `caFile` | `null` | Absolute path of a CA bundle to trust instead of the system store. |

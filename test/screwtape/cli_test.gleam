@@ -265,6 +265,14 @@ pub fn full_sync_test() {
     decode.at(["data", "states", "Thread"], decode.string),
   )
   |> should.equal(Ok("ts-0"))
+  // A fresh store has no Prior, so the run is full and says why.
+  decode.run(json_document, decode.at(["data", "mode"], decode.string))
+  |> should.equal(Ok("full"))
+  decode.run(
+    json_document,
+    decode.at(["data", "fallback_reason"], decode.optional(decode.string)),
+  )
+  |> should.equal(Ok(Some("no_state")))
   let assert Ok(synced_at) =
     decode.run(json_document, decode.at(["data", "synced_at"], decode.string))
   // A whole-second RFC 3339 instant, the run's own clock.
@@ -386,6 +394,94 @@ pub fn failed_session_leaves_store_unchanged_test() {
   before |> string.contains("acct-old") |> should.be_true
   store_dump.dump(store_path) |> should.equal(before)
   temp.remove_dir(store)
+}
+
+// ---------------------------------------------------------------- sync, again
+
+/// A second sync over the store the first committed: the Prior is read, so the
+/// run goes incrementally — the opening request, `Email/changes` from the
+/// stored state and `Thread/get` over the kept threads. With nothing changed
+/// no `Email/query` and no `Email/get` of ids run, and the document says so.
+pub fn second_sync_is_incremental_test() {
+  let server =
+    local_jmap.start_with(fn(base_url) {
+      list.append(
+        cli_fixture.full_sync_script(base_url),
+        cli_fixture.incremental_sync_script(base_url),
+      )
+    })
+  let credentials = cli_fixture.credential_dir("SENTINEL-cli-incremental")
+  let #(store, store_path) = store_dir("cli-incremental-store")
+  let #(dir, path) =
+    cli_fixture.config_dir(
+      "cli-incremental",
+      cli_fixture.config_text(
+        local_jmap.url(server, "/session"),
+        store_path,
+        Some(server.ca_path),
+      ),
+    )
+
+  let first = cli.run(["--config", path, "sync"], credentials_env(credentials))
+  let second = cli.run(["--config", path, "sync"], credentials_env(credentials))
+  let requests = local_jmap.request_count(server)
+  local_jmap.stop(server)
+  temp.remove_dir(dir)
+  temp.remove_dir(credentials)
+  temp.remove_dir(store)
+
+  first.exit_code |> should.equal(0)
+  second.exit_code |> should.equal(0)
+  second.stderr |> should.equal([warning_line])
+  // The first run's five requests, then the second's four: session, opening,
+  // `Email/changes` and the one `Thread/get`. A full second run would be five.
+  requests |> should.equal(9)
+  let document = cli_fixture.stdout_json(second)
+  cli_fixture.field(document, ["data", "mode"], decode.string)
+  |> should.equal(Ok("incremental"))
+  cli_fixture.field(
+    document,
+    ["data", "fallback_reason"],
+    decode.optional(decode.string),
+  )
+  |> should.equal(Ok(None))
+  cli_fixture.field(document, ["data", "messages"], decode.int)
+  |> should.equal(Ok(2))
+}
+
+/// EX-1 / A1: a store read error other than `no_snapshot` — here a store one
+/// schema version newer — fails the run as the store error it is, before any
+/// credential, session or writer. With no credentials directory either, a run
+/// that read the credential first would fail as a credential error instead.
+pub fn sync_fails_on_a_store_read_error_with_zero_requests_test() {
+  let server = local_jmap.start_with(fn(_base_url) { [] })
+  let #(store, store_path) = store_dir("cli-read-error-store")
+  let assert Ok(writer) = store.open_writer(store_path)
+  let assert Ok(Nil) =
+    store.write_snapshot(writer, snapshot_fixture.full("acct-prior"))
+  store.close_writer(writer)
+  store_dump.set_user_version(store_path, store.supported_version() + 1)
+  let #(dir, path) =
+    cli_fixture.config_dir(
+      "cli-read-error",
+      cli_fixture.config_text(
+        local_jmap.url(server, "/session"),
+        store_path,
+        Some(server.ca_path),
+      ),
+    )
+
+  let outcome = cli.run(["--config", path, "sync"], no_env)
+  let requests = local_jmap.request_count(server)
+  local_jmap.stop(server)
+  temp.remove_dir(dir)
+  temp.remove_dir(store)
+
+  let line = expect_failure(outcome, "store", 1)
+  line
+  |> string.contains("\"reason\":\"schema_mismatch\"")
+  |> should.be_true
+  requests |> should.equal(0)
 }
 
 // ---------------------------------------------------------------- shipment

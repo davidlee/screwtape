@@ -15,12 +15,13 @@
 //// `open_reader`, one `store.read` holding every query of the verb, then
 //// `close_reader`, then a document from `render` (I8).
 ////
-//// `sync` is the token path end to end: config file, credential from
-//// `$CREDENTIALS_DIRECTORY`, a byte budget, the production `Send`, the session,
-//// then one whole `sync.run` — every JMAP call and the one committed snapshot —
-//// over a writer on the config's store. The writer is closed on both paths, so
-//// a failed run leaves the store as it was (I2); a successful one is reported
-//// as a single document, and a writable account adds exactly one warning line.
+//// `sync` is the token path end to end: config file, the Prior from a
+//// short-lived reader closed again, credential from `$CREDENTIALS_DIRECTORY`,
+//// a byte budget, the production `Send`, the session, then one whole `sync.run`
+//// — every JMAP call and the one committed snapshot — over a writer on the
+//// config's store. The writer is closed on both paths, so a failed run leaves
+//// the store as it was (I2); a successful one is reported as a single document,
+//// and a writable account adds exactly one warning line.
 ////
 //// The production `Send`'s Erlang binding lives here (D8), so the program has
 //// exactly one: `production_send` closes it over the run's timeout and CA file,
@@ -98,7 +99,7 @@ fn dispatch(
 ) -> Result(#(String, List(String)), Error) {
   let run_read = fn(query) { read_verb(path, open_reader, query) }
   case verb {
-    argv.Sync -> sync(path, env)
+    argv.Sync -> sync(path, env, open_reader)
     argv.Mailboxes -> run_read(mailboxes_document)
     argv.List(args) -> run_read(list_document(args))
     argv.Read(id, max_bytes) -> run_read(read_document(id, max_bytes))
@@ -106,18 +107,29 @@ fn dispatch(
   }
 }
 
-/// One read verb: the config, one reader, every query in one `store.read`, and
-/// the reader closed before the result is inspected (I8).
+/// One read verb: the config, then `read_store`.
 fn read_verb(
   path: String,
   open_reader: fn(String) -> Result(store.Reader, Error),
   query: fn(store.Tx) -> Result(String, Error),
 ) -> Result(#(String, List(String)), Error) {
   use settings <- result.try(read_config(path))
-  use reader <- result.try(open_reader(settings.store_path))
+  let document = read_store(open_reader, settings.store_path, query)
+  document |> result.map(fn(document) { #(document, []) })
+}
+
+/// One short-lived reader over `store_path`, every query of `query` in one
+/// `store.read`, and the reader closed before the result is inspected (I8).
+/// Shared by the read verbs and the `sync` run's Prior load.
+fn read_store(
+  open_reader: fn(String) -> Result(store.Reader, Error),
+  store_path: String,
+  query: fn(store.Tx) -> Result(a, Error),
+) -> Result(a, Error) {
+  use reader <- result.try(open_reader(store_path))
   let outcome = store.read(reader, query)
   store.close_reader(reader)
-  outcome |> result.map(fn(document) { #(document, []) })
+  outcome
 }
 
 fn mailboxes_document(tx: store.Tx) -> Result(String, Error) {
@@ -197,14 +209,17 @@ fn thread_document(id: String) -> fn(store.Tx) -> Result(String, Error) {
 
 // ---------------------------------------------------------------- sync
 
-/// The `sync` run: read the config, read the credential, spend a budget over
-/// the session and the whole `sync.run`, and render the summary. Any failure
-/// ends the run (EX-2) with that `Error`, and the writer is closed either way.
+/// The `sync` run: read the config, read the Prior in a reader closed before
+/// any network or writer (EX-1), read the credential, spend a budget over the
+/// session and the whole `sync.run`, and render the summary. Any failure ends
+/// the run (EX-2) with that `Error`, and the writer is closed either way.
 fn sync(
   path: String,
   env: fn(String) -> Result(String, Nil),
+  open_reader: fn(String) -> Result(store.Reader, Error),
 ) -> Result(#(String, List(String)), Error) {
   use settings <- result.try(read_config(path))
+  use prior <- result.try(load_prior(open_reader, settings.store_path))
   use dir <- result.try(credentials_directory(env))
   use token <- result.try(credential.read(dir, settings.credential_name))
   let send = production_send(settings.request_timeout_ms, settings.ca_file)
@@ -221,12 +236,25 @@ fn sync(
       max_pages: settings.max_pages,
       max_body_bytes: settings.max_body_bytes,
     )
-  let run = sync.run(client_, writer, bounds, None, timestamp.system_time())
+  let run = sync.run(client_, writer, bounds, prior, timestamp.system_time())
   // Closed before the run's own result is inspected, so a failed commit cannot
   // leave the writer (and its connection) behind.
   store.close_writer(writer)
   use summary <- result.try(run)
   Ok(#(render.envelope("sync", data(summary)), warnings(summary)))
+}
+
+/// The store's Prior, or `None` when it holds no snapshot (design § 5.2
+/// `sync.run`): any other read error ends the run unchanged.
+fn load_prior(
+  open_reader: fn(String) -> Result(store.Reader, Error),
+  store_path: String,
+) -> Result(Option(model.Prior), Error) {
+  case read_store(open_reader, store_path, query.prior) {
+    Ok(prior) -> Ok(Some(prior))
+    Error(error.Store("no_snapshot")) -> Ok(None)
+    Error(other) -> Error(other)
+  }
 }
 
 /// An unreadable file — missing, unreadable or not UTF-8 — is `Config`
@@ -281,8 +309,26 @@ fn data(summary: sync.Summary) -> json.Json {
     #("not_found", json.int(summary.not_found)),
     #("conversion_failures", json.int(summary.conversion_failures)),
     #("states", states(summary.states)),
+    #("mode", json.string(mode_name(summary.mode))),
+    #("fallback_reason", fallback_reason(summary.fallback_reason)),
     #("is_read_only", json.bool(summary.is_read_only)),
   ])
+}
+
+/// How the run chose the messages to refresh (design § 5.2 `sync.run`).
+fn mode_name(mode: sync.Mode) -> String {
+  case mode {
+    sync.Incremental -> "incremental"
+    sync.Full -> "full"
+  }
+}
+
+/// Why a full run is full, `null` for an incremental one.
+fn fallback_reason(reason: Option(String)) -> json.Json {
+  case reason {
+    None -> json.null()
+    Some(reason) -> json.string(reason)
+  }
 }
 
 /// The run's type states as one object, `<type>: <state>`.

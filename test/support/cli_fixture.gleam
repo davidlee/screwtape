@@ -148,18 +148,19 @@ pub fn token(secret: String) -> credential.Token {
   token
 }
 
+/// The Email state the opening request of `full_sync_script` answers, which
+/// its run commits: the state a following incremental run asks changes from.
+pub const full_sync_email_state = "es-0"
+
 /// The replies one whole `sync` run reads, for the CLI cases that drive the
 /// production path end to end: the session, the opening request's answer (an
-/// `inbox`, Email and Thread states `es-0` and `ts-0`),
+/// `inbox`, Email state `full_sync_email_state`, Thread state `ts-0`),
 /// one `Email/query` page of two messages, their `Email/get`, and the
 /// `Thread/get` of their two threads.
 pub fn full_sync_script(base_url: String) -> List(local_jmap.Reply) {
   [
-    local_jmap.reply(200, jmap_fixture.session(base_url <> "/api")),
-    local_jmap.reply(
-      200,
-      jmap_fixture.opening_response([inbox()], "mb-state-1", "es-0", "ts-0"),
-    ),
+    session_reply(base_url),
+    opening_reply(),
     local_jmap.reply(
       200,
       jmap_fixture.email_query_response(
@@ -179,14 +180,57 @@ pub fn full_sync_script(base_url: String) -> List(local_jmap.Reply) {
         [],
       ),
     ),
+    threads_reply(),
+  ]
+}
+
+/// The replies a second `sync` over the store `full_sync_script`'s run
+/// committed reads: the session, the same opening answer, one `Email/changes`
+/// from `full_sync_email_state` that reports nothing — so no `Email/query` and
+/// no `Email/get` of ids run — and the `Thread/get` of the threads kept.
+pub fn incremental_sync_script(base_url: String) -> List(local_jmap.Reply) {
+  [
+    session_reply(base_url),
+    opening_reply(),
     local_jmap.reply(
       200,
-      jmap_fixture.thread_get_response(
-        [#("t-m1", ["m1"]), #("t-m2", ["m2"])],
-        "ts-1",
+      jmap_fixture.changes_response(
+        full_sync_email_state,
+        "es-2",
+        False,
+        [],
+        [],
+        [],
       ),
     ),
+    threads_reply(),
   ]
+}
+
+fn session_reply(base_url: String) -> local_jmap.Reply {
+  local_jmap.reply(200, jmap_fixture.session(base_url <> "/api"))
+}
+
+fn opening_reply() -> local_jmap.Reply {
+  local_jmap.reply(
+    200,
+    jmap_fixture.opening_response(
+      [inbox()],
+      "mb-state-1",
+      full_sync_email_state,
+      "ts-0",
+    ),
+  )
+}
+
+fn threads_reply() -> local_jmap.Reply {
+  local_jmap.reply(
+    200,
+    jmap_fixture.thread_get_response(
+      [#("t-m1", ["m1"]), #("t-m2", ["m2"])],
+      "ts-1",
+    ),
+  )
 }
 
 /// The `inbox` mailbox `jmap_fixture.email` files its messages in.

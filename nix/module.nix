@@ -156,7 +156,7 @@ in {
     maxPages = mkOption {
       type = types.ints.positive;
       default = 20;
-      description = "Bound on Email/query pages per sync.";
+      description = "Bound on Email/query pages, and on Email/changes pages, per sync.";
     };
 
     maxTotalBytes = mkOption {
