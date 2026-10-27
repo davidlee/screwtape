@@ -59,11 +59,12 @@ pub type Spec {
     is_read_only: Bool,
     max_total_bytes: Int,
     now: Timestamp,
+    prior: Option(model.Prior),
   )
 }
 
 /// `script` under roomy limits: `bounds(Some(100))`, 1000 objects per get, a
-/// read-only account and a megabyte of budget.
+/// read-only account, a megabyte of budget, and no Prior.
 pub fn spec(script: List(Step)) -> Spec {
   Spec(
     script: script,
@@ -72,6 +73,7 @@ pub fn spec(script: List(Step)) -> Spec {
     is_read_only: True,
     max_total_bytes: 1_000_000,
     now: now(),
+    prior: None,
   )
 }
 
@@ -333,7 +335,8 @@ pub fn run(store: Store, spec: Spec) -> Run {
       client.budget(spec.max_total_bytes),
     )
   let before = store_dump.dump(store.path)
-  let result = sync.run(client_, store.writer, spec.bounds, spec.now)
+  let result =
+    sync.run(client_, store.writer, spec.bounds, spec.prior, spec.now)
   let after = store_dump.dump(store.path)
   Run(
     result: result,

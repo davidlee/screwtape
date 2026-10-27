@@ -131,6 +131,7 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 04 | phase-plan | pi `implement` | 0.024 | 5 scope surprises, all useful; orchestrator settled them in amendments |
 | 04 | implement | pi `implement` | 0.029 | green first pass; followed amendments |
 | 04 | review (VA-1) | pi `review` | 0.021 | 5 findings: 4 fixed by orchestrator, 1 noted; negative control (swap bool columns) fails one test |
+| 05 | plan + implement + review | Opus | — | behaviour-preserving; sync_test diff is 3 lines (summary fields only, VA-1); `get_threads` deliberately not on `get_chunked` (no `notFound` contract; would add `all_answered`) |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer

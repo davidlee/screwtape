@@ -37,10 +37,19 @@ pub type Bounds {
   Bounds(window: config.Window, max_pages: Int, max_body_bytes: Int)
 }
 
+/// How a run chose the messages to refresh (DEC-026): from `Email/changes`
+/// since the Prior's state, or every stored one.
+pub type Mode {
+  Incremental
+  Full
+}
+
 /// What a committed run reports (design § 5.2, the `sync` envelope's `data`).
 /// `messages` and `threads` count stored rows; `truncated_bodies` and
 /// `conversion_failures` count stored bodies; `not_found` counts the ids
 /// `Email/get` no longer had; `states` are ordered by type name.
+/// `fallback_reason` says why a run is `Full`, and is `None` for an
+/// `Incremental` one.
 pub type Summary {
   Summary(
     account_id: String,
@@ -53,15 +62,19 @@ pub type Summary {
     conversion_failures: Int,
     states: List(model.TypeState),
     is_read_only: Bool,
+    mode: Mode,
+    fallback_reason: Option(String),
   )
 }
 
 /// Run one sync over a client already bound to its session, and commit the
-/// snapshot through `writer`.
+/// snapshot through `writer`. The fourth argument is the committed store (the
+/// Prior) the run may reuse; until PHASE-06 reads it, every run is full.
 pub fn run(
   client: Client,
   writer: Writer,
   bounds: Bounds,
+  _prior: Option(model.Prior),
   now: Timestamp,
 ) -> Result(Summary, Error) {
   let session = jmap_client.session_of(client)
@@ -409,17 +422,16 @@ fn get_emails(
   max_body_bytes: Int,
 ) -> Result(#(Client, Fetched), Error) {
   use #(client, pages) <- result.map(
-    in_chunks(client, ids, chunk_size, fn(client, chunk) {
-      use #(client, page) <- result.try(call(
-        client,
-        request.email_get(account_id, chunk, max_body_bytes, request.call_id),
-        decode.emails,
-      ))
-      let returned = list.map(page.emails, fn(email) { email.id })
-      use Nil <- result.try(only_requested(chunk, returned))
-      use Nil <- result.map(all_answered(chunk, returned, page.not_found))
-      #(client, page)
-    }),
+    get_chunked(
+      client,
+      ids,
+      chunk_size,
+      request.email_get(account_id, _, max_body_bytes, request.call_id),
+      decode.emails,
+      fn(page) {
+        #(list.map(page.emails, fn(email) { email.id }), page.not_found)
+      },
+    ),
   )
   let messages =
     list.flat_map(pages, fn(page) {
@@ -428,6 +440,26 @@ fn get_emails(
   let not_found =
     int.sum(list.map(pages, fn(page) { list.length(page.not_found) }))
   #(client, Fetched(messages:, not_found:))
+}
+
+/// One `Email/get` loop for every kind of get (POL-001): `ids` in chunks of
+/// `chunk_size`, each sent as `invoke(chunk)` and decoded by `decoder`, whose
+/// page `answered` splits into the ids returned and the ids not found. Each
+/// page holds only ids its chunk asked for, and answers every one of them.
+fn get_chunked(
+  client: Client,
+  ids: List(String),
+  chunk_size: Int,
+  invoke: fn(List(String)) -> request.Invocation,
+  decoder: fn(MethodResponse) -> Result(page, Error),
+  answered: fn(page) -> #(List(String), List(String)),
+) -> Result(#(Client, List(page)), Error) {
+  use client, chunk <- in_chunks(client, ids, chunk_size)
+  use #(client, page) <- result.try(call(client, invoke(chunk), decoder))
+  let #(returned, not_found) = answered(page)
+  use Nil <- result.try(only_requested(chunk, returned))
+  use Nil <- result.map(all_answered(chunk, returned, not_found))
+  #(client, page)
 }
 
 /// The threads of `thread_ids`, in chunk order.
@@ -549,5 +581,7 @@ fn summary(snapshot: model.Snapshot, not_found: Int) -> Summary {
     conversion_failures: list.count(bodies, fn(body) { body.conversion_failed }),
     states: snapshot.states,
     is_read_only: snapshot.account.is_read_only,
+    mode: Full,
+    fallback_reason: Some("no_state"),
   )
 }

@@ -998,6 +998,9 @@ pub fn summary_values_test() {
       model.TypeState("Thread", "ts-0"),
     ],
     is_read_only: True,
+    // No Prior: a full run, for want of state (VT-1).
+    mode: sync.Full,
+    fallback_reason: Some("no_state"),
   ))
 }
 

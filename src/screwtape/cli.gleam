@@ -221,7 +221,7 @@ fn sync(
       max_pages: settings.max_pages,
       max_body_bytes: settings.max_body_bytes,
     )
-  let run = sync.run(client_, writer, bounds, timestamp.system_time())
+  let run = sync.run(client_, writer, bounds, None, timestamp.system_time())
   // Closed before the run's own result is inspected, so a failed commit cannot
   // leave the writer (and its connection) behind.
   store.close_writer(writer)
