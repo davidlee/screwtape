@@ -17,6 +17,8 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import gleam/time/duration
+import gleam/time/timestamp
 import gleeunit
 import gleeunit/should
 import screwtape/config
@@ -981,7 +983,7 @@ pub fn summary_values_test() {
   use _store, run <- run_sync(spec, None)
 
   expect_calls(run, methods(script))
-  id_lists(run, ThreadGet) |> should.equal([["t-x", "t-e3"]])
+  id_lists(run, ThreadGet) |> should.equal([["t-e3", "t-x"]])
   summary(run)
   |> should.equal(sync.Summary(
     account_id: sync_fixture.account_id,
@@ -1077,4 +1079,253 @@ pub fn paging_non_advancing_position_hits_max_pages_test() {
 
   expect_calls(run, methods(script))
   expect_unchanged(store, run, error.LimitExceeded("max_pages"))
+}
+
+// ---------------------------------------------------------------- the Prior (SL-002 PHASE-08)
+
+/// A first sync of `delivered` from `mailboxes_step` under `bounds`, with no
+/// Prior: the committed store the next run reads its Prior from.
+fn seed(
+  store: Store,
+  mailboxes_step: Step,
+  bounds: sync.Bounds,
+  delivered: List(jmap_fixture.Email),
+) -> Nil {
+  let ids = list.map(delivered, fn(email) { email.id })
+  let script =
+    list.flatten([
+      [mailboxes_step, page(ids, "qs-0", 0, list.length(ids), None)],
+      fetch(delivered),
+    ])
+  let first = run(store, Spec(..spec(script), bounds: bounds))
+  summary(first).messages |> should.equal(list.length(ids))
+}
+
+/// The inbox window: `max_messages`, `max_age_days` and `retain_messages`.
+fn inbox_window(
+  max_messages: Option(Int),
+  max_age_days: Option(Int),
+  retain_messages: Option(Int),
+) -> sync.Bounds {
+  sync.Bounds(
+    ..bounds(max_messages),
+    window: config.Window(
+      mailboxes: ["inbox"],
+      max_age_days:,
+      max_messages:,
+      retain_messages:,
+    ),
+  )
+}
+
+/// A store seeded with e1 and e2, then a run whose Prior is `bent` and whose
+/// bounds are `second`: the Prior is unusable, so nothing stored is refreshed
+/// or kept, and every query id is fetched again in full (`no_state`). Without
+/// the check under test the Prior is usable and the run sends a light get the
+/// script does not expect.
+fn expect_refetched(bent: fn(model.Prior) -> model.Prior, second: sync.Bounds) {
+  use store <- with_store(None)
+  seed(store, inbox_step(), bounds(Some(10)), emails_of(["e1", "e2"]))
+  let assert Some(prior) = sync_fixture.prior_of(store)
+  let script = script_of([page(["e1", "e2"], "qs-1", 0, 2, None)], ["e1", "e2"])
+  let run =
+    run(store, Spec(..spec(script), bounds: second, prior: Some(bent(prior))))
+
+  expect_calls(run, methods(script))
+  id_lists(run, EmailGet) |> should.equal([["e1", "e2"]])
+  summary(run).mode |> should.equal(sync.Full)
+  summary(run).fallback_reason |> should.equal(Some("no_state"))
+}
+
+/// Another server under the same account id: its ids are not this server's.
+pub fn prior_from_another_server_is_no_state_test() {
+  expect_refetched(
+    fn(prior) { model.Prior(..prior, api_url: "https://other.example.test/") },
+    bounds(Some(10)),
+  )
+}
+
+pub fn prior_of_another_account_is_no_state_test() {
+  expect_refetched(
+    fn(prior) { model.Prior(..prior, account_id: "acct-2") },
+    bounds(Some(10)),
+  )
+}
+
+/// The stored bodies were cut at `max_body_value_bytes` 1000; a run under
+/// another `max_body_bytes` cannot reuse them.
+pub fn body_limit_change_is_no_state_test() {
+  expect_refetched(fn(prior) { prior }, {
+    sync.Bounds(..bounds(Some(10)), max_body_bytes: 2000)
+  })
+}
+
+/// Another `window_json` (`max_messages` 10 → 5) with the same mailboxes: a
+/// full run with the Prior. The stored ids get one light `Email/get` — light
+/// properties, no body values — and its answer decides what is kept: e1 is
+/// marked seen under a new state, e2 is gone, and e3 moved out of the window.
+/// Only e1 is fetched by nobody and kept, refreshed.
+pub fn window_json_change_is_window_changed_test() {
+  use store <- with_store(None)
+  seed(store, inbox_step(), bounds(Some(10)), emails_of(["e1", "e2", "e3"]))
+  let seen = jmap_fixture.Email(..jmap_fixture.email("e1"), keywords: ["$seen"])
+  let moved =
+    jmap_fixture.Email(..jmap_fixture.email("e3"), mailbox_ids: ["mb-9"])
+  let script = [
+    inbox_step(),
+    page(["e1"], "qs-1", 0, 1, None),
+    sync_fixture.lights([seen, moved], "es-9", ["e2"]),
+    threads(threads_of([seen]), "ts-1"),
+  ]
+  let run =
+    sync_fixture.run_with_prior(
+      store,
+      Spec(..spec(script), bounds: bounds(Some(5))),
+    )
+
+  expect_calls(run, methods(script))
+  let assert [light] = sync_fixture.calls_of(run, EmailGet)
+  fixture_send.ids_of(light) |> should.equal(["e1", "e2", "e3"])
+  decode.run(
+    light.arguments,
+    decode.at(["properties"], decode.list(decode.string)),
+  )
+  |> should.equal(Ok(["id", "mailboxIds", "keywords"]))
+  sync_fixture.int_argument(light, "maxBodyValueBytes") |> should.equal(None)
+  summary(run).fallback_reason |> should.equal(Some("window_changed"))
+  summary(run).not_found |> should.equal(1)
+  message_states(store) |> should.equal([#("e1", "es-9")])
+  rows(
+    store,
+    "SELECT is_seen FROM message",
+    decode.field(0, decode.int, decode.success),
+  )
+  |> should.equal([1])
+}
+
+/// A `notFound` id the chunk never asked for: the run fails before the write,
+/// since `notFound` now removes messages from the store.
+pub fn not_found_outside_the_chunk_fails_test() {
+  let script = [
+    inbox_step(),
+    page(["e1"], "qs-1", 0, 1, None),
+    emails(emails_of(["e1"]), "es-1", ["e9"]),
+  ]
+  use store, run <- run_sync(spec(script), seeded())
+
+  expect_calls(run, methods(script))
+  expect_unchanged(store, run, error.Decode("notFound"))
+}
+
+/// The window names "Work"; the mailbox once called "Work" is renamed and
+/// another takes the name, so the same `window_json` resolves to another id.
+/// The stored messages refresh into a mailbox outside the window and drop out.
+pub fn mailbox_rename_is_window_changed_test() {
+  let work =
+    sync.Bounds(
+      ..bounds(Some(10)),
+      window: config.Window(..bounds(Some(10)).window, mailboxes: ["Work"]),
+    )
+  let in_old = fn(id) {
+    jmap_fixture.Email(..jmap_fixture.email(id), mailbox_ids: ["mb-2"])
+  }
+  let fresh =
+    jmap_fixture.Email(..jmap_fixture.email("e3"), mailbox_ids: ["mb-3"])
+  use store <- with_store(None)
+  seed(
+    store,
+    mailboxes([jmap_fixture.mailbox("mb-2", "Work", None)], "ms-1"),
+    work,
+    [in_old("e1"), in_old("e2")],
+  )
+  let script = [
+    mailboxes(
+      [
+        jmap_fixture.mailbox("mb-2", "Old Work", None),
+        jmap_fixture.mailbox("mb-3", "Work", None),
+      ],
+      "ms-2",
+    ),
+    page(["e3"], "qs-1", 0, 1, None),
+    emails([fresh], "es-1", []),
+    sync_fixture.lights([in_old("e1"), in_old("e2")], "es-1", []),
+    threads(threads_of([fresh]), "ts-1"),
+  ]
+  let run =
+    sync_fixture.run_with_prior(store, Spec(..spec(script), bounds: work))
+
+  expect_calls(run, methods(script))
+  sync_fixture.filter_mailboxes(first_query(run)) |> should.equal(["mb-3"])
+  summary(run).fallback_reason |> should.equal(Some("window_changed"))
+  message_ids(store) |> should.equal(["e3"])
+}
+
+/// `retain_messages` 3 over a window of 2 (a `window_json` change): the query
+/// now finds e3 and e1, so only e3 is fetched in full; e2 has left the fetch
+/// window but is retained from the store — refreshed light, no body refetch —
+/// and keeps its thread rows, because `Thread/get` runs over the merged set.
+pub fn retained_message_keeps_its_thread_test() {
+  use store <- with_store(None)
+  seed(store, inbox_step(), bounds(Some(2)), emails_of(["e1", "e2"]))
+  let script = [
+    inbox_step(),
+    page(["e3", "e1"], "qs-1", 0, 3, None),
+    emails(emails_of(["e3"]), "es-1", []),
+    sync_fixture.lights(emails_of(["e1", "e2"]), "es-1", []),
+    threads(threads_of(emails_of(["e1", "e2", "e3"])), "ts-1"),
+  ]
+  let run =
+    sync_fixture.run_with_prior(
+      store,
+      Spec(..spec(script), bounds: inbox_window(Some(2), None, Some(3))),
+    )
+
+  expect_calls(run, methods(script))
+  id_lists(run, EmailGet) |> should.equal([["e3"], ["e1", "e2"]])
+  id_lists(run, ThreadGet) |> should.equal([["t-e1", "t-e2", "t-e3"]])
+  summary(run).fallback_reason |> should.equal(Some("window_changed"))
+  message_ids(store) |> should.equal(["e1", "e2", "e3"])
+  rows(
+    store,
+    "SELECT thread_id FROM thread_email WHERE message_id = 'e2'",
+    decode.field(0, decode.string, decode.success),
+  )
+  |> should.equal(["t-e2"])
+}
+
+/// Forty days on, e1 (received the day before the seed run) is past the
+/// 30-day window, and the query no longer finds it. With `retain_messages`
+/// set the age bound does not apply and e1 is kept; without it, e1 is dropped.
+/// Both second runs change `window_json`, so both are full runs with the Prior.
+pub fn retention_ignores_the_age_bound_test() {
+  let later = timestamp.add(sync_fixture.now(), duration.hours(24 * 40))
+  let aged = fn(second: sync.Bounds, script: List(Step)) {
+    use store <- with_store(None)
+    seed(
+      store,
+      inbox_step(),
+      inbox_window(Some(10), Some(30), None),
+      emails_of(["e1"]),
+    )
+    let run =
+      sync_fixture.run_with_prior(
+        store,
+        Spec(..spec(script), bounds: second, now: later),
+      )
+    expect_calls(run, methods(script))
+    message_ids(store)
+  }
+  let refresh = [
+    inbox_step(),
+    empty_page(),
+    sync_fixture.lights(emails_of(["e1"]), "es-1", []),
+  ]
+
+  aged(
+    inbox_window(Some(10), Some(30), Some(10)),
+    list.append(refresh, [threads(threads_of(emails_of(["e1"])), "ts-1")]),
+  )
+  |> should.equal(["e1"])
+  aged(inbox_window(Some(9), Some(30), None), refresh)
+  |> should.equal([])
 }

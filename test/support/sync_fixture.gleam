@@ -28,6 +28,7 @@ import screwtape/jmap/client
 import screwtape/jmap/request
 import screwtape/model
 import screwtape/store
+import screwtape/store/query
 import screwtape/sync
 import support/cli_fixture
 import support/fixture_send.{type RecordedCall, type Step, Expect}
@@ -185,6 +186,23 @@ pub fn emails(
   )
 }
 
+/// One light `Email/get` (DEC-026): the mutable fields of `emails_` under
+/// `state`, and the ids in `not_found`.
+pub fn lights(
+  emails_: List(jmap_fixture.Email),
+  state: String,
+  not_found: List(String),
+) -> Step {
+  let lights =
+    list.map(emails_, fn(email) {
+      #(email.id, email.mailbox_ids, email.keywords)
+    })
+  Expect(
+    request.EmailGet,
+    ok(jmap_fixture.light_email_get_response(lights, state, not_found)),
+  )
+}
+
 pub fn threads(list: List(#(String, List(String))), state: String) -> Step {
   Expect(request.ThreadGet, ok(jmap_fixture.thread_get_response(list, state)))
 }
@@ -208,8 +226,9 @@ pub fn fetch(emails_: List(jmap_fixture.Email)) -> List(Step) {
 }
 
 /// The `Email/get` steps that deliver `emails` in chunks of `size`, states
-/// `es-1`, `es-2`, …, then the `Thread/get` steps over their threads in chunks
-/// of `size`, states `ts-1`, …. No emails is no step (PHASE-11 EX-2).
+/// `es-1`, `es-2`, …, then the `Thread/get` steps over their threads, sorted
+/// by id as the run asks for them, in chunks of `size`, states `ts-1`, ….
+/// No emails is no step (PHASE-11 EX-2).
 pub fn fetch_chunked(
   emails_: List(jmap_fixture.Email),
   size: Int,
@@ -218,7 +237,9 @@ pub fn fetch_chunked(
     list.sized_chunk(emails_, size)
     |> list.index_map(fn(chunk, i) { emails(chunk, numbered("es-", i), []) })
   let thread_steps =
-    list.sized_chunk(threads_of(emails_), size)
+    threads_of(emails_)
+    |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
+    |> list.sized_chunk(size)
     |> list.index_map(fn(chunk, i) { threads(chunk, numbered("ts-", i)) })
   list.append(email_steps, thread_steps)
 }
@@ -350,6 +371,24 @@ pub fn run(store: Store, spec: Spec) -> Run {
   )
 }
 
+/// The committed store as `cli` reads it before a run: its Prior, or `None`
+/// when it holds no snapshot.
+pub fn prior_of(store: Store) -> Option(model.Prior) {
+  let assert Ok(reader) = store.open_reader(store.path)
+  let result = store.read(reader, query.prior)
+  store.close_reader(reader)
+  case result {
+    Ok(prior) -> Some(prior)
+    Error(error.Store("no_snapshot")) -> None
+    Error(other) -> panic as { "prior_of: " <> string.inspect(other) }
+  }
+}
+
+/// Run `spec` with the Prior read from `store`, as `cli` does.
+pub fn run_with_prior(store: Store, spec: Spec) -> Run {
+  run(store, Spec(..spec, prior: prior_of(store)))
+}
+
 /// One run of `spec` on a fresh store seeded with `seed`.
 pub fn run_sync(
   spec: Spec,
@@ -370,12 +409,12 @@ pub fn expect_calls(run: Run, expected: List(request.Method)) -> Nil {
   run.unmatched |> should.equal(0)
 }
 
-/// The run failed with `expected`, the seeded store is byte-for-byte as it was
-/// (`user_version` included), and the writer holds no open transaction: it can
-/// still commit.
+/// The run failed with `expected`, the seeded store — any snapshot — is
+/// byte-for-byte as it was (`user_version` included), and the writer holds no
+/// open transaction: it can still commit.
 pub fn expect_unchanged(store: Store, run: Run, expected: Error) -> Nil {
   run.result |> should.equal(Error(expected))
-  run.before |> string.contains(seed_account) |> should.be_true
+  count(store, "sync") |> should.equal(1)
   run.after |> should.equal(run.before)
   user_version(run.after) |> should.equal(user_version(run.before))
   store.write_snapshot(store.writer, snapshot_fixture.full("acct-probe"))

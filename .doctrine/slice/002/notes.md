@@ -132,6 +132,8 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 04 | implement | pi `implement` | 0.029 | green first pass; followed amendments |
 | 04 | review (VA-1) | pi `review` | 0.021 | 5 findings: 4 fixed by orchestrator, 1 noted; negative control (swap bool columns) fails one test |
 | 05 | plan + implement + review | Opus | — | behaviour-preserving; sync_test diff is 3 lines (summary fields only, VA-1); `get_threads` deliberately not on `get_chunked` (no `notFound` contract; would add `all_answered`) |
+| 08 | plan + implement | Opus | — | code before tests (TDD order not kept); compensated by 7 negative controls, each killed |
+| 08 | review (VA-1) | Codex gpt-6.1-sol, high, read-only | — | 3 minor findings, all accepted and fixed red-first; Codex's 2 named surviving mutants now killed |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
@@ -189,3 +191,31 @@ PHASE-04 review dispositions:
 - Accepted by design, not a defect: `prior` rebuilds each message with
   `query.message` (several selects per message). § 8 Risks: revisit only if
   measured.
+
+PHASE-08 decisions and deviations:
+- Thread ids for `Thread/get` are now **sorted** (canonical), not first-seen
+  (M1 A8). The merge returns newest-first with id-descending ties, and every
+  fixture email shares one `receivedAt`, so first-seen order would have tied
+  `Thread/get` chunking to merge internals. `sync_fixture.fetch_chunked`
+  chunks threads in the same sorted order; `summary_values_test`'s thread-id
+  expectation changed accordingly (it pins counts, not order).
+- Interim until PHASE-06: a usable Prior with an unchanged window runs full
+  with the Prior, `fallback_reason: None` (unreachable in production: cli
+  passes no Prior until PHASE-07).
+- Light-refresh ids follow the Prior's message order, not `set.to_list`
+  (unspecified order).
+- EX-5 partly deferred to first use (write less code): `string_argument` and a
+  public `type_state` land in PHASE-06, whose tests read `sinceState` and the
+  stored Email state. Added here: `lights` step, `prior_of`,
+  `run_with_prior`; `expect_unchanged` now accepts any seeded store
+  (asserts one `sync` row instead of the seed account).
+
+PHASE-08 review dispositions (Codex):
+- `notFound` ids now delete stored messages but were unchecked — `get_chunked`
+  now requires them to be requested (`Decode("notFound")`);
+  `not_found_outside_the_chunk_fails_test` (red first).
+- light request properties were unasserted (fixture matches by method) —
+  `window_json_change_is_window_changed_test` now pins `properties` and no
+  `maxBodyValueBytes`.
+- no test showed light results reaching the store — the same test now has a
+  flag change under a new state, a `notFound` and a move out of the window.

@@ -20,6 +20,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/set.{type Set}
+import gleam/string
 import gleam/time/calendar
 import gleam/time/duration
 import gleam/time/timestamp.{type Timestamp}
@@ -30,6 +31,7 @@ import screwtape/jmap/decode.{type MethodResponse, type QueryPage, type Session}
 import screwtape/jmap/request
 import screwtape/model
 import screwtape/normalise
+import screwtape/retain
 import screwtape/store.{type Writer}
 
 /// What a run needs from the config: the window and the two run bounds.
@@ -68,13 +70,14 @@ pub type Summary {
 }
 
 /// Run one sync over a client already bound to its session, and commit the
-/// snapshot through `writer`. The fourth argument is the committed store (the
-/// Prior) the run may reuse; until PHASE-06 reads it, every run is full.
+/// snapshot through `writer`. `prior` is the committed store the run may reuse
+/// (design § 5.4 Choosing the path): its messages are kept, subject to the
+/// merge, when it is from the same server, account and body limit.
 pub fn run(
   client: Client,
   writer: Writer,
   bounds: Bounds,
-  _prior: Option(model.Prior),
+  prior: Option(model.Prior),
   now: Timestamp,
 ) -> Result(Summary, Error) {
   let session = jmap_client.session_of(client)
@@ -92,6 +95,13 @@ pub fn run(
     opened.mailboxes,
     window.mailboxes,
   ))
+  let #(start, fallback_reason) = choose(prior, session, bounds, mailbox_ids)
+  let stored = case start {
+    Fresh -> []
+    Reuse(prior) -> prior.messages
+  }
+  let stored_ids = list.map(stored, fn(message) { message.id })
+  let is_stored = set.contains(set.from_list(stored_ids), _)
   let filter =
     request.email_query_filter(mailbox_ids, after(now, window.max_age_days))
   let query =
@@ -105,14 +115,29 @@ pub fn run(
   use #(client, fetched) <- result.try(get_emails(
     client,
     account_id,
-    settled.ids,
+    list.filter(settled.ids, fn(id) { !is_stored(id) }),
     chunk_size,
     bounds.max_body_bytes,
   ))
+  use #(client, refreshed) <- result.try(get_lights(
+    client,
+    account_id,
+    stored_ids,
+    chunk_size,
+  ))
+  let not_found = list.append(fetched.not_found, refreshed.not_found)
+  let messages =
+    retain.merge(
+      stored,
+      refreshed.lights,
+      fetched.messages,
+      set.from_list(not_found),
+      rule(window, mailbox_ids, now),
+    )
   use #(_client, threads) <- result.try(get_threads(
     client,
     account_id,
-    distinct_thread_ids(fetched.messages),
+    distinct_thread_ids(messages),
     chunk_size,
   ))
 
@@ -127,11 +152,108 @@ pub fn run(
       ],
       query: query_row(filter, settled),
       mailboxes: opened.mailboxes,
-      messages: fetched.messages,
+      messages:,
       threads:,
     )
   use Nil <- result.map(store.write_snapshot(writer, snapshot))
-  summary(snapshot, fetched.not_found)
+  summary(snapshot, list.length(not_found), fallback_reason)
+}
+
+// ---------------------------------------------------------------- path
+
+/// Why a run is full (design § 5.2 `sync.run`).
+const no_state = "no_state"
+
+const window_changed = "window_changed"
+
+/// What a run starts from.
+type Start {
+  /// No usable Prior: everything in the window is fetched again.
+  Fresh
+  /// The Prior's messages, each light-refreshed and kept subject to the merge.
+  Reuse(prior: model.Prior)
+}
+
+/// The run's start and why it is full (design § 5.4 Choosing the path), before
+/// any call past the opening request. A Prior from another server, account or
+/// body limit is unusable: JMAP ids are unique only within one account on one
+/// server, and a stored body is only as long as the limit it was fetched
+/// under. A usable Prior over another window is reused, for `window_changed`.
+fn choose(
+  prior: Option(model.Prior),
+  session: Session,
+  bounds: Bounds,
+  mailbox_ids: List(String),
+) -> #(Start, Option(String)) {
+  case prior {
+    None -> #(Fresh, Some(no_state))
+    Some(prior) -> {
+      use <- bool.guard(!is_usable(prior, session, bounds.max_body_bytes), #(
+        Fresh,
+        Some(no_state),
+      ))
+      use <- bool.guard(!is_same_window(prior, bounds.window, mailbox_ids), #(
+        Reuse(prior),
+        Some(window_changed),
+      ))
+      // The incremental case (PHASE-06); until then a full run with the Prior.
+      #(Reuse(prior), None)
+    }
+  }
+}
+
+/// The Prior was synced from this server and account, and every stored body
+/// under `max_body_bytes`. A store with no bodies has no limit to differ.
+fn is_usable(
+  prior: model.Prior,
+  session: Session,
+  max_body_bytes: Int,
+) -> Bool {
+  prior.api_url == session.api_url
+  && prior.account_id == session.account_id
+  && list.all(prior.messages, fn(message) {
+    list.all(message.bodies, fn(body) {
+      body.max_body_value_bytes == max_body_bytes
+    })
+  })
+}
+
+/// The Prior was synced under this window: the same `window_json`, and the
+/// configured entries resolve to the same mailbox ids against its mailboxes as
+/// against the server's now (a rename or a role reassignment does not).
+fn is_same_window(
+  prior: model.Prior,
+  window: config.Window,
+  mailbox_ids: List(String),
+) -> Bool {
+  prior.window_json == config.window_json(window)
+  && case resolve_mailboxes(prior.mailboxes, window.mailboxes) {
+    Ok(ids) -> set.from_list(ids) == set.from_list(mailbox_ids)
+    Error(_) -> False
+  }
+}
+
+/// The retention rule (DEC-024, DEC-025): the window's mailboxes; keep
+/// `retain_messages`, else `max_messages`; and the age bound only when
+/// retention does not extend the window.
+fn rule(
+  window: config.Window,
+  mailbox_ids: List(String),
+  now: Timestamp,
+) -> retain.Rule {
+  retain.Rule(
+    mailbox_ids: set.from_list(mailbox_ids),
+    keep: option.or(window.retain_messages, window.max_messages),
+    after_ms: case window.retain_messages {
+      Some(_) -> None
+      None ->
+        age_bound(now, window.max_age_days)
+        |> option.map(fn(bound) {
+          let #(seconds, _) = timestamp.to_unix_seconds_and_nanoseconds(bound)
+          seconds * 1000
+        })
+    },
+  )
 }
 
 // ---------------------------------------------------------------- clock
@@ -155,10 +277,15 @@ fn synced_at(now: Timestamp) -> model.UtcDate {
   model.UtcDate(raw: rfc3339(now), ms: seconds * 1000)
 }
 
-/// The `after` bound of a window with an age limit: `max_age_days` before now.
+/// The `after` bound of a window with an age limit, as `Email/query` sends it.
 fn after(now: Timestamp, max_age_days: Option(Int)) -> Option(String) {
+  option.map(age_bound(now, max_age_days), rfc3339)
+}
+
+/// `max_age_days` before now, for a window with an age limit.
+fn age_bound(now: Timestamp, max_age_days: Option(Int)) -> Option(Timestamp) {
   use days <- option.map(max_age_days)
-  rfc3339(timestamp.add(now, duration.hours(-24 * days)))
+  timestamp.add(now, duration.hours(-24 * days))
 }
 
 // ---------------------------------------------------------------- calls
@@ -408,10 +535,15 @@ fn settled(ids: Collected, first: QueryPage) -> Settled {
 
 // ---------------------------------------------------------------- phase 2
 
-/// The messages of every `Email/get` and how many ids the server no longer
-/// had.
+/// The messages of every `Email/get` and the ids the server no longer had.
 type Fetched {
-  Fetched(messages: List(model.Message), not_found: Int)
+  Fetched(messages: List(model.Message), not_found: List(String))
+}
+
+/// The mutable fields of every light `Email/get`, each with its page's state,
+/// and the ids the server no longer had.
+type Refreshed {
+  Refreshed(lights: List(#(normalise.Light, String)), not_found: List(String))
 }
 
 fn get_emails(
@@ -437,9 +569,36 @@ fn get_emails(
     list.flat_map(pages, fn(page) {
       list.map(page.emails, normalise.message(_, page.state, max_body_bytes))
     })
-  let not_found =
-    int.sum(list.map(pages, fn(page) { list.length(page.not_found) }))
+  let not_found = list.flat_map(pages, fn(page) { page.not_found })
   #(client, Fetched(messages:, not_found:))
+}
+
+/// The light refresh of `ids` (DEC-026): their mutable fields only, over the
+/// same chunked loop as the full get.
+fn get_lights(
+  client: Client,
+  account_id: String,
+  ids: List(String),
+  chunk_size: Int,
+) -> Result(#(Client, Refreshed), Error) {
+  use #(client, pages) <- result.map(
+    get_chunked(
+      client,
+      ids,
+      chunk_size,
+      request.email_get_light(account_id, _, request.call_id),
+      decode.light_emails,
+      fn(page) {
+        #(list.map(page.lights, fn(light) { light.id }), page.not_found)
+      },
+    ),
+  )
+  let lights =
+    list.flat_map(pages, fn(page) {
+      list.map(page.lights, fn(light) { #(light, page.state) })
+    })
+  let not_found = list.flat_map(pages, fn(page) { page.not_found })
+  #(client, Refreshed(lights:, not_found:))
 }
 
 /// One `Email/get` loop for every kind of get (POL-001): `ids` in chunks of
@@ -457,7 +616,9 @@ fn get_chunked(
   use client, chunk <- in_chunks(client, ids, chunk_size)
   use #(client, page) <- result.try(call(client, invoke(chunk), decoder))
   let #(returned, not_found) = answered(page)
-  use Nil <- result.try(only_requested(chunk, returned))
+  use Nil <- result.try(only_requested(chunk, returned, "list"))
+  // `notFound` removes stored messages (`gone`), so it too must be asked for.
+  use Nil <- result.try(only_requested(chunk, not_found, "notFound"))
   use Nil <- result.map(all_answered(chunk, returned, not_found))
   #(client, page)
 }
@@ -477,23 +638,25 @@ fn get_threads(
         decode.threads,
       ))
       let returned = list.map(page, fn(thread) { thread.id })
-      use Nil <- result.map(only_requested(chunk, returned))
+      use Nil <- result.map(only_requested(chunk, returned, "list"))
       #(client, page)
     }),
   )
   #(client, list.flatten(pages))
 }
 
-/// A get's `list` holds only ids the chunk asked for (RFC 8620 § 5.1): an
-/// object outside the window would break I3.
+/// A get's `field` (`list` or `notFound`) holds only ids the chunk asked for
+/// (RFC 8620 § 5.1): an object outside the window would break I3, and a
+/// stranger in `notFound` would remove a stored message.
 fn only_requested(
   requested: List(String),
   returned: List(String),
+  field: String,
 ) -> Result(Nil, Error) {
   let requested = set.from_list(requested)
   case list.all(returned, set.contains(requested, _)) {
     True -> Ok(Nil)
-    False -> Error(error.Decode("list"))
+    False -> Error(error.Decode(field))
   }
 }
 
@@ -511,9 +674,13 @@ fn all_answered(
   }
 }
 
-/// The distinct thread ids of `messages`, in first-seen order (A8).
+/// The distinct thread ids of `messages`, sorted: a canonical order that does
+/// not depend on where each message came from (fetched, refreshed or kept).
 fn distinct_thread_ids(messages: List(model.Message)) -> List(String) {
-  messages |> list.map(fn(message) { message.thread_id }) |> list.unique
+  messages
+  |> list.map(fn(message) { message.thread_id })
+  |> list.unique
+  |> list.sort(string.compare)
 }
 
 /// `fetch` over `items` in chunks of `size`, threading the client, stopping at
@@ -567,8 +734,13 @@ fn query_row(filter: json.Json, settled: Settled) -> model.QueryState {
   )
 }
 
-/// The summary of a committed `snapshot`.
-fn summary(snapshot: model.Snapshot, not_found: Int) -> Summary {
+/// The summary of a committed `snapshot`; a run with a `fallback_reason` is
+/// full.
+fn summary(
+  snapshot: model.Snapshot,
+  not_found: Int,
+  fallback_reason: Option(String),
+) -> Summary {
   let bodies = list.flat_map(snapshot.messages, fn(message) { message.bodies })
   Summary(
     account_id: snapshot.account.account_id,
@@ -582,6 +754,6 @@ fn summary(snapshot: model.Snapshot, not_found: Int) -> Summary {
     states: snapshot.states,
     is_read_only: snapshot.account.is_read_only,
     mode: Full,
-    fallback_reason: Some("no_state"),
+    fallback_reason:,
   )
 }
