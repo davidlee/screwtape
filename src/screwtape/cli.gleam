@@ -101,7 +101,7 @@ fn dispatch(
   case verb {
     argv.Sync -> sync(path, env, open_reader)
     argv.Mailboxes -> run_read(mailboxes_document)
-    argv.List(args) -> run_read(list_document(args))
+    argv.List(filters, page) -> run_read(list_document(filters, page))
     argv.Read(id, max_bytes) -> run_read(read_document(id, max_bytes))
     argv.Thread(id, limit) -> run_read(thread_document(id, limit))
   }
@@ -137,21 +137,51 @@ fn mailboxes_document(tx: store.Tx) -> Result(String, Error) {
   Ok(render.mailboxes(mailboxes))
 }
 
-fn list_document(args: argv.ListArgs) -> fn(store.Tx) -> Result(String, Error) {
+/// One `list` page: the filters select, and the page chooses the query's order
+/// and the document that echoes it (C2, design § 5.2).
+fn list_document(
+  filters: argv.Filters,
+  page: argv.Page,
+) -> fn(store.Tx) -> Result(String, Error) {
+  let #(query_page, document) = list_page(page)
   fn(tx) {
-    use mailbox_ids <- result.try(resolve_mailbox(tx, args.mailbox))
-    use items <- result.try(query.messages(
-      tx,
-      query.ListQuery(
-        mailbox_ids: mailbox_ids,
-        since_ms: args.since_ms,
-        from: args.from,
-        unread: args.unread,
-        page: query.Newest(limit: args.limit, offset: args.offset),
-      ),
-    ))
-    Ok(render.list(offset: args.offset, limit: args.limit, items: items))
+    use list_query <- result.try(list_query(tx, filters, query_page))
+    use items <- result.try(query.messages(tx, list_query))
+    Ok(document(items))
   }
+}
+
+/// argv's page as the store's, with the document that echoes it: `--offset`
+/// pages newest first, `--after` oldest first (C2).
+fn list_page(
+  page: argv.Page,
+) -> #(query.Page, fn(List(model.MessageSummary)) -> String) {
+  case page {
+    argv.Offset(limit, offset) -> #(
+      query.Newest(limit: limit, offset: offset),
+      fn(items) { render.list(offset: offset, limit: limit, items: items) },
+    )
+    argv.After(limit, after) -> #(
+      query.Oldest(after: after, limit: Some(limit)),
+      fn(items) { render.list_after(after: after, limit: limit, items: items) },
+    )
+  }
+}
+
+/// The store query `filters` name, `--mailbox` resolved against `tx` (A4).
+fn list_query(
+  tx: store.Tx,
+  filters: argv.Filters,
+  page: query.Page,
+) -> Result(query.ListQuery, Error) {
+  use mailbox_ids <- result.try(resolve_mailbox(tx, filters.mailbox))
+  Ok(query.ListQuery(
+    mailbox_ids: mailbox_ids,
+    since_ms: filters.since_ms,
+    from: filters.from,
+    unread: filters.unread,
+    page: page,
+  ))
 }
 
 /// The mailboxes `--mailbox` selects: an id first, then the role-then-name rule

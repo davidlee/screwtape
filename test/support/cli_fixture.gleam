@@ -324,9 +324,18 @@ pub fn keys(
 
 /// The `id` of every item in `data.items`, in order.
 pub fn item_ids(document: Dynamic) -> Result(List(String), Nil) {
+  item_strings(document, "id")
+}
+
+/// The string at `key` in every item of `data.items`, in order: the shape the
+/// cursor cases read an item's `id` and its `cursor` with.
+pub fn item_strings(
+  document: Dynamic,
+  key: String,
+) -> Result(List(String), Nil) {
   field(
     document,
     ["data", "items"],
-    decode.list(decode.at(["id"], decode.string)),
+    decode.list(decode.at([key], decode.string)),
   )
 }

@@ -27,6 +27,7 @@ import screwtape/model
 import screwtape/store
 import screwtape/store/query
 import sqlight
+import support/paging
 import support/snapshot_fixture
 import support/store_dump
 import support/temp
@@ -666,47 +667,17 @@ fn oldest(after: cursor.Cursor, limit: Option(Int)) -> query.ListQuery {
   query.ListQuery(..every_message(), page: query.Oldest(after:, limit:))
 }
 
-/// The whole `listing()` in ascending `(received_at_ms, id)` order, the order
-/// `Oldest` walks: `-m4` before `-m5` on their shared receipt millisecond.
-fn ascending_ids() -> List(String) {
-  [
-    "acct-l-m2",
-    "acct-l-m1",
-    "acct-l-m3",
-    "acct-l-m4",
-    "acct-l-m5",
-    "acct-l-m6",
-  ]
-}
-
-/// Walk `oldest` pages of `limit` from `Start` to the first empty page,
-/// collecting every id in walk order. An empty page ends the walk, so a walk
-/// of one page fewer, or a repeated row, differs from the whole list. A walk
-/// that has collected more ids than the store holds stops there, so a cursor
-/// that never advances fails rather than hangs.
+/// Every id of the whole `listing()` in ascending `(received_at_ms, id)` order,
+/// walked `limit` a page from `Start`: `-m4` before `-m5` on their shared
+/// receipt millisecond.
 fn oldest_ids(path: String, limit: Int) -> Result(List(String), Error) {
-  walk_oldest(path, limit, cursor.Start, [])
-}
-
-fn walk_oldest(
-  path: String,
-  limit: Int,
-  after: cursor.Cursor,
-  collected: List(String),
-) -> Result(List(String), Error) {
-  use summaries <- result.try(listed(path, oldest(after, Some(limit))))
-  let overrun = list.length(collected) > list.length(ascending_ids())
-  case list.last(summaries) {
-    Error(Nil) -> Ok(collected)
-    Ok(_) if overrun -> Ok(collected)
-    Ok(last) ->
-      walk_oldest(
-        path,
-        limit,
-        cursor.of(last.received_at.ms, last.id),
-        list.append(collected, list.map(summaries, fn(summary) { summary.id })),
-      )
-  }
+  use summaries <- result.try(paging.walk(
+    from: cursor.Start,
+    page: fn(after) { listed(path, oldest(after, Some(limit))) },
+    next: fn(summary) { cursor.of(summary.received_at.ms, summary.id) },
+    bound: list.length(snapshot_fixture.listing_ascending_ids()),
+  ))
+  Ok(list.map(summaries, fn(summary) { summary.id }))
 }
 
 fn listing_summaries(ids: List(String)) -> List(model.MessageSummary) {
@@ -1158,9 +1129,12 @@ pub fn oldest_pages_walk_the_whole_listing_in_ascending_order_test() {
   let whole = listed(path, oldest(cursor.Start, None))
   temp.remove_dir(dir)
 
-  one |> should.equal(Ok(ascending_ids()))
-  two |> should.equal(Ok(ascending_ids()))
-  whole |> should.equal(Ok(listing_summaries(ascending_ids())))
+  one |> should.equal(Ok(snapshot_fixture.listing_ascending_ids()))
+  two |> should.equal(Ok(snapshot_fixture.listing_ascending_ids()))
+  whole
+  |> should.equal(
+    Ok(listing_summaries(snapshot_fixture.listing_ascending_ids())),
+  )
 }
 
 /// VT-1b: the cursor is exclusive in both columns of the order. After `-m4`

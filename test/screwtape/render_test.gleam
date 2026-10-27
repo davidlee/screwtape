@@ -17,6 +17,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
+import screwtape/cursor
 import screwtape/model.{
   type Address, type AddressField, type Attachment, type Body, type Mailbox,
   type Message, type MessageSummary, type Source, type TruncatedBy, type UtcDate,
@@ -241,7 +242,14 @@ fn summary_json(
     #("is_flagged", bool(is_flagged)),
     #("mailbox_ids", strings(mailbox_ids)),
     #("has_attachment", bool(has_attachment)),
+    #("cursor", cursor_json(date(received_at).ms, id)),
   ])
+}
+
+/// The `cursor` field every summary-shaped document prints: the summary's
+/// arrival instant and id, as `<ms>:<id>` (VT-2, PHASE-04).
+fn cursor_json(received_at_ms: Int, id: String) -> Value {
+  cursor.to_string(cursor.of(received_at_ms, id)) |> str
 }
 
 fn body(
@@ -424,8 +432,9 @@ pub fn mailboxes_prints_every_field_in_order_test() {
 // list
 // ---------------------------------------------------------------------------
 
-pub fn list_echoes_offset_and_limit_and_prints_each_summary_test() {
-  let first =
+/// The two summaries both `list` pages print, and the JSON each must print as.
+fn list_summaries() -> List(MessageSummary) {
+  [
     summary(
       "m1",
       "th1",
@@ -436,8 +445,7 @@ pub fn list_echoes_offset_and_limit_and_prints_each_summary_test() {
       False,
       ["mb1"],
       True,
-    )
-  let second =
+    ),
     summary(
       "m2",
       "th2",
@@ -448,42 +456,77 @@ pub fn list_echoes_offset_and_limit_and_prints_each_summary_test() {
       True,
       ["mb2", "mb1"],
       False,
-    )
+    ),
+  ]
+}
 
-  render.list(offset: 20, limit: 25, items: [first, second])
+fn list_items_json() -> Value {
+  arr([
+    summary_json(
+      "m1",
+      "th1",
+      "2026-10-25T21:04:11Z",
+      Some("Invoice"),
+      addresses([#(Some("Acme"), "billing@acme.test")]),
+      False,
+      False,
+      ["mb1"],
+      True,
+    ),
+    summary_json(
+      "m2",
+      "th2",
+      "2026-10-24T08:00:00Z",
+      None,
+      addresses([#(None, "other@example.test")]),
+      True,
+      True,
+      ["mb2", "mb1"],
+      False,
+    ),
+  ])
+}
+
+pub fn list_echoes_offset_and_limit_and_prints_each_summary_test() {
+  render.list(offset: 20, limit: 25, items: list_summaries())
   |> parse
   |> should.equal(envelope_doc(
     "list",
     obj([
       #("offset", int(20)),
       #("limit", int(25)),
-      #(
-        "items",
-        arr([
-          summary_json(
-            "m1",
-            "th1",
-            "2026-10-25T21:04:11Z",
-            Some("Invoice"),
-            addresses([#(Some("Acme"), "billing@acme.test")]),
-            False,
-            False,
-            ["mb1"],
-            True,
-          ),
-          summary_json(
-            "m2",
-            "th2",
-            "2026-10-24T08:00:00Z",
-            None,
-            addresses([#(None, "other@example.test")]),
-            True,
-            True,
-            ["mb2", "mb1"],
-            False,
-          ),
-        ]),
-      ),
+      #("items", list_items_json()),
+    ]),
+  ))
+}
+
+/// VT-2 (PHASE-04): `list_after` echoes the arrival cursor it was given —
+/// `Start` prints `""` — in place of `offset`, and prints each summary with
+/// its `cursor` field, in the key order `after`, `limit`, `items`.
+pub fn list_after_echoes_the_cursor_and_limit_and_prints_each_summary_test() {
+  render.list_after(after: cursor.Start, limit: 25, items: list_summaries())
+  |> parse
+  |> should.equal(envelope_doc(
+    "list",
+    obj([
+      #("after", str("")),
+      #("limit", int(25)),
+      #("items", list_items_json()),
+    ]),
+  ))
+
+  render.list_after(
+    after: cursor.of(1_792_886_400_000, "m-1"),
+    limit: 25,
+    items: list_summaries(),
+  )
+  |> parse
+  |> should.equal(envelope_doc(
+    "list",
+    obj([
+      #("after", str("1792886400000:m-1")),
+      #("limit", int(25)),
+      #("items", list_items_json()),
     ]),
   ))
 }
@@ -506,6 +549,7 @@ pub fn read_prints_the_whole_message_with_provenance_test() {
       #("is_flagged", bool(False)),
       #("mailbox_ids", strings(["mb1", "mb2"])),
       #("has_attachment", bool(True)),
+      #("cursor", cursor_json(date("2026-10-26T10:15:30Z").ms, "m1")),
       // What `read` adds.
       #("sent_at", str("2026-10-26T10:15:00+00:00")),
       #("size", int(4096)),

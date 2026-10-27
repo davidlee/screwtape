@@ -157,3 +157,55 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
   correct first time, matched the brief exactly). Review RV-012 (Opus
   adversarial subagent, ~96k tokens): 1 finding; handback failed again,
   findings read off the ledger.
+
+### PHASE-04 (charter 3)
+
+- argv: `ListArgs` → `Filters(mailbox, since_ms, from, unread)` + `Page =
+  Offset(limit, offset) | After(limit, after: Cursor)`; `Verb.List(filters,
+  page)`. `ListFlags.after: Option(Cursor)`. One flag parser,
+  `parse_value_flag(rest, taken, parse, store, flags)`, now serves every
+  `list` flag but `--unread` (`--mailbox`/`--since` with `Ok`, `--from` with
+  `from_value`, `--limit`, `--offset`, `--after` with `cursor_value`);
+  `parse_text_flag`/`parse_from_flag`/`parse_int_flag` deleted (POL-001).
+  `parse_list` = `filters_of(flags)` then `page_of(flags)`: every value error
+  (cursor, `--since`) beats `offset_with_after`, which beats nothing else
+  (RV-013 F-1 pins the `--since` case).
+- render: `summary_fields` appends `cursor`; `list_after(after:, limit:,
+  items:)` beside `list`, both through private `list_body(position, limit,
+  items)` (decision D-a: no render-side Page type, render cannot import argv
+  or query, and `render.list`'s callers and test stay as they were).
+- cli: `list_document(filters, page)` = `list_page(page)` (pure: argv page →
+  `#(query.Page, document fn)`) + `list_query(tx, filters, query_page)`
+  (resolves `--mailbox`, builds `ListQuery`). **For PHASE-05:** `read
+  --after` should reuse `list_query(tx, filters, query.Oldest(after,
+  Some(limit)))` and argv's `ListFlags`/`filters_of`; `page_of` is list's
+  (it defaults the page), so the selection needs its own precedence step
+  (missing_after → offset_with_after → missing_max_bytes) over the same flags.
+- Test support (POL-001): store_test's walk lifted to
+  `test/support/paging.walk(from:, page:, next:, bound:)`, used by store_test
+  and cli_test; `snapshot_fixture.listing_ascending_ids()`;
+  `cli_fixture.item_strings(document, key)` (`item_ids` calls it).
+- C6 audit: changed existing expectations are render_test's `summary_json`
+  field-order helper and the read literal (`cursor`), cli_test
+  `summary_keys`/`read_keys`. Through `summary_keys`,
+  `thread_marks_in_store_entries_test` also now expects `cursor` on in-store
+  items — EX-1 requires it, and it rides the `summary_keys` constant EX-4
+  names. render_test's list test was restructured onto shared
+  `list_summaries()`/`list_items_json()` with byte-identical expectations.
+  Note: render_test's `date()` sets `ms: 0`, so render tests pin the cursor's
+  position and id but not its ms; cli_test's
+  `list_items_carry_their_arrival_cursor_test` pins real ms.
+- Negative controls (orchestrator, each restored): drop `id ASC` from the
+  limited Oldest order → CLI and store walks fail; `--after` + `--offset`
+  allowed → usage test fails; `Oldest(limit: None)` in cli → document-shape
+  test fails (the walks alone would not catch it); `filters_of`/`page_of`
+  swapped → usage test fails (after F-1's fix).
+- Research advisory drift: same benign plan-file drift; not refreshed.
+- Passes: pi `implement` test support + cli red tests (34 req, $0.049;
+  correct; orchestrator replaced a hard-coded walk bound); pi `implement`
+  render red tests (15 req, $0.013; correct; orchestrator deduped the two list
+  tests' fixtures); pi `implement` green (21 req, $0.029; correct first time;
+  orchestrator refactored cli's two query arms into `list_page` +
+  `list_query` and collapsed the text/from flag parsers). Review RV-013 (Opus
+  adversarial subagent, ~105k tokens): 2 nits, both fix-now; handback failed
+  again, findings read off the ledger.

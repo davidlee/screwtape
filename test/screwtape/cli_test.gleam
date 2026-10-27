@@ -23,6 +23,7 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/result
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -32,6 +33,7 @@ import screwtape/store
 import support/cli_fixture
 import support/jmap_fixture
 import support/local_jmap
+import support/paging
 import support/snapshot_fixture
 import support/store_dump
 import support/subprocess
@@ -549,8 +551,8 @@ const newest_first = [
 
 /// The keys of a `list` item (design § 5.2's example item, field for field).
 const summary_keys = [
-  "from", "has_attachment", "id", "is_flagged", "is_seen", "mailbox_ids",
-  "preview", "received_at", "subject", "thread_id",
+  "cursor", "from", "has_attachment", "id", "is_flagged", "is_seen",
+  "mailbox_ids", "preview", "received_at", "subject", "thread_id",
 ]
 
 /// Run a read verb against `setup`'s config, with no environment at all.
@@ -930,13 +932,251 @@ pub fn list_offset_bounds_test() {
   cli_fixture.item_ids(document) |> should.equal(Ok([]))
 }
 
+// ---------------------------------------------------------------- list --after
+//
+// PHASE-04 C2 / C3: `list --after <cursor>` walks the store oldest first from a
+// position the consumer holds, and every item's `cursor` is what it holds
+// between pages. The walk helper is `support/paging`, shared with the store
+// suite, so a cursor that never advances fails rather than hangs.
+
+/// The `(id, cursor)` pair of every item in `data.items`, in order: the two
+/// strings `--after` paging reads from a page, zipped.
+fn item_cursors(document: dynamic.Dynamic) -> List(#(String, String)) {
+  let assert Ok(ids) = cli_fixture.item_strings(document, "id")
+  let assert Ok(cursors) = cli_fixture.item_strings(document, "cursor")
+  list.zip(ids, cursors)
+}
+
+/// `id`'s cursor text as `list` prints it, computed from `snapshot`'s own
+/// message row, so no case keeps a second copy of an arrival instant.
+fn expected_cursor(snapshot: model.Snapshot, id: String) -> String {
+  let assert Ok(message) =
+    list.find(snapshot.messages, fn(message) { message.id == id })
+  int.to_string(message.received_at.ms) <> ":" <> message.id
+}
+
+/// One `list --after <after> --limit <limit>` page against `setup`: its items'
+/// `(id, cursor)` pairs, oldest first.
+fn after_page(
+  setup: cli_fixture.ReadSetup,
+  after: String,
+  limit: Int,
+) -> Result(List(#(String, String)), Nil) {
+  let outcome =
+    read_verb(setup, [
+      "list",
+      "--after",
+      after,
+      "--limit",
+      int.to_string(limit),
+    ])
+  Ok(item_cursors(expect_document(outcome, "list")))
+}
+
+/// VT-1 (PHASE-04), C2: every item of a plain `list` carries `cursor`, its
+/// `"<ms>:<id>"` arrival position — `-m1`'s is the fixture's own midnight — so
+/// a consumer can ask for what follows any item it was shown.
+pub fn list_items_carry_their_arrival_cursor_test() {
+  let snapshot = snapshot_fixture.listing()
+  let setup = cli_fixture.seeded("cli-list-cursor", snapshot)
+  let outcome = read_verb(setup, ["list"])
+  temp.remove_dir(setup.dir)
+
+  let document = expect_document(outcome, "list")
+  let pairs = item_cursors(document)
+  list.map(pairs, fn(pair) { pair.0 }) |> should.equal(newest_first)
+  list.map(pairs, fn(pair) { pair.1 })
+  |> should.equal(
+    list.map(newest_first, fn(id) { expected_cursor(snapshot, id) }),
+  )
+  list.find(pairs, fn(pair) { pair.0 == "acct-l-m1" })
+  |> should.equal(
+    Ok(#(
+      "acct-l-m1",
+      int.to_string(snapshot_fixture.listing_midnight_ms) <> ":acct-l-m1",
+    )),
+  )
+}
+
+/// VT-1 (PHASE-04), C2 through the CLI: `list --after` walks the whole listing
+/// once, oldest first, in `(received_at_ms, id)` order, for a page of one, of
+/// two and the whole store. Each store is written in both message orders:
+/// SQLite breaks an `ORDER BY` tie by scan order, and `-m4` and `-m5` share a
+/// millisecond, so an order without its `id` column would still pass with one
+/// order (RV-012 F-1).
+pub fn list_after_walks_the_whole_listing_in_ascending_order_test() {
+  let listing = snapshot_fixture.listing()
+  let reversed =
+    model.Snapshot(..listing, messages: list.reverse(listing.messages))
+  use snapshot <- list.each([listing, reversed])
+  let setup = cli_fixture.seeded("cli-list-after-walk", snapshot)
+  let walks =
+    list.map([1, 2, 500], fn(limit) {
+      #(
+        limit,
+        paging.walk(
+          from: "",
+          page: fn(after) { after_page(setup, after, limit) },
+          next: fn(pair) { pair.1 },
+          bound: list.length(snapshot_fixture.listing_ascending_ids()),
+        )
+          |> result.map(list.map(_, fn(pair) { pair.0 })),
+      )
+    })
+  temp.remove_dir(setup.dir)
+
+  list.each(walks, fn(walk) {
+    #(walk.0, walk.1)
+    |> should.equal(#(walk.0, Ok(snapshot_fixture.listing_ascending_ids())))
+  })
+}
+
+/// C2 / D7 (PHASE-04): an `--after` document carries exactly `after`, `items`
+/// and `limit` — no `offset` — echoes the cursor text it was given, defaults
+/// `limit` to 50, and starts strictly after the cursor: past `-m4` come `-m5`
+/// and `-m6`.
+pub fn list_after_document_shape_test() {
+  let setup =
+    cli_fixture.seeded("cli-list-after-doc", snapshot_fixture.listing())
+  let m4 =
+    int.to_string(snapshot_fixture.listing_midnight_ms + 3_600_000)
+    <> ":acct-l-m4"
+  let start = read_verb(setup, ["list", "--after", ""])
+  let from_m4 = read_verb(setup, ["list", "--after", m4])
+  let limited = read_verb(setup, ["list", "--after", "", "--limit", "2"])
+  temp.remove_dir(setup.dir)
+
+  let start = expect_document(start, "list")
+  cli_fixture.keys(start, ["data"])
+  |> should.equal(Ok(["after", "items", "limit"]))
+  cli_fixture.field(start, ["data", "after"], decode.string)
+  |> should.equal(Ok(""))
+  cli_fixture.field(start, ["data", "limit"], decode.int)
+  |> should.equal(Ok(50))
+  cli_fixture.item_ids(start)
+  |> should.equal(Ok(snapshot_fixture.listing_ascending_ids()))
+
+  let from_m4 = expect_document(from_m4, "list")
+  cli_fixture.field(from_m4, ["data", "after"], decode.string)
+  |> should.equal(Ok(m4))
+  cli_fixture.item_ids(from_m4) |> should.equal(Ok(listing_ids(["m5", "m6"])))
+
+  let limited = expect_document(limited, "list")
+  cli_fixture.field(limited, ["data", "limit"], decode.int)
+  |> should.equal(Ok(2))
+  cli_fixture.item_ids(limited) |> should.equal(Ok(listing_ids(["m2", "m1"])))
+}
+
+/// C2 (PHASE-04): `--after ""` starts at the oldest message, so a filter's
+/// `--after` page is its plain `list` page reversed — the listing is six
+/// messages, so one page holds the whole of each filter's answer.
+pub fn list_after_start_agrees_with_every_plain_list_filter_test() {
+  let setup =
+    cli_fixture.seeded("cli-list-after-filter", snapshot_fixture.listing())
+  let filters = [
+    ["--mailbox", "inbox"],
+    ["--since", "2026-10-25"],
+    ["--from", "acme"],
+    ["--unread"],
+  ]
+  let outcomes =
+    list.map(filters, fn(filter) {
+      #(filter, read_verb(setup, ["list", "--after", "", ..filter]))
+    })
+  temp.remove_dir(setup.dir)
+
+  list.each(outcomes, fn(pair) {
+    let #(filter, outcome) = pair
+    let assert Ok(ids) = cli_fixture.item_ids(expect_document(outcome, "list"))
+      as string.inspect(#(filter, outcome))
+    #(filter, ids)
+    |> should.equal(#(filter, list.reverse(listed(filter))))
+  })
+}
+
+/// C2 (PHASE-04): an `--after` page past the data is an empty page, not an
+/// error — an empty store from `""`, and a store walked past `-m6`.
+pub fn list_after_edges_are_empty_pages_test() {
+  let empty = model.Snapshot(..snapshot_fixture.listing(), messages: [])
+  let empty_setup = cli_fixture.seeded("cli-list-after-empty", empty)
+  let empty_outcome = read_verb(empty_setup, ["list", "--after", ""])
+  temp.remove_dir(empty_setup.dir)
+
+  let setup =
+    cli_fixture.seeded("cli-list-after-past", snapshot_fixture.listing())
+  let past_cursor =
+    int.to_string(snapshot_fixture.listing_midnight_ms + 7_200_000)
+    <> ":acct-l-m6"
+  let past = read_verb(setup, ["list", "--after", past_cursor])
+  temp.remove_dir(setup.dir)
+
+  let empty = expect_document(empty_outcome, "list")
+  cli_fixture.field(empty, ["data", "after"], decode.string)
+  |> should.equal(Ok(""))
+  cli_fixture.item_ids(empty) |> should.equal(Ok([]))
+
+  let past = expect_document(past, "list")
+  cli_fixture.field(past, ["data", "after"], decode.string)
+  |> should.equal(Ok(past_cursor))
+  cli_fixture.item_ids(past) |> should.equal(Ok([]))
+}
+
+/// C3 (PHASE-04): the usage reasons `--after` adds. Only canonical cursor text
+/// parses (no `+`, no leading zero, no empty id, no out-of-range instant);
+/// `--after` with `--offset` is refused once every flag has parsed, so an
+/// unknown flag still wins and a bad cursor or `--since` still names itself;
+/// and a repeated or valueless `--after` is the same usage error a repeated
+/// flag always is.
+pub fn list_after_usage_reasons_test() {
+  let setup =
+    cli_fixture.seeded("cli-list-after-reasons", snapshot_fixture.listing())
+  let invalid_cursors = [
+    "x", ":", "5:", "abc:id", "+5:id", "007:id", "9223372036854775808:id",
+  ]
+  let bad_cursor_cases =
+    list.map(invalid_cursors, fn(text) {
+      #(["list", "--after", text], "invalid_cursor")
+    })
+  let cases =
+    list.append(bad_cursor_cases, [
+      #(["list", "--after", "", "--offset", "0"], "offset_with_after"),
+      #(["list", "--offset", "0", "--after", ""], "offset_with_after"),
+      #(["list", "--after", "", "--after", ""], "repeated_argument"),
+      #(["list", "--after", "", "--offset", "1", "--bogus"], "unknown_argument"),
+      #(["list", "--after", "x", "--offset", "1"], "invalid_cursor"),
+      #(
+        ["list", "--after", "", "--offset", "0", "--since", "2026-13-01"],
+        "invalid_since",
+      ),
+      #(["list", "--after"], "missing_value"),
+    ])
+
+  let outcomes =
+    list.map(cases, fn(case_) { #(case_, read_verb(setup, case_.0)) })
+  temp.remove_dir(setup.dir)
+
+  list.each(outcomes, fn(pair) {
+    let #(#(args, reason), outcome) = pair
+    #(args, outcome.exit_code) |> should.equal(#(args, 2))
+    #(args, outcome.stdout) |> should.equal(#(args, None))
+    #(args, outcome.stderr)
+    |> should.equal(
+      #(args, [
+        "{\"level\":\"error\",\"error\":\"usage\",\"reason\":\""
+        <> reason
+        <> "\"}",
+      ]),
+    )
+  })
+}
+
 // ---------------------------------------------------------------- read
 
 /// The keys of a `read` document's `data` (D7): the summary's, the rest of the
 /// message, `provenance` and `output_truncated` — and not the message's
 /// `blob_id` or any body's `max_body_value_bytes`.
 const read_keys = [
-  "attachments", "bcc", "bodies", "cc", "from", "has_attachment", "id",
+  "attachments", "bcc", "bodies", "cc", "cursor", "from", "has_attachment", "id",
   "in_reply_to", "is_flagged", "is_seen", "keywords", "mailbox_ids",
   "message_id", "output_truncated", "preview", "provenance", "received_at",
   "references", "reply_to", "sender", "sent_at", "size", "subject", "thread_id",

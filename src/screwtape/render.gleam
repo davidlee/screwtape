@@ -9,6 +9,7 @@ import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import screwtape/cursor
 import screwtape/model.{
   type Address, type AddressField, type Attachment, type Body, type Mailbox,
   type Message, type MessageSummary, type Source, type ThreadEntry,
@@ -41,10 +42,30 @@ pub fn list(
   limit limit: Int,
   items items: List(MessageSummary),
 ) -> String {
+  list_body(#("offset", json.int(offset)), limit, items)
+}
+
+/// `list --after`: `{"after", "limit", "items": [summary]}`, the cursor the
+/// consumer held in place of `offset`, its items oldest first (C2).
+pub fn list_after(
+  after after: cursor.Cursor,
+  limit limit: Int,
+  items items: List(MessageSummary),
+) -> String {
+  list_body(#("after", json.string(cursor.to_string(after))), limit, items)
+}
+
+/// The one `list` body both pages print, so only their first key differs
+/// (design § 5.2).
+fn list_body(
+  position: #(String, Json),
+  limit: Int,
+  items: List(MessageSummary),
+) -> String {
   envelope(
     "list",
     json.object([
-      #("offset", json.int(offset)),
+      position,
       #("limit", json.int(limit)),
       #("items", json.array(items, summary_json)),
     ]),
@@ -122,6 +143,13 @@ fn summary_fields(summary: MessageSummary) -> List(#(String, Json)) {
     #("is_flagged", json.bool(summary.is_flagged)),
     #("mailbox_ids", json.array(summary.mailbox_ids, json.string)),
     #("has_attachment", json.bool(summary.has_attachment)),
+    // The arrival position a consumer holds between `--after` pages (C2, C3).
+    #(
+      "cursor",
+      json.string(
+        cursor.to_string(cursor.of(summary.received_at.ms, summary.id)),
+      ),
+    ),
   ]
 }
 

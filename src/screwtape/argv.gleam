@@ -9,13 +9,16 @@
 //// Pure: no file, no environment, no store. `list`'s flags may come in any
 //// order, each at most once (A5); the page size and start default when no flag
 //// names them, and `--since YYYY-MM-DD` is turned into the midnight-UTC instant
-//// it names (A2). `read <id> [--max-bytes n]` and `thread <id> [--limit n]` (A7)
-//// take no other flag, and `sync` and `mailboxes` take no argument at all.
+//// it names (A2). `--after <cursor>` instead starts the page strictly past a
+//// position the consumer held, oldest first (C2, C3); it may not be combined
+//// with `--offset`. `read <id> [--max-bytes n]` and `thread <id> [--limit n]`
+//// (A7) take no other flag, and `sync` and `mailboxes` take no argument at all.
 
 import gleam/int
 import gleam/option.{type Option, None, Some, is_some, unwrap}
 import gleam/result
 import gleam/string
+import screwtape/cursor.{type Cursor}
 import screwtape/error.{type Error}
 import screwtape/normalise
 
@@ -28,22 +31,27 @@ pub type Command {
 pub type Verb {
   Sync
   Mailboxes
-  List(ListArgs)
+  List(filters: Filters, page: Page)
   Read(id: String, max_bytes: Option(Int))
   Thread(id: String, limit: Int)
 }
 
-/// `list`'s checked flags with their defaults applied; `since_ms` is the
+/// `list`'s checked filters with their defaults applied; `since_ms` is the
 /// midnight-UTC instant a `--since YYYY-MM-DD` names (A2).
-pub type ListArgs {
-  ListArgs(
+pub type Filters {
+  Filters(
     mailbox: Option(String),
     since_ms: Option(Int),
     from: Option(String),
     unread: Bool,
-    limit: Int,
-    offset: Int,
   )
+}
+
+/// Which page `list` asks for (C2): the newest first from an `offset`, or the
+/// oldest first strictly after a cursor the consumer held.
+pub type Page {
+  Offset(limit: Int, offset: Int)
+  After(limit: Int, after: Cursor)
 }
 
 /// The page size `list` and `thread` use when no flag names them, and the range
@@ -82,7 +90,11 @@ fn verb_command(
     "mailboxes", [] -> Ok(Command(path, Mailboxes))
     "mailboxes", _ -> usage("unexpected_argument")
     "list", _ ->
-      parse_list(args) |> result.map(fn(args) { Command(path, List(args)) })
+      parse_list(args)
+      |> result.map(fn(parsed) {
+        let #(filters, page) = parsed
+        Command(path, List(filters, page))
+      })
     "read", _ ->
       parse_read(args)
       |> result.map(fn(parsed) {
@@ -183,24 +195,21 @@ type ListFlags {
     unread: Bool,
     limit: Option(Int),
     offset: Option(Int),
+    after: Option(Cursor),
   )
 }
 
-fn parse_list(args: List(String)) -> Result(ListArgs, Error) {
+/// `list`'s flags in, the filters and the page out (design § 5.2); the two
+/// are separate so PHASE-05's `read --after` can reuse the filters.
+fn parse_list(args: List(String)) -> Result(#(Filters, Page), Error) {
   use flags <- result.try(parse_list_flags(args, empty_flags()))
-  use since_ms <- result.try(optional_since(flags.since))
-  Ok(ListArgs(
-    mailbox: flags.mailbox,
-    since_ms: since_ms,
-    from: flags.from,
-    unread: flags.unread,
-    limit: unwrap(flags.limit, default_limit),
-    offset: unwrap(flags.offset, default_offset),
-  ))
+  use filters <- result.try(filters_of(flags))
+  use page <- result.try(page_of(flags))
+  Ok(#(filters, page))
 }
 
 fn empty_flags() -> ListFlags {
-  ListFlags(None, None, None, False, None, None)
+  ListFlags(None, None, None, False, None, None, None)
 }
 
 fn parse_list_flags(
@@ -216,34 +225,51 @@ fn parse_list_flags(
           parse_list_flags(rest, ListFlags(..flags, unread: True))
         }
         "--mailbox" ->
-          parse_text_flag(
+          parse_value_flag(
             rest,
-            flags.mailbox,
+            is_some(flags.mailbox),
+            Ok,
             fn(flags, value) { ListFlags(..flags, mailbox: Some(value)) },
             flags,
           )
         "--since" ->
-          parse_text_flag(
+          parse_value_flag(
             rest,
-            flags.since,
+            is_some(flags.since),
+            Ok,
             fn(flags, value) { ListFlags(..flags, since: Some(value)) },
             flags,
           )
-        "--from" -> parse_from_flag(rest, flags)
-        "--limit" ->
-          parse_int_flag(
+        "--from" ->
+          parse_value_flag(
             rest,
-            flags.limit,
+            is_some(flags.from),
+            from_value,
+            fn(flags, value) { ListFlags(..flags, from: Some(value)) },
+            flags,
+          )
+        "--limit" ->
+          parse_value_flag(
+            rest,
+            is_some(flags.limit),
             limit_value,
             fn(flags, value) { ListFlags(..flags, limit: Some(value)) },
             flags,
           )
         "--offset" ->
-          parse_int_flag(
+          parse_value_flag(
             rest,
-            flags.offset,
+            is_some(flags.offset),
             offset_value,
             fn(flags, value) { ListFlags(..flags, offset: Some(value)) },
+            flags,
+          )
+        "--after" ->
+          parse_value_flag(
+            rest,
+            is_some(flags.after),
+            cursor_value,
+            fn(flags, value) { ListFlags(..flags, after: Some(value)) },
             flags,
           )
         _ -> usage("unknown_argument")
@@ -259,45 +285,26 @@ fn offset_in_range(value: Int) -> Bool {
 
 /// `--from` takes a non-empty text: an empty one selects nothing and is
 /// `Usage("invalid_from")`.
-fn parse_from_flag(
-  args: List(String),
-  flags: ListFlags,
-) -> Result(ListFlags, Error) {
-  use _ <- result.try(fresh(is_some(flags.from)))
-  use pair <- result.try(value_flag(args))
-  let #(value, rest) = pair
-  case value {
+fn from_value(raw: String) -> Result(String, Error) {
+  case raw {
     "" -> usage("invalid_from")
-    _ -> parse_list_flags(rest, ListFlags(..flags, from: Some(value)))
+    _ -> Ok(raw)
   }
 }
 
-/// A flag taking one text value, which it stores once.
-fn parse_text_flag(
+/// A `list` flag taking one value that `parse` reads and checks, stored once
+/// (A5). Every `list` flag but `--unread` has this shape.
+fn parse_value_flag(
   args: List(String),
-  found: Option(String),
-  store: fn(ListFlags, String) -> ListFlags,
+  taken: Bool,
+  parse: fn(String) -> Result(a, Error),
+  store: fn(ListFlags, a) -> ListFlags,
   flags: ListFlags,
 ) -> Result(ListFlags, Error) {
-  use _ <- result.try(fresh(is_some(found)))
-  use pair <- result.try(value_flag(args))
-  let #(value, rest) = pair
-  parse_list_flags(rest, store(flags, value))
-}
-
-/// A `list` flag taking one integer, which `value` reads and checks, stored
-/// once.
-fn parse_int_flag(
-  args: List(String),
-  found: Option(Int),
-  value: fn(String) -> Result(Int, Error),
-  store: fn(ListFlags, Int) -> ListFlags,
-  flags: ListFlags,
-) -> Result(ListFlags, Error) {
-  use _ <- result.try(fresh(is_some(found)))
+  use _ <- result.try(fresh(taken))
   use pair <- result.try(value_flag(args))
   let #(raw, rest) = pair
-  use parsed <- result.try(value(raw))
+  use parsed <- result.try(parse(raw))
   parse_list_flags(rest, store(flags, parsed))
 }
 
@@ -324,6 +331,40 @@ fn in_limit_range(value: Int) -> Bool {
 /// `--offset`'s value for `list`: an integer in `offset_in_range`.
 fn offset_value(raw: String) -> Result(Int, Error) {
   int_value(raw, offset_in_range)
+}
+
+/// `--after`'s value: only the canonical cursor text `cursor.parse` accepts
+/// (C3); anything else is `Usage("invalid_cursor")`.
+fn cursor_value(raw: String) -> Result(Cursor, Error) {
+  case cursor.parse(raw) {
+    Ok(after) -> Ok(after)
+    Error(Nil) -> usage("invalid_cursor")
+  }
+}
+
+/// The filters `list`, and in PHASE-05 `read --after`, select by (A2).
+fn filters_of(flags: ListFlags) -> Result(Filters, Error) {
+  use since_ms <- result.try(optional_since(flags.since))
+  Ok(Filters(
+    mailbox: flags.mailbox,
+    since_ms: since_ms,
+    from: flags.from,
+    unread: flags.unread,
+  ))
+}
+
+/// The page `list` asks for: `--after` may not be combined with `--offset`,
+/// and the other flags' defaults apply otherwise (A5, C2).
+fn page_of(flags: ListFlags) -> Result(Page, Error) {
+  let limit = unwrap(flags.limit, default_limit)
+  case flags.after {
+    Some(after) ->
+      case is_some(flags.offset) {
+        True -> usage("offset_with_after")
+        False -> Ok(After(limit, after))
+      }
+    None -> Ok(Offset(limit, unwrap(flags.offset, default_offset)))
+  }
 }
 
 /// The value after a flag; a flag with nothing after it is `Usage`.

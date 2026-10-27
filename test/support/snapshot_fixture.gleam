@@ -479,6 +479,20 @@ pub fn listing() -> Snapshot {
   )
 }
 
+/// The whole `listing()` in ascending `(received_at_ms, id)` order, the order a
+/// `list --after` walk yields: `-m4` before `-m5` on their shared receipt
+/// millisecond.
+pub fn listing_ascending_ids() -> List(String) {
+  [
+    "acct-l-m2",
+    "acct-l-m1",
+    "acct-l-m3",
+    "acct-l-m4",
+    "acct-l-m5",
+    "acct-l-m6",
+  ]
+}
+
 /// One `listing` message: every field the filters and the summary read is set
 /// from the arguments, and the rest is fixed filler.
 fn listing_message(
