@@ -200,3 +200,19 @@ pub type Snapshot {
     threads: List(Thread),
   )
 }
+
+/// The committed store as one value (design § 5.2), read back by
+/// `query.prior`. One `Email` state and no `threads` or sync counters: every run
+/// refreshes those, so a reuse only needs what it would otherwise rewrite
+/// (I-M5).
+pub type Prior {
+  Prior(
+    account_id: String,
+    api_url: String,
+    email_state: String,
+    window_json: String,
+    mailboxes: List(Mailbox),
+    query: QueryState,
+    messages: List(Message),
+  )
+}

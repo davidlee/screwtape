@@ -14,9 +14,9 @@ import gleam/string
 import screwtape/error.{type Error, Store}
 import screwtape/model.{
   type Address, type Attachment, type Body, type HeaderIds, type Mailbox,
-  type Message, type MessageSummary, type ThreadEntry, type UtcDate, Address,
-  Attachment, Body, HeaderIds, Mailbox, Message, MessageSummary, ThreadEntry,
-  UtcDate,
+  type Message, type MessageSummary, type Prior, type QueryState,
+  type ThreadEntry, type UtcDate, Address, Attachment, Body, HeaderIds, Mailbox,
+  Message, MessageSummary, Prior, QueryState, ThreadEntry, UtcDate,
 }
 import screwtape/store
 import screwtape/store/codec
@@ -49,10 +49,7 @@ pub fn account_id(tx: store.Tx) -> Result(String, Error) {
     [],
     decode.field(0, decode.string, decode.success),
   ))
-  case rows {
-    [id, ..] -> Ok(id)
-    [] -> Error(Store(store.no_snapshot))
-  }
+  no_snapshot_when_empty(rows)
 }
 
 /// Every mailbox, ordered by `sort_order`, then `name`, then `id`.
@@ -115,6 +112,97 @@ pub fn thread(
   }
 }
 
+/// The committed store as a value (design § 5.2), so a run can reason about
+/// what it would otherwise rewrite (I-M5). Every read runs in `tx`, so all of
+/// it sees one committed snapshot (I8).
+///
+/// A store with no usable snapshot — no `sync` row, no `Email` `type_state`
+/// row, no `query_state` row — is `Store("no_snapshot")`.
+///
+/// `messages` come back by `received_at_ms`, then id, ascending; the order is
+/// not a contract of `Prior`.
+pub fn prior(tx: store.Tx) -> Result(Prior, Error) {
+  use account_id <- result.try(account_id(tx))
+  use #(api_url, window_json) <- result.try(sync_row(tx))
+  use email_state <- result.try(email_state(tx))
+  use stored_mailboxes <- result.try(mailboxes(tx))
+  use query <- result.try(query_state(tx))
+  use ids <- result.try(message_ids(tx))
+  use stored_messages <- result.try(
+    list.try_map(ids, fn(id) {
+      use found <- result.try(message(tx, id))
+      option.to_result(found, Store(store.read_failed))
+    }),
+  )
+  Ok(Prior(
+    account_id: account_id,
+    api_url: api_url,
+    email_state: email_state,
+    window_json: window_json,
+    mailboxes: stored_mailboxes,
+    query: query,
+    messages: stored_messages,
+  ))
+}
+
+/// The `sync` row's server and window: the pair every reuse compares against.
+/// One select for both columns, so `sync` is read once.
+fn sync_row(tx: store.Tx) -> Result(#(String, String), Error) {
+  use rows <- result.try(store.select(
+    tx,
+    select_sync_row_sql,
+    [],
+    decode.field(0, decode.string, fn(api_url) {
+      decode.field(1, decode.string, fn(window_json) {
+        decode.success(#(api_url, window_json))
+      })
+    }),
+  ))
+  no_snapshot_when_empty(rows)
+}
+
+/// The `type_state` state of `Email`. No `Email` row means no usable snapshot,
+/// not the first state the table happens to hold.
+fn email_state(tx: store.Tx) -> Result(String, Error) {
+  use rows <- result.try(store.select(
+    tx,
+    select_email_state_sql,
+    [sqlight.text("Email")],
+    decode.field(0, decode.string, decode.success),
+  ))
+  no_snapshot_when_empty(rows)
+}
+
+/// The run's `query_state` row: one row per committed snapshot (DEC-008).
+fn query_state(tx: store.Tx) -> Result(QueryState, Error) {
+  use rows <- result.try(store.select(
+    tx,
+    select_query_state_sql,
+    [],
+    query_state_decoder(),
+  ))
+  no_snapshot_when_empty(rows)
+}
+
+/// Every message id, in the store's order; `Ok([])` for a store with none.
+fn message_ids(tx: store.Tx) -> Result(List(String), Error) {
+  store.select(
+    tx,
+    select_message_ids_sql,
+    [],
+    decode.field(0, decode.string, decode.success),
+  )
+}
+
+/// The first row, or `no_snapshot`: each table a snapshot cannot do without
+/// answers its absence the same way.
+fn no_snapshot_when_empty(rows: List(a)) -> Result(a, Error) {
+  case rows {
+    [row, ..] -> Ok(row)
+    [] -> Error(Store(store.no_snapshot))
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Read decoders: the inverse of the encoders in `screwtape/store/codec`
 // ---------------------------------------------------------------------------
@@ -169,6 +257,23 @@ fn mailbox_decoder() -> decode.Decoder(Mailbox) {
     sort_order: sort_order,
     total_emails: total_emails,
     unread_emails: unread_emails,
+  ))
+}
+
+/// The five columns of `query_state`, its two flags decoded from their
+/// `INTEGER` columns.
+fn query_state_decoder() -> decode.Decoder(QueryState) {
+  use filter_json <- decode.field(0, decode.string)
+  use sort_json <- decode.field(1, decode.string)
+  use collapse_threads <- decode.field(2, sqlight.decode_bool())
+  use query_state <- decode.field(3, decode.string)
+  use can_calculate_changes <- decode.field(4, sqlight.decode_bool())
+  decode.success(QueryState(
+    filter_json: filter_json,
+    sort_json: sort_json,
+    collapse_threads: collapse_threads,
+    query_state: query_state,
+    can_calculate_changes: can_calculate_changes,
   ))
 }
 
@@ -646,3 +751,16 @@ const select_attachments_sql =
 
 const select_thread_emails_sql =
   "SELECT message_id FROM thread_email WHERE thread_id = ? ORDER BY position"
+
+const select_sync_row_sql = "SELECT api_url, window_json FROM sync"
+
+/// `Email` is bound as a parameter, never quoted into the SQL.
+const select_email_state_sql = "SELECT state FROM type_state WHERE type = ?"
+
+/// One row per committed snapshot (DEC-008), so `LIMIT 1` is not lossy.
+const select_query_state_sql =
+  "SELECT filter_json, sort_json, collapse_threads, query_state,"
+  <> " can_calculate_changes FROM query_state LIMIT 1"
+
+const select_message_ids_sql =
+  "SELECT id FROM message ORDER BY received_at_ms, id"

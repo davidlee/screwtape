@@ -128,6 +128,9 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 03 | implement | pi `implement` | 0.044 | green first pass; shared `get_page_decoder` (POL-001) as briefed |
 | 03 | review (VA-1) | pi `review` | 0.028 | 7 findings, all accepted; caught the false doc the orchestrator also saw |
 | 03 | fixes | pi `implement` (same session) | 0.017 | 9 items (7 review + 2 orchestrator) applied, green |
+| 04 | phase-plan | pi `implement` | 0.024 | 5 scope surprises, all useful; orchestrator settled them in amendments |
+| 04 | implement | pi `implement` | 0.029 | green first pass; followed amendments |
+| 04 | review (VA-1) | pi `review` | 0.021 | 5 findings: 4 fixed by orchestrator, 1 noted; negative control (swap bool columns) fails one test |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
@@ -170,3 +173,18 @@ PHASE-03 review dispositions (all fixed):
 - orchestrator: `opening_pairs` via `result.map`; one `get_arguments`
   envelope for full and light `Email/get` fixtures (POL-001).
 - VA-2: CHR-004 records its opening_entries guard as done here.
+
+PHASE-04 review dispositions:
+- the round-trip could not tell `collapse_threads` from
+  `can_calculate_changes` (both True in `full`) — the test now bends
+  `collapse_threads` to False locally (shared fixture untouched) (major, fixed);
+- false docs on `query.prior` (write order; "every part is an existing read")
+  — corrected;
+- no-snapshot test exercised only the `sync` path — now one test over three
+  deletions (sync row, Email type_state, query_state);
+- `account_id` now reuses `no_snapshot_when_empty`; shadowing locals renamed;
+- EX-2 wording: `message_ids` is a fourth new reader, mandated by design
+  § 5.2 ("every message id") — noted, no change.
+- Accepted by design, not a defect: `prior` rebuilds each message with
+  `query.message` (several selects per message). § 8 Risks: revisit only if
+  measured.

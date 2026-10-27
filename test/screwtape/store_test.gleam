@@ -17,6 +17,7 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order.{type Order, Eq}
+import gleam/result
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -703,21 +704,87 @@ fn messages_of(
 /// form, `mailbox_ids` sorted, `attachments` by `part_id`, `addresses` by field
 /// (model order) then position. The fixture writes those relations out of
 /// order, so a query that returns its insertion order fails here.
+///
+/// I-M5: reading the same store through `query.prior` in the same read gets the
+/// committed store back as a value — every message canonical, plus the query
+/// record, mailboxes, `Email` state, `window_json` and `api_url` that were
+/// written.
 pub fn read_queries_round_trip_every_fixture_message_test() {
-  let snapshot = snapshot_fixture.full(account)
+  // The two query flags differ, so a decoder that swaps their columns fails.
+  let full = snapshot_fixture.full(account)
+  let snapshot =
+    model.Snapshot(
+      ..full,
+      query: model.QueryState(..full.query, collapse_threads: False),
+    )
+  { snapshot.query.collapse_threads != snapshot.query.can_calculate_changes }
+  |> should.be_true
   let #(dir, path) = written(snapshot)
   let result =
     read_from(path, fn(tx) {
-      list.try_map(snapshot.messages, fn(message) {
-        query.message(tx, message.id)
-      })
+      use messages <- result.try(
+        list.try_map(snapshot.messages, fn(message) {
+          query.message(tx, message.id)
+        }),
+      )
+      use prior <- result.try(query.prior(tx))
+      Ok(#(messages, prior))
     })
   temp.remove_dir(dir)
+  let assert Ok(#(messages, prior)) = result
 
   let expected =
     snapshot.messages
     |> list.map(fn(message) { Some(snapshot_fixture.canonical(message)) })
-  result |> should.equal(Ok(expected))
+  messages |> should.equal(expected)
+
+  // `prior.messages` order is not a `Prior` contract (merge sorts), so both
+  // lists are compared sorted by id.
+  let by_id = fn(a: model.Message, b: model.Message) {
+    string.compare(a.id, b.id)
+  }
+  prior.messages
+  |> list.map(snapshot_fixture.canonical)
+  |> list.sort(by_id)
+  |> should.equal(
+    snapshot.messages
+    |> list.map(snapshot_fixture.canonical)
+    |> list.sort(by_id),
+  )
+
+  prior.account_id |> should.equal(snapshot.account.account_id)
+  prior.api_url |> should.equal(snapshot.account.api_url)
+  prior.window_json |> should.equal(snapshot.account.window_json)
+  // The `Email` state, not the `Mailbox` one the fixture writes first: an
+  // unordered `SELECT state FROM type_state` returns the wrong string.
+  prior.email_state |> should.equal("state-" <> account <> "-email")
+  prior.query |> should.equal(snapshot.query)
+
+  // The fixture's mailbox order is scrambled against `sort_order`, `name`, id,
+  // so this assertion is load-bearing.
+  let expected_mailboxes = list.sort(snapshot.mailboxes, mailbox_order)
+  let scrambled = expected_mailboxes != snapshot.mailboxes
+  scrambled |> should.be_true
+  prior.mailboxes |> should.equal(expected_mailboxes)
+}
+
+/// VT-1: a store missing any row a snapshot needs — the `sync` row, the
+/// `Email` state, the query record — has no usable snapshot: `no_snapshot`,
+/// not an empty or partial `Prior`.
+pub fn query_prior_refuses_a_store_with_no_snapshot_test() {
+  [
+    "DELETE FROM sync",
+    "DELETE FROM type_state WHERE type = 'Email'",
+    "DELETE FROM query_state",
+  ]
+  |> list.each(fn(sql) {
+    let #(dir, path) = written(snapshot_fixture.full(account))
+    store_dump.exec_sql(path, sql)
+    let result = read_from(path, fn(tx) { query.prior(tx) })
+    temp.remove_dir(dir)
+
+    result |> should.equal(Error(Store("no_snapshot")))
+  })
 }
 
 /// An id the store does not hold is no message, not a failure.
