@@ -72,3 +72,22 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
   default for bounded work.
 - Operator questions only for significant, real decisions, and only through
   the main thread; otherwise use discretion and report afterwards.
+
+## Execution
+
+### PHASE-01 Cursor module — completed (b031ad8)
+
+- `src/screwtape/cursor.gleam`: `parse` uses `string.split_once` at the first
+  `:`, `int.parse`, then one guard: non-empty id, within int64, and the round
+  trip `to_string(c) == text` (canonicality). Bounds are cursor-private
+  consts; argv's `max_offset` untouched (EX-3).
+- Purity: cursor rule added to `test/check_imports.gleam`; render allowlist
+  gains `screwtape/cursor`. `check_imports_test`'s conforming-sources fixture
+  needed a cursor entry (every governed path must be present, else
+  `MissingFile`), plus one violation test for cursor.
+- Passes: pi `implement` wrote `cursor_test.gleam` (red, 6 requests,
+  $0.003, correct first time). Orchestrator wrote the module and the
+  check_imports changes (cheaper than a brief).
+- Gotcha: `doctrine slice verify-vt` reports UNATTRIBUTABLE until the phase is
+  flipped `completed` — attribution reads the phase boundary
+  (`code_start_oid`..`code_end_oid`) written at completion.
