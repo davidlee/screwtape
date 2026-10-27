@@ -6,13 +6,18 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: <yyyy-mm-dd> · <PHASE-NN | stage> · <head-commit>
+fresh-as-of: 2026-10-27 · design/inquiring (all inq resolved) · 48abe1c
 
 ### Produced
+POL-001 · EVD-001 · DEC-022 · DEC-023 · DEC-024 · CHR-004 · mem.fact.jmap.fastmail-email-changes
 
 ### Learned
+mem.fact.jmap.fastmail-email-changes (EVD-001)
 
 ### Open
+- satan:RFC-020 D8 amendment draft (no queryChanges; local window filter; retention) — at close
+- research/ untracked: skill says gitignored, .gitignore does not cover it — operator to decide
+- CHR-004 (test debt; SL-002 absorbs only the opening_entries guard)
 
 ## Design triage (2026-10-27, exploring)
 
