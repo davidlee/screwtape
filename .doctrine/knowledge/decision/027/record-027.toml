@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 27
+slug = "screwtape-read-contract-is-the-cli-json-envelopes-not-sqlite-views"
+title = "Screwtape read contract is the CLI JSON envelopes, not SQLite views"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "satan:RFC-020 OQ-11 leaves the M3 contract's form open: versioned SQLite views or CLI JSON; it must be fixed before M3. DEC-011 already gives every read verb a versioned {version, kind, data} envelope, and render_test pins every field. A downstream filter (IDE-001 classifier) composes with Screwtape by pipe."
+choice = "The contract is the CLI JSON output of the read verbs (mailboxes, list, read, thread) under the envelope version. Consumers run the screwtape binary and parse stdout; the tables stay private. No v<N>_ views are published."
+alternatives = ["versioned SQLite views over the store (DEC-007's reserved v<N>_ prefix)"]
+rationale = "One read surface (store/query + render) instead of two (POL-001); the table design is not frozen behind a public interface; pipes compose; a BEAM start per call is cheap at triage volumes. Operator: the classifier is 'entirely separate & composable with the cli json'; a tool can pipe one to the other."
+consequences = ["Answers satan:RFC-020 OQ-11 (amendment drafted for the operator)", "DEC-007's v<N>_ reservation stays unused", "Consumers need the binary and read access to the store"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-27"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

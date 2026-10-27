@@ -1,0 +1,80 @@
+id = 3
+slug = "read-contract"
+title = "Screwtape read contract for M3 consumers"
+status = "plan"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[relationships]
+needs = []                      # slice→work hard prerequisite
+after = []                      # slice→work soft sequence: { to, rank }
+
+[[selector]]
+selector = "src/screwtape/store.gleam"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/store/**"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/render.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/cli.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/argv.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/**"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "README.md"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/model.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/cursor.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/store/query.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/cursor_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/cli_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/render_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/read_snapshot_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/support/snapshot_fixture.gleam"
+intent = "design-target"
+
+# STRUCTURAL relations are uniform `[[relation]]` rows, never a typed
+# `[relationships]` axis. Slices carry no typed STRUCTURAL
+# relation axes — the `[relationships]` table above holds only the dep/seq payload
+# (`needs`/`after`). Author a structural edge with the `doctrine link` verb
+# — it validates the (source, label) pair and resolves the target:
+#   doctrine link SL-NNN specs SPEC-NNN
+#   doctrine link SL-NNN governed_by ADR-NNN
+# `doctrine inspect SL-NNN` renders the inbound + outbound edges.

@@ -1,0 +1,401 @@
+id    = 10
+slug  = "design-review-of-sl-003"
+title = "design review of SL-003"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Adversarial Opus review of SL-003 design.md (all sections) against code, DEC-027..032, POL-001; one recheck pass of the amendments."
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Adversarial Opus review of SL-003 design.md, recheck of amendments and of the published shape."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "major"
+title = "read --after duplicates prior's ids->message loop and collides with private message_ids"
+detail = "query.gleam:187-195 has private message_ids(tx) with ORDER BY received_at_ms, id (:765); prior already maps ids -> message -> Store(read_failed) (:130-135). Design adds a second message_ids and loop. Fix: generalise message_ids to take the selection; one messages_of(tx, ids) used by prior and read --after; note both in sec-2. Verified by orchestrator."
+disposition = "fix-now"
+response = "Fixed in design (sec-5-2, sec-8); confirmed by the reviewer's recheck."
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Add route for design-run gate"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = "Fixed in design (sec-5-2, sec-8); confirmed by the reviewer's recheck."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer recheck: resolved."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "major"
+title = "A future-dated message stalls an arrival cursor indefinitely"
+detail = "received_at_ms is JMAP receivedAt, settable by Email/import (RFC 8621). One message dated 2099 moves a consumer's cursor past all normal arrivals until 2099; an overlap re-read does not recover. Fix: document in README gap and sec-8 with a consumer guard (do not store a cursor whose ms exceeds now + skew); clamping is an operator option."
+disposition = "fix-now"
+response = "Fixed in design (sec-5-2, sec-8); confirmed by the reviewer's recheck."
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Add route for design-run gate"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = "Fixed in design (sec-5-2, sec-8); confirmed by the reviewer's recheck."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer recheck: resolved."
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "minor"
+title = "C6 and sec-9 understate changed test expectations"
+detail = "cli_test.gleam:549-552 summary_keys and :909-915 read_keys pin key sets (gain cursor); cli_test.gleam:646 asserts thread --limit 5 is usage (flips); render_test:726 thread signature changes to ThreadPage. Verified summary_keys and :646 by orchestrator."
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "argv types allow invalid states for read --after; list --after offset echo undefined"
+detail = "ReadAfter(ListArgs, max_bytes) with ListArgs.after: Option(Cursor) can hold None, the state missing_after forbids; offset meaningless. list --after still echoes offset:0 (render.gleam:39-52). Fix: ReadAfter(filters, after: Cursor, max_bytes: Int); state list data under --after in the field table."
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "cursor.parse accepts non-canonical text; int64 bound has two homes"
+detail = "binary_to_integer accepts +05 and 007 (orchestrator verified: +05 -> 5), so parse is not the inverse of to_string. sec-3 puts the int64 check in argv, sec-5-2/C3 in cursor.parse; argv already has private max_offset (argv.gleam:60). Fix: accept only when to_string(c) == text; one home for int64 bounds in cursor, shared with argv."
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "Filters do not reopen positions the cursor has passed"
+detail = "Under --mailbox/--unread/--from, a message that starts matching after the cursor passed it (moved in, marked unread) is never returned. Fix: README gap states it."
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "C4 test as planned passes vacuously"
+detail = "The I8 hook rewrites the same ids (read_snapshot_test.gleam:83-110), so a two-transaction read --after gives identical output. Fix: hook's snapshot B deletes or re-dates a selected message; assert stdout equals snapshot A's output."
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "minor"
+title = "thread --limit reuse of list's limit range is not free"
+detail = "parse_int_flag is typed to ListFlags (argv.gleam:268-280); the 1..500 check is an inline lambda (:216). Fix: extract one limit_value(raw) for list, read selection and thread."
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "nit"
+title = "cursor's position in summary_fields unspecified"
+detail = "Field order is pinned by tests. Fix: append after has_attachment."
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "nit"
+title = "sec-2 line refs off; sec-9 fixture extension unneeded"
+detail = "read_document is cli.gleam:181-198, read_store 124-133. snapshot_fixture.listing() already has m5/m6 sharing a millisecond (snapshot_fixture.gleam:421). Verified by orchestrator."
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "nit"
+title = "C2 scope, usage-code precedence, account scoping of the cursor"
+detail = "C2 holds while the store is unchanged (sec-5-4 allows syncs between pages). State which usage code wins when offset_with_after and missing_after both apply. Cursor is not account-scoped: a store re-synced to another account keeps accepting an old cursor; document as a known limit."
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Design amended at design revision 27 (sec-2/3/5-1/5-2/5-5/7/8/9/10); see design.md."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Adversarial reviewer's recheck: resolved (F-8 partial, completed at design revision 29)."
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "minor"
+title = "Page cannot express no-limit for prior; query would import argv types"
+detail = "Recheck N-1: Page.After(limit: Int, Cursor) cannot say 'no limit' (argv bounds 1..500), but prior reads the whole store. If query used argv's Filters/Page, the store layer would couple to the CLI. Fix: query keeps its own Page with Option(Int) limit; cli maps."
+disposition = "fix-now"
+response = "Fixed in sec-5-2 at design revision 29."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in sec-5-2 at design revision 29."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fix applied at design revision 29; orchestrator re-read sec-5-2."
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "nit"
+title = "Usage precedence reports offset_with_after with no --after"
+detail = "Recheck N-2: read --offset 1 --max-bytes 1 would say offset_with_after. Fix: missing_after first; state list's precedence."
+disposition = "fix-now"
+response = "Fixed in sec-5-2 at design revision 29."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in sec-5-2 at design revision 29."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fix applied at design revision 29; orchestrator re-read sec-5-2."
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "nit"
+title = "argv offset bound borrowed from cursor module"
+detail = "Recheck N-3: max_offset -> cursor.max_int64 couples argv's offset check to cursor for an unrelated reason."
+disposition = "fix-now"
+response = "argv keeps its own max_offset; cursor holds only its own bounds (sec-5-2, revision 29)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "argv keeps its own max_offset; cursor holds only its own bounds (sec-5-2, revision 29)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fix applied at design revision 29; orchestrator re-read sec-5-2."
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

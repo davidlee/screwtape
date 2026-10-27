@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 30
+slug = "screwtape-contract-is-documented-in-the-readme-and-pinned-by-render-and-cli-tests-no-json-schema"
+title = "Screwtape contract is documented in the README and pinned by render and CLI tests, no JSON Schema"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "satan:RFC-020 D2 requires Screwtape to publish and test the contract. render_test already pins every printed field and its order."
+choice = "A Contract section in README.md: the compatibility rule (DEC-029 or its successor), a field table per kind, cursor semantics, line-per-message read --after. Tests: render_test keeps pinning shapes; new tests cover list/read --after paging (ascending, exclusive cursor, full walk with no gaps or repeats including received_at_ms ties) and thread --limit."
+alternatives = ["JSON Schema files per kind validated in tests"]
+rationale = "Pinned output plus field tables carry the same contract without a Gleam schema validator."
+consequences = ["Consumers write their own types from the README tables"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-27"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 32
+slug = "screwtape-pipe-surface-listread-after-thread-limit-further-query-operations-deferred-until-evidence"
+title = "Screwtape pipe surface: list/read --after, thread --limit; further query operations deferred until evidence of need"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "The commonest consumer sequence is list --after then read of those ids (operator). A two-step pipe races a sync between list and read; brief section 4.4 asks for bounded results and explicit truncation; thread is unbounded today."
+choice = "list --after <cursor>: messages strictly after the opaque cursor (<received_at_ms>:<id>), oldest first, --offset refused with --after; each summary gains cursor. read --after <cursor> [--limit 1..500] [list's filters] --max-bytes <n> (required with --after): selection and bodies in one read transaction, one read envelope per line, oldest first, each with cursor; read <id> is unchanged. thread <id> [--limit 1..500, default 50]: keeps the last N entries in thread order; output gains total and truncated. Every addition stays at envelope version 1 (DEC-029)."
+alternatives = ["multi-id read <id> [<id>...]", "list --with-bodies", "a plural thread over many ids"]
+rationale = "read --after reuses list's argv parsing and query and render.read (POL-001), and one transaction removes the list/read race. Thread order is oldest first; the newest entries matter most to triage. Required --max-bytes keeps a pipe from pulling unbounded bodies."
+consequences = ["Query operations beyond these (multi-id read, plural thread, other batch or search queries) are deferred until there is evidence of need (operator, 2026-10-27)", "Pipes page by the last line's cursor and stop on a short page"]
+decided_by = "agent proposal; operator assent (david), 2026-10-27"
+decided_on = "2026-10-27"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

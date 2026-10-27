@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 29
+slug = "screwtape-contract-compatibility-one-version-additions-keep-it-breaking-changes-bump-it"
+title = "Screwtape contract compatibility: one version; additions keep it, breaking changes bump it"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-027 makes the CLI JSON envelopes the contract; consumers (M3 mail_* tools, IDE-001 classifier) are separate programs that must detect incompatible output."
+choice = "One envelope version for the whole contract, now 1. Within a version: new fields, new verbs, new optional flags. A bump: removing, renaming or retyping a field; changing a field's meaning or an ordering; adding a value to an existing enum (source_type, truncated_by). Consumers check version and refuse an unknown one."
+alternatives = ["a version per kind", "semver"]
+rationale = "One number is the least a consumer must check; enum additions count as breaking because strict consumers reject unknown values."
+consequences = ["SL-003's additions (cursor fields, --after, thread --limit) stay at version 1"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-27"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

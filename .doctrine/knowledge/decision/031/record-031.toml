@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 31
+slug = "screwtape-contract-states-reader-access-needs-jail-binds-are-satans"
+title = "Screwtape contract states reader access needs; jail binds are satan's"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-016 puts the store in the jail-shadowed $HOME; a read-only WAL connection creates -wal/-shm beside the store (mem.fact.sqlite.esqlite-readonly-uri)."
+choice = "The README Contract section states that a reader needs the screwtape binary, --config, and a writable store directory. How a jailed consumer gets them is decided in satan (satan:RFC-020 OQ-6)."
+alternatives = ["immutable=1 read-only opens", "a reader-side copy of the store"]
+rationale = "Screwtape owns stating the requirement, not the jail layout."
+consequences = ["Noted in the satan:RFC-020 amendment draft"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-27"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"
