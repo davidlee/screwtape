@@ -10,6 +10,12 @@ raiser    = "adversary"
 responder = "orchestrator"
 rounds_base = 0
 contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Opus adversarial subagent examined the PHASE-04 working-tree diff over 3bd4f40 (argv, cli, render; cli_test, render_test, store_test; support paging/cli_fixture/snapshot_fixture) against PHASE-04 EX-1..5, VT-1/2, design 5.2/5.5/9 and POL-001, probing C2 oracle strength, argv precedence, the Filters/Page split and C6. Two nits raised. Conclude recorded by the orchestrator on the adversary's behalf (handback failed)."
 
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-003"
@@ -17,7 +23,7 @@ phase = "PHASE-04"
 
 [[finding]]
 id = "F-1"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Value-error vs offset_with_after precedence is implicit, not pinned (bad --since wins, untested)"
 detail = """src/screwtape/argv.gleam:95-96 (parse_list) runs filters_of (which validates --since's calendar date, post-loop) before page_of (offset_with_after). So 'list --after "" --offset 0 --since 2026-13-01' is Usage(invalid_since), consistent with 'a bad cursor still names itself' (cli_test.gleam list_after_usage_reasons_test case [--after x --offset 1] -> invalid_cursor). But no case pins the --since ordering: swapping the two 'use' lines in parse_list passes every test. PHASE-05 extends this chain (missing_after -> offset_with_after -> missing_max_bytes, design 5.2 'after the flags parse') and will reuse filters_of, so the rule 'every value error beats a combination error' should be pinned now. Suggest: add #(["list", "--after", "", "--offset", "0", "--since", "2026-13-01"], "invalid_since") to list_after_usage_reasons_test."""
@@ -34,9 +40,14 @@ role = "responder"
 disposition = "fix-now"
 response = 'Confirmed by mutation: swapping filters_of/page_of in argv.parse_list passed every test. Added #([list, --after, "", --offset, 0, --since, 2026-13-01], invalid_since) to cli_test list_after_usage_reasons_test; the same swap now fails that test (orchestrator re-ran). Doc comment updated: a bad cursor or --since still names itself.'
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Recorded by the orchestrator (sl003-charter3) on the adversary's behalf: the subagent's handback failed. Fix checked in 1c2af41; just check green (471)."
+
 [[finding]]
 id = "F-2"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Two unrelated functions named list_document (cli tx-closure, render private builder)"
 detail = "src/screwtape/cli.gleam:142 list_document(filters, page) -> fn(store.Tx) -> Result(String, Error) builds the whole read; src/screwtape/render.gleam:60 (new, private) list_document(position, limit, items) -> String builds the JSON body both list pages share. Same name, different layer and meaning, in two modules a reader moves between when tracing list. Suggest renaming render's builder to say what it is, e.g. list_body or list_page_json (its doc already calls it 'The one list body')."
@@ -52,5 +63,10 @@ act = "dispose"
 role = "responder"
 disposition = "fix-now"
 response = "Renamed render's private builder list_document -> list_body (render.gleam:45,55,60); cli.list_document keeps its name. just check green."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Recorded by the orchestrator (sl003-charter3) on the adversary's behalf: the subagent's handback failed. Fix checked in 1c2af41; just check green (471)."
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.

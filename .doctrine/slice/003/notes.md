@@ -158,7 +158,7 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
   adversarial subagent, ~96k tokens): 1 finding; handback failed again,
   findings read off the ledger.
 
-### PHASE-04 (charter 3)
+### PHASE-04 (charter 3) — completed (1c2af41)
 
 - argv: `ListArgs` → `Filters(mailbox, since_ms, from, unread)` + `Page =
   Offset(limit, offset) | After(limit, after: Cursor)`; `Verb.List(filters,

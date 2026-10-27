@@ -28,3 +28,21 @@ Lines of attack:
   cli_test summary_keys/read_keys (EX-4).
 - POL-001: no parallel implementation (paging walker, flag parsers, list
   rendering, cli query construction).
+
+## Synthesis
+
+- **Overall**: acceptable.
+- **Synopsis**: PHASE-04 publishes `cursor` on every summary and pages
+  `list` by it. The argv split makes `--after` with `--offset` unrepresentable
+  past the parse, and one value-flag parser now serves every `list` flag but
+  `--unread`. C2 through the CLI is a real oracle: the walk runs in both
+  insertion orders, and orchestrator negative controls (no `id ASC`, legal
+  `--after`+`--offset`, unbounded `Oldest`) each fail a test. The two nits
+  were fixed: the value-error-before-combination-error rule is now pinned by a
+  `--since` case (F-1), and render's private builder no longer shares
+  `cli.list_document`'s name (F-2). Standing note: render_test's dates carry
+  `ms: 0`, so the cursor's ms is pinned only through cli_test. The adversary's
+  handback failed; its verify and conclude acts were recorded by the
+  orchestrator from the ledger.
+- **Haiku**: past the last seen mail / one millisecond, two ids — / order
+  breaks the tie.
