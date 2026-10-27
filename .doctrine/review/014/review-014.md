@@ -40,7 +40,9 @@ Written by the orchestrator (sl003-charter4) from the ledger: the adversary
 subagent (Opus) raised and concluded on the ledger, but its hand-back failed,
 so its verdict prose did not arrive.
 
-- **Overall**: solid.
+- **Overall**: acceptable (the adversary's verdict, received late by message,
+  on d616d8f before the fixes; the orchestrator's first draft of this
+  synthesis said solid).
 - **Synopsis**: The stream is one `read_store` over `list_query` →
   `message_ids` → `messages_of` → `render.read`, and the C4 guard bites: a
   two-`read_store` negative control failed both new I8 callers. C1 is pinned
@@ -50,5 +52,5 @@ so its verdict prose did not arrive.
   refusal leaking the selection's grammar into `list`'s diagnostics; fixed by
   a `takes_max_bytes` grammar flag on `ListFlags`. F-2/F-3 were stale or wrong
   prose. No existing expectation changed (C6).
-- **Haiku**: one snapshot held — / six lines leave the store at once; / the
-  seventh flag, refused.
+- **Haiku** (the adversary's): One snapshot holds still; / six lines leave in
+  single file — / list forgets its "no."
