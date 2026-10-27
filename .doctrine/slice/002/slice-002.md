@@ -32,25 +32,31 @@ is not reopened here.
      as in M1.
    - Byte-budget validation isn't needed. A fallback refreshes stored ids
      with the light `Email/get` (about 1 MB for the retained tail), not their
-     bodies (DEC-023, DEC-024).
-2. **Two id sources, one merge.** A run differs only in where its ids come
-   from:
-   - **incremental**, when a stored Email state exists: `Email/changes` from
-     that state, paging while `hasMoreChanges` is true, within the existing
-     page and byte bounds;
-   - **full**: the `Email/query` ids together with the ids already stored.
-     This refreshes the retained tail. A stored id the server reports
-     `notFound` is dropped.
+     bodies (DEC-026, DEC-024).
+2. **One window selection, two refresh scopes, one merge** (DEC-026).
+   `Email/query` decides which messages are in the window; `Email/changes`
+   decides which stored messages need refreshing.
+   - **incremental**, when the `Prior` has an Email state, the same
+     `window_json` and the same resolved mailbox ids: `Email/changes` from
+     that state with a finite `maxChanges`, paging while `hasMoreChanges` is
+     true, within the existing page and byte bounds. With no changes the run
+     skips `Email/query` and every `Email/get`. With changes it runs the
+     existing bounded `Email/query`, and only the changed stored ids get a
+     light refresh;
+   - **full**: the existing `Email/query`, and every stored id gets a light
+     refresh. This refreshes the retained tail.
 
-   After either, the run:
-   1. fetches the ids. Ids not yet stored go through the existing full
-      `Email/get` path, with bodies. Stored ids get a light `Email/get` of
-      only `mailboxIds` and `keywords`, since JMAP content is immutable.
-      `notFound` means gone (DEC-023);
+   The `Prior` is discarded, and everything refetched, when the account or
+   `max_body_bytes` differs. After the id sources, the run:
+   1. fetches the ids. Query ids not yet stored go through the existing full
+      `Email/get` path, with bodies. Stored ids to refresh get a light
+      `Email/get` of only `mailboxIds` and `keywords`, since JMAP content is
+      immutable. `destroyed` or `notFound` means gone. A changed id that is
+      neither stored nor in the query is ignored;
    2. refetches with `Mailbox/get`, which is cheap and needs no
       `Mailbox/changes`;
    3. merges the stored messages (the CLI loads them as a `Prior`) in one
-      pure function shared by both paths, `screwtape/retain` (DEC-022):
+      pure function shared by both paths, `screwtape/retain` (DEC-025):
       - drop destroyed and `notFound` ids;
       - apply the light refreshes;
       - add the newly fetched messages;
@@ -62,16 +68,21 @@ is not reopened here.
 3. **Fallback to the full path,** in these cases:
    - no stored state (a first run, or a store wiped by a migration);
    - `cannotCalculateChanges`;
-   - the stored `window_json` differs from the current config window;
+   - the stored `window_json` or the resolved window mailbox ids differ from
+     the current ones;
    - `hasMoreChanges` is still true at the page cap.
 
    The sync summary reports `mode` (`incremental` or `full`) and
    `fallback_reason`. The unit's stdout already goes to the journal, so that
-   is the log (DEC-023). Any other error fails the run, as in M1, and the
-   next run retries.
+   is the log (DEC-026). Any other error fails the run, as in M1, and the
+   next run retries. The bytes of a `cannotCalculateChanges` response are not
+   charged to the budget, so a run may spend up to about twice
+   `max_total_bytes`; still bounded, documented, client API unchanged.
 4. **No duplicate body fetches.** An unchanged account costs three small
    requests (the opening request, `Email/changes` and `Thread/get`) and no
-   `Email/get`. A seen, flag or move change costs only a light refresh.
+   `Email/get`. A seen, flag or move change costs one ids-only `Email/query`
+   and a light refresh. Bodies are fetched only for new messages in the top
+   `max_messages`.
 5. **Test-suite survey (research and design input).** Before designing,
    survey the existing test patterns:
    - fixtures (`jmap_fixture`, `sync_fixture`, `local_jmap`);
@@ -102,11 +113,13 @@ is not reopened here.
   and add the incremental path.
 - `src/screwtape/jmap/request.gleam`, `jmap/decode.gleam`: `Email/changes`
   and the light `Email/get` (`mailboxIds`, `keywords`).
-- `src/screwtape/retain.gleam` (new, pure): the shared merge (DEC-022).
+- `src/screwtape/retain.gleam` (new, pure): the shared merge (DEC-025).
 - `src/screwtape/cli.gleam`: load the `Prior`; the summary gains `mode` and
   `fallback_reason`.
-- `src/screwtape/store/query.gleam`: load the stored messages, the Email
-  state and `window_json`, reusing `query.message`.
+- `src/screwtape/store/query.gleam`: load the `Prior` (account id,
+  messages, mailboxes, Email state, `window_json`, the query record, the
+  stored body limit), reusing `query.account_id`, `query.mailboxes` and
+  `query.message`.
 - `src/screwtape/config.gleam`: `retain_messages` and its validation.
 - `nix/module.nix`: the `retain_messages` option.
 - `src/screwtape/model.gleam`: only if the changes result needs a type.
@@ -125,10 +138,11 @@ is not reopened here.
   `mailboxIds` changes and RFC 8621 counts that as an Email update. This is
   recalled from the RFC, not checked. An early live probe of `Email/changes`
   against Fastmail must confirm it.
-- **Invariant for design:** after either path, the store's newest
-  `max_messages` messages equal what a full sync would fetch. Ties on
-  `receivedAt` at the boundary are ordered by the server, which is
-  unspecified. Design states how the local `id` tiebreak treats them.
+- **Invariant (DEC-025):** after either path, the store's newest
+  `max_messages` messages that pass the window filter (mailboxes and
+  `max_age_days`) equal what a full sync would fetch. Ties on `receivedAt`
+  at the boundary are ordered by the server, which is unspecified; locally
+  `id` breaks them (accepted, documented).
 - **Retention covers configured mailboxes only.** Archiving a message out of
   a configured mailbox drops it from the store. To keep archived mail, add
   the archive mailbox to the window.

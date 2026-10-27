@@ -55,3 +55,33 @@ run (`doctrine design show --format prompt 2`).
   message, all local.
 - Fastmail keeps its change log long enough that `cannotCalculateChanges` is
   rare.
+
+## GPT design review (2026-10-27, inquiring)
+
+Informal critical review by Codex (gpt-6.1-sol, high effort) of DEC-022..024,
+EVD-001, the inquiry notes, the scope, the research and the sync/store/config
+code. Eight findings, each verified against the code and adjudicated
+(`/feedback`); the operator accepted the dispositions.
+
+- **Blocker (integrated):** local window selection never backfilled after a
+  deletion (store `[A,B]`, server `[A,B,C]`, delete A → incremental `[B]`,
+  full `[B,C]`). Retention only postpones it. With `retain_messages` set,
+  "newest `max_messages`" also included messages past `max_age_days`. The
+  research refresh's "count-capped divergence no longer applies" was wrong;
+  the research file is left as is (untracked, operator to decide).
+- **Redesign:** `Email/query` decides window membership and `Email/changes`
+  decides which stored ids get a light refresh. A run with no changes skips
+  the query. DEC-025 supersedes DEC-022 (invariant over the window filter);
+  DEC-026 supersedes DEC-023. This also removes body fetches for changed
+  messages outside the window, and sets a finite `maxChanges`.
+- **Integrated (minor):** the `Prior` is discarded when the account or
+  `max_body_bytes` differs; resolved mailbox ids join `window_json` as a
+  fallback trigger; a no-change run carries the previous query record.
+- **Contested prescription:** the `cannotCalculateChanges` bytes are dropped
+  from the budget (verified: `client.gleam:103-114`, `decode.gleam:711`).
+  Accepted as a documented bounded overspend (≤ about 2× `max_total_bytes`)
+  instead of changing the client API.
+- **Tests (inq-8 revised):** explicit expectations beside the comparison
+  tests; generalise `expect_unchanged` (`sync_fixture.gleam:372`).
+- Codex's full output: the session scratchpad `codex-out.json` (not kept).
+- Next: sufficiency-accepted is again the operator's act, then drafting.

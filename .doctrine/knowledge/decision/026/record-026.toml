@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 26
+slug = "screwtape-m2-id-sources-emailquery-decides-membership-emailchanges-decides-refresh"
+title = "Screwtape M2 id sources: Email/query decides membership, Email/changes decides refresh"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "M2 adds Email/changes beside the M1 full sync; Email content is immutable in JMAP, only mailboxIds and keywords change. Supersedes DEC-023: selecting the window locally from the changes could not backfill after a deletion, fetched bodies for changed messages outside the window, and left Email/changes pages unbounded (GPT review, 2026-10-27)."
+choice = "cli loads a Prior (account_id, stored messages, mailboxes, Email state, window_json, the last query record, the stored body limit) and passes it to sync.run; sync never reads the store. No Prior when account_id or max_body_bytes differs. Incremental when a Prior has an Email state, equal window_json and equal resolved window mailbox ids: Email/changes from the stored state with a finite maxChanges, pages counting against max_pages. No changes: no Email/query; merge (age-out only), carry the previous query record, write. Changes, or a full run: the existing bounded Email/query (top max_messages). Then: query ids not stored -> full Email/get (bodies, existing path); light Email/get [mailboxIds, keywords] for changed ids that are stored (incremental) or all stored ids (full); destroyed or notFound -> gone; changed ids neither stored nor in the query are ignored. Fallback to full on no_state, cannot_calculate_changes, window_changed (window_json or resolved mailbox ids), too_many_changes (hasMoreChanges at the page cap), reported in the sync summary as mode and fallback_reason (journald logs stdout). Stored Email state: the last Email/changes newState (incremental) or the opening state (full). The opening request is unchanged; Email/changes is its own request. A cannotCalculateChanges response's bytes are not charged (the method error drops the charged client), so a run may spend up to about twice max_total_bytes; still bounded, documented, client API unchanged."
+alternatives = ["local window selection from the changes (DEC-023)", "a count-capped backfill fallback", "a metadata-first light get of every changed id", "client.call returning the charged client on method errors", "Email/queryChanges"]
+rationale = "Email/query, already bounded, decides window membership, so both paths share one selection and bodies are fetched only for top-window ids. The paths differ only in which stored ids get the light refresh and in skipping the query when nothing changed."
+consequences = ["A run with changes adds one ids-only Email/query; an unchanged account still costs three requests (opening, Email/changes, Thread/get)", "A window change or mailbox rename falls back to full; an account or body-limit change refetches everything", "One light-response decoder; the summary gains mode and fallback_reason"]
+decided_by = "agent proposal (after GPT review); operator assent (david)"
+decided_on = "2026-10-27"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = ["DEC-023"]   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

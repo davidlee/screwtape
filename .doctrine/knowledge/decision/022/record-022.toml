@@ -5,7 +5,7 @@ id = 22
 slug = "screwtape-retention-merge-one-pure-function-over-stored-fetched-refreshed-and-gone"
 title = "Screwtape retention merge: one pure function over stored, fetched, refreshed and gone"
 record_kind = "decision"
-status = "proposed"
+status = "superseded"
 created = "2026-10-27"
 updated = "2026-10-27"
 tags = []
@@ -26,7 +26,7 @@ notes       = []
 
 [relationships]                 # verb-written edges (set by doctrine supersede)
 supersedes    = []   # record ids this one replaces (set by doctrine supersede)
-superseded_by = []   # set on superseded predecessor (verb-written)
+superseded_by = ["DEC-025"]   # set on superseded predecessor (verb-written)
 
 [[relation]]
 label = "shapes"
