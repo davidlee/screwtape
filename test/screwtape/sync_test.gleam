@@ -33,7 +33,7 @@ import support/sync_fixture.{
   type Run, type Store, Spec, bounds, count, emails, emails_of, expect_calls,
   expect_unchanged, fail_at, fetch, fetch_chunked, id_lists, ids, mailboxes,
   methods, page, page_with, positions, rows, run, run_sync, seeded, spec,
-  summary, threads, threads_of, with_store,
+  summary, threads, threads_of, type_states, with_store,
 }
 
 pub fn main() -> Nil {
@@ -133,14 +133,6 @@ fn message_states(store: Store) -> List(#(String, String)) {
 
 fn message_ids(store: Store) -> List(String) {
   message_states(store) |> list.map(fn(row) { row.0 })
-}
-
-fn type_states(store: Store) -> List(#(String, String)) {
-  rows(
-    store,
-    "SELECT type, state FROM type_state ORDER BY type",
-    sync_fixture.pair_decoder(),
-  )
 }
 
 fn query_state_row(store: Store) -> #(String, String, Int, String, Int) {
@@ -1328,4 +1320,258 @@ pub fn retention_ignores_the_age_bound_test() {
   |> should.equal(["e1"])
   aged(inbox_window(Some(9), Some(30), None), refresh)
   |> should.equal([])
+}
+
+// ---------------------------------------------------------------- incremental (SL-002 PHASE-06)
+
+/// e1 and e2 committed by a first, full run (Email state `es-0`): the store
+/// every incremental case starts from.
+fn seed_two(store: Store) -> Nil {
+  seed(store, inbox_step(), spec([]).bounds, emails_of(["e1", "e2"]))
+}
+
+/// The next run of `script`, under `spec`'s bounds, from the Prior.
+fn again(store: Store, script: List(Step)) -> Run {
+  sync_fixture.run_with_prior(store, spec(script))
+}
+
+fn since_states(run: Run) -> List(Option(String)) {
+  sync_fixture.calls_of(run, request.EmailChanges)
+  |> list.map(sync_fixture.string_argument(_, "sinceState"))
+}
+
+/// I-M2: nothing changed, so the run sends the opening request,
+/// `Email/changes` from the stored state and `Thread/get` over what it keeps —
+/// no `Email/query`, and no `Email/get` with ids (the opening's is the empty
+/// state probe). The Prior's query record is carried.
+pub fn unchanged_account_fetches_no_email_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let query_before = query_state_row(store)
+  let script = [
+    inbox_step(),
+    sync_fixture.no_changes("es-0", "es-1"),
+    threads(threads_of(emails_of(["e1", "e2"])), "ts-1"),
+  ]
+  let run = again(store, script)
+
+  expect_calls(run, methods(script))
+  since_states(run) |> should.equal([Some("es-0")])
+  let assert [_, opening_get, _] = sync_fixture.opening_calls(run)
+  ids_argument(opening_get) |> should.equal(Some([]))
+  sync_fixture.calls_of(run, EmailGet) |> should.equal([])
+  summary(run).mode |> should.equal(sync.Incremental)
+  summary(run).fallback_reason |> should.equal(None)
+  message_ids(store) |> should.equal(["e1", "e2"])
+  query_state_row(store) |> should.equal(query_before)
+}
+
+/// I-M2: an updated id neither stored nor in the query (an Archive message
+/// marked seen) is ignored: the query runs, and no `Email/get` is sent.
+pub fn outside_window_change_ignored_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let script = [
+    inbox_step(),
+    sync_fixture.changes("es-0", "es-1", False, [], ["x9"], []),
+    page(["e1", "e2"], "qs-1", 0, 2, None),
+    threads(threads_of(emails_of(["e1", "e2"])), "ts-1"),
+  ]
+  let run = again(store, script)
+
+  expect_calls(run, methods(script))
+  sync_fixture.calls_of(run, EmailGet) |> should.equal([])
+  message_ids(store) |> should.equal(["e1", "e2"])
+}
+
+/// I-M1: store [e1, e2], server [e1, e2, e3], `max_messages` 2, e1 destroyed:
+/// the change runs the query, and the next-oldest message comes in.
+pub fn deletion_backfills_test() {
+  use store <- with_store(None)
+  seed(store, inbox_step(), bounds(Some(2)), emails_of(["e1", "e2"]))
+  let script = [
+    inbox_step(),
+    sync_fixture.changes("es-0", "es-1", False, [], [], ["e1"]),
+    page(["e2", "e3"], "qs-1", 0, 2, None),
+    emails(emails_of(["e3"]), "es-1", []),
+    threads(threads_of(emails_of(["e2", "e3"])), "ts-1"),
+  ]
+  let run =
+    sync_fixture.run_with_prior(
+      store,
+      Spec(..spec(script), bounds: bounds(Some(2))),
+    )
+
+  expect_calls(run, methods(script))
+  id_lists(run, EmailGet) |> should.equal([["e3"]])
+  message_ids(store) |> should.equal(["e2", "e3"])
+}
+
+/// I-M1: no Email changes and a clock forty days on, past the 30-day window:
+/// only the age bound removes the message, and with nothing kept there is no
+/// `Thread/get`.
+pub fn age_out_without_changes_test() {
+  let window = inbox_window(Some(10), Some(30), None)
+  use store <- with_store(None)
+  seed(store, inbox_step(), window, emails_of(["e1"]))
+  let script = [inbox_step(), sync_fixture.no_changes("es-0", "es-1")]
+  let later = timestamp.add(sync_fixture.now(), duration.hours(24 * 40))
+  let run =
+    sync_fixture.run_with_prior(
+      store,
+      Spec(..spec(script), bounds: window, now: later),
+    )
+
+  expect_calls(run, methods(script))
+  summary(run).mode |> should.equal(sync.Incremental)
+  message_ids(store) |> should.equal([])
+}
+
+/// I-M3: the full path stores the opening request's Email state; the
+/// incremental path the last `Email/changes` `newState`, here of two pages.
+pub fn stored_email_state_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  type_states(store) |> list.key_find("Email") |> should.equal(Ok("es-0"))
+
+  let script = [
+    inbox_step(),
+    sync_fixture.changes("es-0", "es-1", True, [], [], []),
+    sync_fixture.no_changes("es-1", "es-2"),
+    threads(threads_of(emails_of(["e1", "e2"])), "ts-1"),
+  ]
+  let run = again(store, script)
+
+  expect_calls(run, methods(script))
+  type_states(store) |> list.key_find("Email") |> should.equal(Ok("es-2"))
+}
+
+/// Paging: while `hasMoreChanges`, the next page asks from the last
+/// `newState`; ids accumulate across pages and `destroyed` wins — e1, updated
+/// on the first page and destroyed on the second, is not refreshed but gone.
+pub fn changes_pages_accumulate_and_destroyed_wins_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let script = [
+    inbox_step(),
+    sync_fixture.changes("es-0", "es-1", True, ["e3"], ["e1"], []),
+    sync_fixture.changes("es-1", "es-2", False, [], ["e2"], ["e1"]),
+    page(["e3", "e2"], "qs-1", 0, 2, None),
+    emails(emails_of(["e3"]), "es-2", []),
+    sync_fixture.lights(emails_of(["e2"]), "es-2", []),
+    threads(threads_of(emails_of(["e2", "e3"])), "ts-1"),
+  ]
+  let run = again(store, script)
+
+  expect_calls(run, methods(script))
+  since_states(run) |> should.equal([Some("es-0"), Some("es-1")])
+  id_lists(run, EmailGet) |> should.equal([["e3"], ["e2"]])
+  message_ids(store) |> should.equal(["e2", "e3"])
+}
+
+/// I-M4: a get fails after `Email/changes`, so nothing is written and the
+/// stored Email state stays `es-0`; the next run asks for changes from it
+/// again.
+pub fn failure_then_retry_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let script = [
+    inbox_step(),
+    sync_fixture.changes("es-0", "es-1", False, [], ["e1"], []),
+    page(["e1", "e2"], "qs-1", 0, 2, None),
+    sync_fixture.failure(EmailGet),
+  ]
+  let failed = again(store, script)
+
+  expect_calls(failed, methods(script))
+  // Not `expect_unchanged`: its commit probe would replace the store the retry
+  // reads its Prior from.
+  failed.result |> should.equal(Error(error.Http("status_500")))
+  failed.after |> should.equal(failed.before)
+
+  let retry = [
+    inbox_step(),
+    sync_fixture.no_changes("es-0", "es-1"),
+    threads(threads_of(emails_of(["e1", "e2"])), "ts-1"),
+  ]
+  let run = again(store, retry)
+  expect_calls(run, methods(retry))
+  since_states(run) |> should.equal([Some("es-0")])
+}
+
+/// I-M1 under concurrent change: e2 moves out of the window after the run's
+/// `Email/changes` and before its `Email/query`. This run misses the move and
+/// keeps e2, but stores the pre-move `newState`, so the next run reports the
+/// move and converges on the ids a full sync would hold.
+pub fn concurrent_move_converges_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let moved =
+    jmap_fixture.Email(..jmap_fixture.email("e2"), mailbox_ids: ["mb-9"])
+  let first = [
+    inbox_step(),
+    sync_fixture.changes("es-0", "es-1", False, [], ["e1"], []),
+    page(["e1"], "qs-1", 0, 1, None),
+    sync_fixture.lights(emails_of(["e1"]), "es-2", []),
+    threads(threads_of(emails_of(["e1", "e2"])), "ts-1"),
+  ]
+  let run = again(store, first)
+
+  expect_calls(run, methods(first))
+  message_ids(store) |> should.equal(["e1", "e2"])
+  type_states(store) |> list.key_find("Email") |> should.equal(Ok("es-1"))
+
+  let second = [
+    inbox_step(),
+    sync_fixture.changes("es-1", "es-2", False, [], ["e2"], []),
+    page(["e1"], "qs-2", 0, 1, None),
+    sync_fixture.lights([moved], "es-2", []),
+    threads(threads_of(emails_of(["e1"])), "ts-2"),
+  ]
+  let run = again(store, second)
+
+  expect_calls(run, methods(second))
+  message_ids(store) |> should.equal(["e1"])
+}
+
+/// I-M1: one scripted server history — e1 marked seen, e2 destroyed, e4
+/// created — reached incrementally from [e1, e2, e3] holds the same ids and
+/// mutable fields as a fresh full sync of the final server.
+pub fn incremental_equals_full_test() {
+  let seen = jmap_fixture.Email(..jmap_fixture.email("e1"), keywords: ["$seen"])
+  let final = [jmap_fixture.email("e4"), seen, jmap_fixture.email("e3")]
+  let mutable = fn(store: Store) {
+    let assert Some(prior) = sync_fixture.prior_of(store)
+    prior.messages
+    |> list.map(fn(m) { #(m.id, m.mailbox_ids, m.keywords, m.is_seen) })
+    |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
+  }
+
+  let incremental = {
+    use store <- with_store(None)
+    seed(store, inbox_step(), bounds(Some(3)), emails_of(["e1", "e2", "e3"]))
+    let script = [
+      inbox_step(),
+      sync_fixture.changes("es-0", "es-1", False, ["e4"], ["e1"], ["e2"]),
+      page(["e4", "e1", "e3"], "qs-1", 0, 3, None),
+      emails(emails_of(["e4"]), "es-1", []),
+      sync_fixture.lights([seen], "es-1", []),
+      threads(threads_of(final), "ts-1"),
+    ]
+    let run =
+      sync_fixture.run_with_prior(
+        store,
+        Spec(..spec(script), bounds: bounds(Some(3))),
+      )
+    expect_calls(run, methods(script))
+    mutable(store)
+  }
+  let full = {
+    use store <- with_store(None)
+    seed(store, inbox_step(), bounds(Some(3)), final)
+    mutable(store)
+  }
+
+  list.map(incremental, fn(m) { m.0 }) |> should.equal(["e1", "e3", "e4"])
+  incremental |> should.equal(full)
 }

@@ -203,6 +203,33 @@ pub fn lights(
   )
 }
 
+/// One `Email/changes` page from `old_state` to `new_state`.
+pub fn changes(
+  old_state: String,
+  new_state: String,
+  has_more: Bool,
+  created: List(String),
+  updated: List(String),
+  destroyed: List(String),
+) -> Step {
+  Expect(
+    request.EmailChanges,
+    ok(jmap_fixture.changes_response(
+      old_state,
+      new_state,
+      has_more,
+      created,
+      updated,
+      destroyed,
+    )),
+  )
+}
+
+/// An `Email/changes` page that reports nothing, from `old_state`.
+pub fn no_changes(old_state: String, new_state: String) -> Step {
+  changes(old_state, new_state, False, [], [], [])
+}
+
 pub fn threads(list: List(#(String, List(String))), state: String) -> Step {
   Expect(request.ThreadGet, ok(jmap_fixture.thread_get_response(list, state)))
 }
@@ -460,6 +487,19 @@ pub fn int_argument(call: RecordedCall, name: String) -> Option(Int) {
   value
 }
 
+/// A string argument of a call; `None` when absent or null.
+pub fn string_argument(call: RecordedCall, name: String) -> Option(String) {
+  let decoder =
+    decode.optional_field(
+      name,
+      None,
+      decode.optional(decode.string),
+      decode.success,
+    )
+  let assert Ok(value) = decode.run(call.arguments, decoder)
+  value
+}
+
 /// The `position` of every `Email/query`.
 pub fn positions(run: Run) -> List(Int) {
   calls_of(run, request.EmailQuery)
@@ -503,6 +543,15 @@ pub fn rows(store: Store, sql: String, decoder: decode.Decoder(a)) -> List(a) {
   store.close_reader(reader)
   let assert Ok(rows) = result
   rows
+}
+
+/// The committed `type_state` rows, `#(type, state)` by type.
+pub fn type_states(store: Store) -> List(#(String, String)) {
+  rows(
+    store,
+    "SELECT type, state FROM type_state ORDER BY type",
+    pair_decoder(),
+  )
 }
 
 /// `count(*)` of `table`.

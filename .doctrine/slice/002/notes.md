@@ -134,6 +134,7 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 05 | plan + implement + review | Opus | — | behaviour-preserving; sync_test diff is 3 lines (summary fields only, VA-1); `get_threads` deliberately not on `get_chunked` (no `notFound` contract; would add `all_answered`) |
 | 08 | plan + implement | Opus | — | code before tests (TDD order not kept); compensated by 7 negative controls, each killed |
 | 08 | review (VA-1) | Codex gpt-6.1-sol, high, read-only | — | 3 minor findings, all accepted and fixed red-first; Codex's 2 named surviving mutants now killed |
+| 06 | plan + implement | Opus | — | red-first (9 tests red for the right reason); green at 421; 7 negative controls each killed. **Review (VA-1, GPT strong) not yet run** |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
@@ -219,3 +220,19 @@ PHASE-08 review dispositions (Codex):
   `maxBodyValueBytes`.
 - no test showed light results reaching the store — the same test now has a
   flag change under a new state, a `notFound` and a move out of the window.
+
+PHASE-06 notes (implementation committed as a checkpoint; review pending):
+- `sync.Start` gains `Changes(prior)`; a `Scope` (stored, refresh, gone,
+  email_state, carried query record, mode) settles what a run refreshes;
+  `changes` folds pages into a `Delta` (destroyed wins after the fold).
+- Paging cap: `hasMoreChanges` after `max_pages` pages is
+  `LimitExceeded("max_pages")` until PHASE-09 turns it into the
+  `too_many_changes` fallback. No test pins the interim error (PHASE-09 does).
+- EX-4 `run_twice` is realised as `sync_test.seed` + `sync_fixture.run_with_prior`
+  (no separate two-run harness). `string_argument`, `changes`/`no_changes`
+  steps and a public `type_states` landed here (deferred from PHASE-08 EX-5).
+- Gotcha: `expect_unchanged` commits a probe snapshot (`acct-probe`) to prove
+  the writer still commits — a test that runs again afterwards must assert
+  the failure and the unchanged dump directly (`failure_then_retry_test`).
+- Gotcha: `spec(script)` bounds are `bounds(Some(100))`; seeding under other
+  bounds makes the next run `window_changed`, not incremental.

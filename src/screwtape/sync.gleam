@@ -72,7 +72,8 @@ pub type Summary {
 /// Run one sync over a client already bound to its session, and commit the
 /// snapshot through `writer`. `prior` is the committed store the run may reuse
 /// (design § 5.4 Choosing the path): its messages are kept, subject to the
-/// merge, when it is from the same server, account and body limit.
+/// merge, when it is from the same server, account and body limit; under the
+/// same window, only what `Email/changes` reports is refreshed.
 pub fn run(
   client: Client,
   writer: Writer,
@@ -96,12 +97,15 @@ pub fn run(
     window.mailboxes,
   ))
   let #(start, fallback_reason) = choose(prior, session, bounds, mailbox_ids)
-  let stored = case start {
-    Fresh -> []
-    Reuse(prior) -> prior.messages
-  }
-  let stored_ids = list.map(stored, fn(message) { message.id })
-  let is_stored = set.contains(set.from_list(stored_ids), _)
+  use #(client, scope) <- result.try(scope(
+    client,
+    start,
+    opened.email_state,
+    account_id,
+    chunk_size,
+    bounds.max_pages,
+  ))
+  let is_stored = set.contains(set.from_list(ids_of(scope.stored)), _)
   let filter =
     request.email_query_filter(mailbox_ids, after(now, window.max_age_days))
   let query =
@@ -111,27 +115,33 @@ pub fn run(
       max_messages: window.max_messages,
       max_pages: bounds.max_pages,
     )
-  use #(client, settled) <- result.try(query_ids(client, query, 0))
+  use #(client, query_ids, query_record) <- result.try(case scope.carried {
+    Some(record) -> Ok(#(client, [], record))
+    None -> {
+      use #(client, settled) <- result.map(query_ids(client, query, 0))
+      #(client, settled.ids, query_row(filter, settled))
+    }
+  })
   use #(client, fetched) <- result.try(get_emails(
     client,
     account_id,
-    list.filter(settled.ids, fn(id) { !is_stored(id) }),
+    list.filter(query_ids, fn(id) { !is_stored(id) }),
     chunk_size,
     bounds.max_body_bytes,
   ))
   use #(client, refreshed) <- result.try(get_lights(
     client,
     account_id,
-    stored_ids,
+    scope.refresh,
     chunk_size,
   ))
   let not_found = list.append(fetched.not_found, refreshed.not_found)
   let messages =
     retain.merge(
-      stored,
+      scope.stored,
       refreshed.lights,
       fetched.messages,
-      set.from_list(not_found),
+      set.from_list(list.append(scope.gone, not_found)),
       rule(window, mailbox_ids, now),
     )
   use #(_client, threads) <- result.try(get_threads(
@@ -146,17 +156,17 @@ pub fn run(
       account: account_meta(session, window, synced_at(now)),
       // Ordered by type name.
       states: [
-        model.TypeState("Email", opened.email_state),
+        model.TypeState("Email", scope.email_state),
         model.TypeState("Mailbox", opened.mailbox_state),
         model.TypeState("Thread", opened.thread_state),
       ],
-      query: query_row(filter, settled),
+      query: query_record,
       mailboxes: opened.mailboxes,
       messages:,
       threads:,
     )
   use Nil <- result.map(store.write_snapshot(writer, snapshot))
-  summary(snapshot, list.length(not_found), fallback_reason)
+  summary(snapshot, list.length(not_found), scope.mode, fallback_reason)
 }
 
 // ---------------------------------------------------------------- path
@@ -172,6 +182,8 @@ type Start {
   Fresh
   /// The Prior's messages, each light-refreshed and kept subject to the merge.
   Reuse(prior: model.Prior)
+  /// The Prior's messages, refreshed where `Email/changes` reports a change.
+  Changes(prior: model.Prior)
 }
 
 /// The run's start and why it is full (design § 5.4 Choosing the path), before
@@ -196,10 +208,126 @@ fn choose(
         Reuse(prior),
         Some(window_changed),
       ))
-      // The incremental case (PHASE-06); until then a full run with the Prior.
-      #(Reuse(prior), None)
+      #(Changes(prior), None)
     }
   }
+}
+
+/// What a run refreshes once its start is settled (design § 5.4 Ids per run):
+/// the stored messages the merge starts from, the stored ids to light-refresh,
+/// the ids known destroyed, the Email state to store (I-M3), and the Prior's
+/// query record when nothing changed, so no `Email/query` runs.
+type Scope {
+  Scope(
+    stored: List(model.Message),
+    refresh: List(String),
+    gone: List(String),
+    email_state: String,
+    carried: Option(model.QueryState),
+    mode: Mode,
+  )
+}
+
+/// The scope of `start`. A full run stores the opening request's Email state;
+/// an incremental one the last `newState`, returned before any `Email/get`,
+/// so a change landing mid-run is reported again next run (I-M3).
+fn scope(
+  client: Client,
+  start: Start,
+  opening_state: String,
+  account_id: String,
+  max_changes: Int,
+  max_pages: Int,
+) -> Result(#(Client, Scope), Error) {
+  case start {
+    Fresh -> Ok(#(client, Scope([], [], [], opening_state, None, Full)))
+    Reuse(prior) ->
+      Ok(#(
+        client,
+        Scope(
+          prior.messages,
+          ids_of(prior.messages),
+          [],
+          opening_state,
+          None,
+          Full,
+        ),
+      ))
+    Changes(prior) -> {
+      let since = Delta(prior.email_state, set.new(), set.new())
+      use #(client, delta) <- result.map(changes(
+        client,
+        account_id,
+        max_changes,
+        max_pages,
+        since,
+        0,
+      ))
+      let changed = set.difference(delta.changed, delta.destroyed)
+      let is_unchanged = set.is_empty(changed) && set.is_empty(delta.destroyed)
+      #(
+        client,
+        Scope(
+          stored: prior.messages,
+          refresh: list.filter(ids_of(prior.messages), set.contains(changed, _)),
+          gone: set.to_list(delta.destroyed),
+          email_state: delta.new_state,
+          carried: case is_unchanged {
+            True -> Some(prior.query)
+            False -> None
+          },
+          mode: Incremental,
+        ),
+      )
+    }
+  }
+}
+
+/// The changes since a state, folded across pages (design § 5.4 Accumulating
+/// changes): the latest `newState`, the ids created or updated, and the ids
+/// destroyed. Destroyed wins over changed once the pages are done.
+type Delta {
+  Delta(new_state: String, changed: Set(String), destroyed: Set(String))
+}
+
+/// `Email/changes` from `delta.new_state`, `max_changes` ids at most per page,
+/// paging while `hasMoreChanges`, at most `max_pages` pages.
+fn changes(
+  client: Client,
+  account_id: String,
+  max_changes: Int,
+  max_pages: Int,
+  delta: Delta,
+  pages: Int,
+) -> Result(#(Client, Delta), Error) {
+  use <- bool.guard(pages >= max_pages, Error(error.LimitExceeded("max_pages")))
+  use #(client, page) <- result.try(call(
+    client,
+    request.email_changes(
+      account_id,
+      delta.new_state,
+      max_changes,
+      request.call_id,
+    ),
+    decode.email_changes,
+  ))
+  let delta =
+    Delta(
+      new_state: page.new_state,
+      changed: delta.changed
+        |> set.union(set.from_list(page.created))
+        |> set.union(set.from_list(page.updated)),
+      destroyed: set.union(delta.destroyed, set.from_list(page.destroyed)),
+    )
+  case page.has_more {
+    True ->
+      changes(client, account_id, max_changes, max_pages, delta, pages + 1)
+    False -> Ok(#(client, delta))
+  }
+}
+
+fn ids_of(messages: List(model.Message)) -> List(String) {
+  list.map(messages, fn(message) { message.id })
 }
 
 /// The Prior was synced from this server and account, and every stored body
@@ -734,11 +862,11 @@ fn query_row(filter: json.Json, settled: Settled) -> model.QueryState {
   )
 }
 
-/// The summary of a committed `snapshot`; a run with a `fallback_reason` is
-/// full.
+/// The summary of a committed `snapshot`.
 fn summary(
   snapshot: model.Snapshot,
   not_found: Int,
+  mode: Mode,
   fallback_reason: Option(String),
 ) -> Summary {
   let bodies = list.flat_map(snapshot.messages, fn(message) { message.bodies })
@@ -753,7 +881,7 @@ fn summary(
     conversion_failures: list.count(bodies, fn(body) { body.conversion_failed }),
     states: snapshot.states,
     is_read_only: snapshot.account.is_read_only,
-    mode: Full,
+    mode:,
     fallback_reason:,
   )
 }
