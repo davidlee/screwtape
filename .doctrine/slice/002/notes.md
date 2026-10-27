@@ -33,10 +33,9 @@ fresh-as-of: 2026-10-27 · closed (RV-009 reconciled) · 2986782
 ### Open
 - unpinned by design: method-name guard; cannotCalculateChanges on a later page — § PHASE-09 notes
 - api_url as server identity — a Fastmail apiUrl change costs one full refetch
-- research/ untracked and drifted (`doctrine slice research 2`) — operator to decide
+- research/ committed by operator (4f253bd); drift vs code not re-run (`doctrine slice research 2`)
 - CHR-004 — remaining items stay open
 - no request-level logging: VH-1's "no Email/get with ids" is inferred, not observed (§ PHASE-07 notes)
-- `doctrine memory verify mem.pattern.testing.sync-mutant-killing-fixtures` still pending (refused while research/ untracked)
 
 ## Design triage (2026-10-27, exploring)
 
