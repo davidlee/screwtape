@@ -75,6 +75,7 @@ type External {
 const rules = [
   Rule("src/screwtape/model.gleam", [], ["gleam_stdlib"], NoExternal),
   Rule("src/screwtape/utf8.gleam", [], ["gleam_stdlib"], NoExternal),
+  Rule("src/screwtape/cursor.gleam", [], ["gleam_stdlib"], NoExternal),
   Rule(
     "src/screwtape/html_text.gleam",
     ["screwtape/html_sax"],
@@ -95,7 +96,7 @@ const rules = [
   ),
   Rule(
     "src/screwtape/render.gleam",
-    ["screwtape/model", "screwtape/utf8"],
+    ["screwtape/cursor", "screwtape/model", "screwtape/utf8"],
     ["gleam_stdlib", "gleam_json"],
     NoExternal,
   ),

@@ -21,6 +21,8 @@ const model_path = "src/screwtape/model.gleam"
 
 const utf8_path = "src/screwtape/utf8.gleam"
 
+const cursor_path = "src/screwtape/cursor.gleam"
+
 const html_text_path = "src/screwtape/html_text.gleam"
 
 const normalise_path = "src/screwtape/normalise.gleam"
@@ -80,9 +82,18 @@ pub fn prefix(text: String, budget: Int) -> String {
 }
 "
 
+const cursor_source =
+  "import gleam/string
+
+pub fn to_string(id: String) -> String {
+  string.append(\"\", id)
+}
+"
+
 const render_source =
   "import gleam/json
 import gleam/option.{type Option, None, Some}
+import screwtape/cursor
 import screwtape/model
 import screwtape/utf8
 
@@ -126,6 +137,7 @@ fn resolve(module: String) -> Result(Origin, Nil) {
     | "screwtape/html_text"
     | "screwtape/html_sax"
     | "screwtape/utf8"
+    | "screwtape/cursor"
     | "screwtape/normalise"
     | "screwtape/error" -> Ok(Local)
     _ -> Error(Nil)
@@ -136,6 +148,7 @@ fn sources() -> List(#(String, String)) {
   [
     #(model_path, model_source),
     #(utf8_path, utf8_source),
+    #(cursor_path, cursor_source),
     #(html_text_path, html_text_source),
     #(normalise_path, normalise_source),
     #(retain_path, retain_source),
@@ -234,6 +247,20 @@ pub fn prefix(text: String, budget: Int) -> String {
   descriptions(with_source(sources(), utf8_path, utf8), erlang())
   |> should.equal([
     "src/screwtape/utf8.gleam: local import screwtape/model is not allowed here",
+  ])
+}
+
+pub fn cursor_importing_a_local_module_is_a_violation_test() {
+  let cursor =
+    "import screwtape/model
+
+pub fn to_string(id: String) -> String {
+  id
+}
+"
+  descriptions(with_source(sources(), cursor_path, cursor), erlang())
+  |> should.equal([
+    "src/screwtape/cursor.gleam: local import screwtape/model is not allowed here",
   ])
 }
 
