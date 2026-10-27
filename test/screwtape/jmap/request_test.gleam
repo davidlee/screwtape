@@ -1,15 +1,17 @@
 //// Contract tests for `screwtape/jmap/request` (PHASE-10, D5; VT-3).
 ////
-//// The `Method` type is closed over the four JMAP methods of the scope, and
+//// The `Method` type is closed over the JMAP methods of the scope, and
 //// every method name in a request is produced by `method_name`. The body is
 //// asserted by parsing the encoded JSON back into a concrete record, so the
 //// wire shape is what is tested rather than an internal representation.
 
+import gleam/dict
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some, unwrap}
+import gleam/string
 import gleeunit
 import gleeunit/should
 import screwtape/jmap/request
@@ -23,11 +25,13 @@ type Call {
   Call(name: String, account_id: String, ids: Option(String), call_id: String)
 }
 
-pub fn method_name_covers_the_four_methods_test() {
+pub fn method_name_covers_the_methods_test() {
   request.method_name(request.MailboxGet) |> should.equal("Mailbox/get")
   request.method_name(request.EmailQuery) |> should.equal("Email/query")
   request.method_name(request.EmailGet) |> should.equal("Email/get")
   request.method_name(request.ThreadGet) |> should.equal("Thread/get")
+  request.method_name(request.EmailChanges)
+  |> should.equal("Email/changes")
 }
 
 pub fn body_uses_both_capabilities_test() {
@@ -199,6 +203,46 @@ pub fn email_get_arguments_test() {
   |> should.be_true
 }
 
+/// The light get asks for exactly the mutable fields and no body values: the
+/// body keys of `email_get` would cost bytes a refresh throws away, and a
+/// `properties` list missing `mailboxIds`/`keywords` would leave
+/// `normalise.refresh` nothing to set.
+pub fn email_get_light_arguments_test() {
+  let sent = sent(request.email_get_light("acct-1", ["m1", "m2"], "c0"))
+
+  sent.name |> should.equal(request.method_name(request.EmailGet))
+  sent.call_id |> should.equal("c0")
+  field(sent.arguments, "accountId", decode.string) |> should.equal("acct-1")
+  field(sent.arguments, "ids", decode.list(decode.string))
+  |> should.equal(["m1", "m2"])
+  field(sent.arguments, "properties", decode.list(decode.string))
+  |> should.equal(["id", "mailboxIds", "keywords"])
+  [
+    "bodyProperties", "fetchTextBodyValues", "fetchHTMLBodyValues",
+    "maxBodyValueBytes",
+  ]
+  |> list.each(fn(key) {
+    decode.run(sent.arguments, decode.at([key], decode.dynamic))
+    |> should.be_error
+  })
+  fields(sent.arguments) |> should.equal(["accountId", "ids", "properties"])
+}
+
+/// A changes call names the account, the state it starts from and the largest
+/// page it accepts; a server default would fire `too_many_changes` every run.
+pub fn email_changes_arguments_test() {
+  let sent = sent(request.email_changes("acct-1", "state-e1", 250, "c0"))
+
+  sent.name |> should.equal(request.method_name(request.EmailChanges))
+  sent.call_id |> should.equal("c0")
+  field(sent.arguments, "accountId", decode.string) |> should.equal("acct-1")
+  field(sent.arguments, "sinceState", decode.string)
+  |> should.equal("state-e1")
+  field(sent.arguments, "maxChanges", decode.int) |> should.equal(250)
+  fields(sent.arguments)
+  |> should.equal(["accountId", "maxChanges", "sinceState"])
+}
+
 /// A thread call names the account and the thread ids, nothing else.
 pub fn thread_get_arguments_test() {
   let sent = sent(request.thread_get("acct-1", ["t1", "t2"], "c0"))
@@ -278,6 +322,14 @@ fn sent(invocation: request.Invocation) -> Sent {
 fn field(arguments: Dynamic, name: String, decoder: decode.Decoder(a)) -> a {
   let assert Ok(value) = decode.run(arguments, decode.at([name], decoder))
   value
+}
+
+/// The argument object's keys, sorted: a key added later is caught even when no
+/// test denies it by name.
+fn fields(arguments: Dynamic) -> List(String) {
+  let assert Ok(names) =
+    decode.run(arguments, decode.dict(decode.string, decode.dynamic))
+  names |> dict.keys |> list.sort(string.compare)
 }
 
 fn optional_int(arguments: Dynamic, name: String) -> Option(Int) {

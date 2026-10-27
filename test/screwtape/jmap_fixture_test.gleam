@@ -8,6 +8,7 @@
 import gleam/bit_array
 import gleam/http
 import gleam/http/response.{Response}
+import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
@@ -79,6 +80,41 @@ pub fn session_with_test() {
   let assert Ok(session) = decode.session(text)
   session.max_objects_in_get |> should.equal(42)
   session.is_read_only |> should.be_true
+}
+
+/// The opening request and its argument sets are paired positionally, so a
+/// count mismatch would give a call another call's arguments (or silently drop
+/// one). A guard that only checked one direction would still truncate.
+pub fn opening_pairs_requires_one_argument_set_per_call_test() {
+  let calls = request.call_names(request.opening(account_id, 0))
+  let arguments = [json.object([]), json.object([]), json.object([])]
+
+  jmap_fixture.opening_pairs(list.take(calls, 2), arguments)
+  |> should.equal(Error(Nil))
+  jmap_fixture.opening_pairs(calls, list.take(arguments, 2))
+  |> should.equal(Error(Nil))
+}
+
+/// The matching case still pairs each call with its own arguments, in order:
+/// distinguishable sets, so swapping two of them fails.
+pub fn opening_pairs_test() {
+  let calls = request.call_names(request.opening(account_id, 0))
+  let arguments = [
+    json.object([#("n", json.int(1))]),
+    json.object([#("n", json.int(2))]),
+    json.object([#("n", json.int(3))]),
+  ]
+
+  let assert Ok(entries) = jmap_fixture.opening_pairs(calls, arguments)
+  entries
+  |> list.map(fn(entry) {
+    #(entry.name, json.to_string(entry.arguments), entry.call_id)
+  })
+  |> should.equal([
+    #(request.method_name(request.MailboxGet), "{\"n\":1}", "c0"),
+    #(request.method_name(request.EmailGet), "{\"n\":2}", "c1"),
+    #(request.method_name(request.ThreadGet), "{\"n\":3}", "c2"),
+  ])
 }
 
 pub fn mailbox_get_response_test() {

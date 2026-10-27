@@ -398,6 +398,127 @@ pub fn emails_invalid_received_at_test() {
   |> should.equal(Error(error.Decode("list[0].receivedAt")))
 }
 
+/// One page of `Email/changes`: the state it leaves, whether more changes
+/// follow, and the three id lists kept apart — a destroyed id that came back
+/// as `updated` would be refreshed instead of dropped.
+pub fn email_changes_page_test() {
+  let assert Ok(page) =
+    decode.email_changes(response_of(changes_text(), request.EmailChanges))
+
+  page.new_state |> should.equal("state-changes")
+  page.has_more |> should.be_true
+  page.created |> should.equal(["m1"])
+  page.updated |> should.equal(["m2", "m3"])
+  page.destroyed |> should.equal(["m4"])
+}
+
+/// `newState` is required: without it the run has no state to store, so a
+/// decoder that fell back to `sinceState` would strand the changes.
+pub fn email_changes_requires_new_state_test() {
+  decode.email_changes(response_of(
+    changes_bent("\"newState\":\"state-changes\",", ""),
+    request.EmailChanges,
+  ))
+  |> should.equal(Error(error.Decode("newState")))
+}
+
+/// `hasMoreChanges` is required too: a default of `False` would turn a
+/// truncated change set into a complete one and `too_many_changes` would never
+/// fire.
+pub fn email_changes_requires_has_more_test() {
+  decode.email_changes(response_of(
+    changes_bent("\"hasMoreChanges\":true,", ""),
+    request.EmailChanges,
+  ))
+  |> should.equal(Error(error.Decode("hasMoreChanges")))
+}
+
+/// Each id list is a list: a server sending one id as a string is a
+/// `Decode` error naming the field, not an empty page.
+pub fn email_changes_requires_created_list_test() {
+  decode.email_changes(response_of(
+    changes_bent("\"created\":[\"m1\"]", "\"created\":\"m1\""),
+    request.EmailChanges,
+  ))
+  |> should.equal(Error(error.Decode("created")))
+}
+
+/// A `cannotCalculateChanges` entry reaches the caller as a method error naming
+/// `Email/changes`: it is distinguishable from a `Decode` failure, which is what
+/// PHASE-07's fallback matches.
+pub fn email_changes_cannot_calculate_test() {
+  decode.method_responses(
+    jmap_fixture.responses([
+      jmap_fixture.cannot_calculate_changes_entry(request.call_id),
+    ]),
+    [#(request.call_id, request.method_name(request.EmailChanges))],
+  )
+  |> should.equal(
+    Error(error.JmapMethod(
+      request.method_name(request.EmailChanges),
+      "cannotCalculateChanges",
+    )),
+  )
+}
+
+/// A light `Email/get` page: the mutable fields, the Email state the refresh
+/// stamps, and the ids the server no longer has. `state-light` is deliberately
+/// unlike `state-changes`, so a decoder that took its state from the changes
+/// page would fail here.
+pub fn light_emails_page_test() {
+  let text =
+    jmap_fixture.light_email_get_response(
+      [#("m1", ["mb-1"], ["$seen"])],
+      "state-light",
+      ["gone"],
+    )
+  let assert Ok(page) = decode.light_emails(response_of(text, request.EmailGet))
+
+  page.state |> should.equal("state-light")
+  page.not_found |> should.equal(["gone"])
+  page.lights
+  |> should.equal([normalise.Light("m1", ["mb-1"], ["$seen"])])
+}
+
+/// The light page's paths are the shared get page's: an id missing from a light
+/// item is `list[0].id`, so the same failures read the same way on both gets.
+pub fn light_emails_requires_item_id_test() {
+  let text =
+    jmap_fixture.light_email_get_response(
+      [#("m1", ["mb-1"], [])],
+      "state-light",
+      [],
+    )
+  let text = string.replace(text, "\"id\":\"m1\",", "")
+
+  decode.light_emails(response_of(text, request.EmailGet))
+  |> should.equal(Error(error.Decode("list[0].id")))
+}
+
+/// A missing `state` fails on the light page where it fails on the full get.
+pub fn light_emails_requires_state_test() {
+  let text =
+    jmap_fixture.light_email_get_response(
+      [#("m1", ["mb-1"], [])],
+      "state-light",
+      [],
+    )
+  let text = string.replace(text, "\"state\":\"state-light\",", "")
+
+  decode.light_emails(response_of(text, request.EmailGet))
+  |> should.equal(Error(error.Decode("state")))
+}
+
+/// A `list` that is not a list fails on the light page where it fails on the
+/// full get.
+pub fn light_emails_requires_list_test() {
+  let text = jmap_fixture.light_email_get_response([], "state-light", [])
+  let text = string.replace(text, "\"list\":[]", "\"list\":{}")
+
+  decode.light_emails(response_of(text, request.EmailGet))
+  |> should.equal(Error(error.Decode("list")))
+}
+
 /// A thread page keeps its member ids in order; a decoder that reordered or
 /// re-keyed them would break thread order.
 pub fn threads_page_test() {
@@ -523,6 +644,24 @@ pub fn method_response_name_must_match_the_call_test() {
 
 fn mailbox_response(text: String) -> decode.MethodResponse {
   response_of(text, request.MailboxGet)
+}
+
+fn changes_text() -> String {
+  jmap_fixture.changes_response(
+    "state-old",
+    "state-changes",
+    True,
+    ["m1"],
+    [
+      "m2",
+      "m3",
+    ],
+    ["m4"],
+  )
+}
+
+fn changes_bent(from: String, into: String) -> String {
+  string.replace(changes_text(), from, into)
 }
 
 /// The one response of a document the test built for `method`.

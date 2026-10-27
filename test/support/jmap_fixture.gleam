@@ -17,6 +17,7 @@
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import screwtape/file
 import screwtape/jmap/request
@@ -276,12 +277,67 @@ fn email_get_arguments(
   state: String,
   not_found: List(String),
 ) -> json.Json {
+  get_arguments(json.array(emails, email_json), state, not_found)
+}
+
+/// The envelope every `Email/get` response shares: `accountId`, `state`, the
+/// `list` of items and `notFound`.
+fn get_arguments(
+  list: json.Json,
+  state: String,
+  not_found: List(String),
+) -> json.Json {
   json.object([
     #("accountId", json.string(account_id)),
     #("state", json.string(state)),
-    #("list", json.array(emails, email_json)),
+    #("list", list),
     #("notFound", json.array(not_found, json.string)),
   ])
+}
+
+/// A light `Email/get` response: the mutable fields of `lights` (id,
+/// `mailboxIds`, `keywords`), plus `state` and the ids in `not_found`.
+pub fn light_email_get_response(
+  lights: List(#(String, List(String), List(String))),
+  state: String,
+  not_found: List(String),
+) -> String {
+  method_response(
+    request.method_name(request.EmailGet),
+    get_arguments(json.array(lights, light_email_json), state, not_found),
+  )
+}
+
+fn light_email_json(light: #(String, List(String), List(String))) -> json.Json {
+  let #(id, mailbox_ids, keywords) = light
+  json.object([
+    #("id", json.string(id)),
+    #("mailboxIds", flags(mailbox_ids)),
+    #("keywords", flags(keywords)),
+  ])
+}
+
+/// An `Email/changes` response from `old_state` to `new_state`.
+pub fn changes_response(
+  old_state: String,
+  new_state: String,
+  has_more: Bool,
+  created: List(String),
+  updated: List(String),
+  destroyed: List(String),
+) -> String {
+  method_response(
+    request.method_name(request.EmailChanges),
+    json.object([
+      #("accountId", json.string(account_id)),
+      #("oldState", json.string(old_state)),
+      #("newState", json.string(new_state)),
+      #("hasMoreChanges", json.bool(has_more)),
+      #("created", json.array(created, json.string)),
+      #("updated", json.array(updated, json.string)),
+      #("destroyed", json.array(destroyed, json.string)),
+    ]),
+  )
 }
 
 /// A `Thread/get` response with `state` and an empty `notFound`.
@@ -321,6 +377,22 @@ pub type Entry {
   Entry(name: String, arguments: json.Json, call_id: String)
 }
 
+/// Pairs each opening call with its argument set. Fails rather than
+/// truncating when the request's call count and the argument count differ, so a
+/// call can never be answered with another call's arguments.
+pub fn opening_pairs(
+  calls: List(#(String, String)),
+  arguments: List(json.Json),
+) -> Result(List(Entry), Nil) {
+  list.strict_zip(calls, arguments)
+  |> result.map(fn(pairs) {
+    list.map(pairs, fn(pair) {
+      let #(#(call_id, name), arguments) = pair
+      Entry(name:, arguments:, call_id:)
+    })
+  })
+}
+
 /// The entries that answer `request.opening`, under its call ids: the
 /// mailboxes and `mailbox_state`, then an empty `Email/get` and `Thread/get`
 /// with `email_state` and `thread_state`.
@@ -335,13 +407,10 @@ pub fn opening_entries(
     email_get_arguments([], email_state, []),
     thread_get_arguments([], thread_state),
   ]
-  request.opening(account_id, 0)
-  |> request.call_names
-  |> list.zip(arguments)
-  |> list.map(fn(pair) {
-    let #(#(call_id, name), arguments) = pair
-    Entry(name:, arguments:, call_id:)
-  })
+  let assert Ok(entries) =
+    opening_pairs(request.call_names(request.opening(account_id, 0)), arguments)
+    as "opening calls and argument sets differ in length"
+  entries
 }
 
 /// The response document `opening_entries` describes.
@@ -357,6 +426,12 @@ pub fn opening_response(
 /// A method error entry of `type_` answering `call_id`.
 pub fn error_entry(type_: String, call_id: String) -> Entry {
   Entry("error", json.object([#("type", json.string(type_))]), call_id)
+}
+
+/// The method error an `Email/changes` call that cannot page its state answers:
+/// a method-problem type, not a request-level URN.
+pub fn cannot_calculate_changes_entry(call_id: String) -> Entry {
+  error_entry("cannotCalculateChanges", call_id)
 }
 
 /// A response document of `entries`, in order.

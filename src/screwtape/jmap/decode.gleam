@@ -88,6 +88,11 @@ const path_fields = [
   "isReadOnly",
   "methodResponses",
   "state",
+  "newState",
+  "hasMoreChanges",
+  "created",
+  "updated",
+  "destroyed",
   "list",
   "id",
   "name",
@@ -181,11 +186,34 @@ pub type QueryPage {
   )
 }
 
+/// One `Email/changes` page (RFC 8620 § 5.2): the state the account is now in,
+/// whether more changes wait beyond this page, and the ids created, updated and
+/// destroyed since the state the call named.
+pub type ChangesPage {
+  ChangesPage(
+    new_state: String,
+    has_more: Bool,
+    created: List(String),
+    updated: List(String),
+    destroyed: List(String),
+  )
+}
+
 /// One `Email/get` response: the emails, the Email `state` it was served
 /// under, and the ids the server no longer has.
 pub type EmailPage {
   EmailPage(
     emails: List(normalise.Email),
+    state: String,
+    not_found: List(String),
+  )
+}
+
+/// One light `Email/get` response: the mutable fields of each email, the Email
+/// `state` it was served under, and the ids the server no longer has.
+pub type LightPage {
+  LightPage(
+    lights: List(normalise.Light),
     state: String,
     not_found: List(String),
   )
@@ -199,6 +227,16 @@ pub fn email_query(response: MethodResponse) -> Result(QueryPage, Error) {
 /// The emails, state and `notFound` of an `Email/get` response.
 pub fn emails(response: MethodResponse) -> Result(EmailPage, Error) {
   decode_at(response.arguments, email_page_decoder(), "")
+}
+
+/// The mutable fields, state and `notFound` of a light `Email/get` response.
+pub fn light_emails(response: MethodResponse) -> Result(LightPage, Error) {
+  decode_at(response.arguments, light_page_decoder(), "")
+}
+
+/// The changes an `Email/changes` response reports.
+pub fn email_changes(response: MethodResponse) -> Result(ChangesPage, Error) {
+  decode_at(response.arguments, changes_page_decoder(), "")
 }
 
 /// The threads of a `Thread/get` response; `notFound` is ignored (PHASE-05
@@ -337,15 +375,59 @@ fn query_page_decoder() -> decode.Decoder(QueryPage) {
   ))
 }
 
+fn changes_page_decoder() -> decode.Decoder(ChangesPage) {
+  use new_state <- decode.field("newState", decode.string)
+  use has_more <- decode.field("hasMoreChanges", decode.bool)
+  use created <- decode.field("created", decode.list(decode.string))
+  use updated <- decode.field("updated", decode.list(decode.string))
+  use destroyed <- decode.field("destroyed", decode.list(decode.string))
+  decode.success(ChangesPage(
+    new_state:,
+    has_more:,
+    created:,
+    updated:,
+    destroyed:,
+  ))
+}
+
 fn email_page_decoder() -> decode.Decoder(EmailPage) {
-  use emails <- decode.field("list", decode.list(email_decoder()))
+  decode.map(get_page_decoder(email_decoder()), fn(page) {
+    let #(emails, state, not_found) = page
+    EmailPage(emails:, state:, not_found:)
+  })
+}
+
+fn light_page_decoder() -> decode.Decoder(LightPage) {
+  decode.map(get_page_decoder(light_decoder()), fn(page) {
+    let #(lights, state, not_found) = page
+    LightPage(lights:, state:, not_found:)
+  })
+}
+
+/// The shape both `Email/get` pages share: the `list` items, the Email
+/// `state`, and an optional `notFound`. Decoding both through it keeps their
+/// failures on the same paths.
+fn get_page_decoder(
+  item: decode.Decoder(a),
+) -> decode.Decoder(#(List(a), String, List(String))) {
+  use items <- decode.field("list", decode.list(item))
   use state <- decode.field("state", decode.string)
   use not_found <- decode.optional_field(
     "notFound",
     [],
     decode.map(decode.optional(decode.list(decode.string)), or_empty),
   )
-  decode.success(EmailPage(emails:, state:, not_found:))
+  decode.success(#(items, state, not_found))
+}
+
+/// A light Email: only the mutable fields `normalise.refresh` replaces. A
+/// light response carries no `blobId`, `size` or `receivedAt`, so
+/// `email_decoder` would reject every refresh.
+fn light_decoder() -> decode.Decoder(normalise.Light) {
+  use id <- decode.field("id", decode.string)
+  use mailbox_ids <- decode.field("mailboxIds", flags_decoder())
+  use keywords <- decode.field("keywords", flags_decoder())
+  decode.success(normalise.Light(id:, mailbox_ids:, keywords:))
 }
 
 fn email_decoder() -> decode.Decoder(normalise.Email) {

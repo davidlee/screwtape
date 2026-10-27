@@ -124,6 +124,10 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 02 | phase-plan | pi `implement` | 0.025 | thorough sheet; proposed copying a Message builder (POL-001) and stopping on a needed check_imports_test fixture row; both overridden by amendments at the sheet's top |
 | 02 | implement | pi `implement` | 0.043 | green first pass; read the top-of-sheet amendments correctly; sensible deviations reported |
 | 02 | review (VA-1) | Opus (orchestrator) | — | 4 findings, all fixed (below); negative controls: `>=`→`>` and filter-before-refresh each fail one test |
+| 03 | phase-plan | pi `implement` | 0.031 | good sheet; "scope surprises" at the top worked; S1 misread EN-1; proposed a hand length check where `list.strict_zip` exists |
+| 03 | implement | pi `implement` | 0.044 | green first pass; shared `get_page_decoder` (POL-001) as briefed |
+| 03 | review (VA-1) | pi `review` | 0.028 | 7 findings, all accepted; caught the false doc the orchestrator also saw |
+| 03 | fixes | pi `implement` (same session) | 0.017 | 9 items (7 review + 2 orchestrator) applied, green |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
@@ -154,3 +158,15 @@ PHASE-02 review dispositions (Opus):
   descending (compare_received, reversed), as the design states.
 - Improvement noted, not done: `snapshot_fixture.listing_message` could build
   on the new `bare_message`.
+
+PHASE-03 review dispositions (all fixed):
+- false doc on `decode.light_decoder` (claimed a full body cannot decode as
+  light; decoders ignore extra keys) — corrected (major);
+- `changes_response` lacked `oldState` (RFC 8620 § 5.2) — added;
+- `opening_pairs` order test used identical argument sets — now distinct;
+- `email_changes` key set unpinned — pinned;
+- `changes_bent` tuple arg, a shared doc over two tests, a duplicated
+  false-flags test — fixed / dropped;
+- orchestrator: `opening_pairs` via `result.map`; one `get_arguments`
+  envelope for full and light `Email/get` fixtures (POL-001).
+- VA-2: CHR-004 records its opening_entries guard as done here.

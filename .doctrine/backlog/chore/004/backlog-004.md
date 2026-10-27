@@ -47,3 +47,6 @@ spot-checked. SL-002 takes on any item its own tests touch. The rest is here.
 - `jmap_fixture.opening_entries` (`:327-346`) zips `request.opening`'s call
   names against a hard-coded list of three argument sets. A fourth opening
   call would silently truncate the zip. Assert that the lengths match.
+- **Done in SL-002 PHASE-03:** `opening_entries` now pairs through
+  `jmap_fixture.opening_pairs` (`list.strict_zip`), which fails on a length
+  mismatch; pinned by `jmap_fixture_test`. The other items stay open.

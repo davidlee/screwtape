@@ -1,9 +1,9 @@
 //// The JMAP request body (PHASE-10, D5; design § 5.2).
 ////
-//// `Method` is closed over the four methods of the scope and is the only source
-//// of a JMAP method name: `Invocation` is opaque, so every call is built inside
-//// this module from a `Method` (invariant I6). `method_name` is the one place
-//// the wire spellings live.
+//// `Method` is closed over the JMAP methods of the scope and is the only
+//// source of a JMAP method name: `Invocation` is opaque, so every call is built
+//// inside this module from a `Method` (invariant I6). `method_name` is the one
+//// place the wire spellings live.
 ////
 //// Every request carries both capabilities of the scope. A run's first
 //// request is `opening`, three calls under distinct ids (ISS-001); every later
@@ -37,12 +37,17 @@ const body_properties = [
   "partId", "blobId", "size", "name", "type", "disposition", "cid",
 ]
 
+/// The mutable Email properties a light get fetches: what
+/// `normalise.refresh` replaces, and no bodies.
+const light_properties = ["id", "mailboxIds", "keywords"]
+
 /// The JMAP methods of the scope, and no others.
 pub type Method {
   MailboxGet
   EmailQuery
   EmailGet
   ThreadGet
+  EmailChanges
 }
 
 /// The wire name of a method; produced only from a `Method`.
@@ -52,6 +57,7 @@ pub fn method_name(method: Method) -> String {
     EmailQuery -> "Email/query"
     EmailGet -> "Email/get"
     ThreadGet -> "Thread/get"
+    EmailChanges -> "Email/changes"
   }
 }
 
@@ -162,6 +168,44 @@ pub fn email_get(
       #("bodyProperties", json.array(body_properties, json.string)),
       #("fetchTextBodyValues", json.bool(True)),
       #("maxBodyValueBytes", json.int(max_body_value_bytes)),
+    ]),
+    call_id: call_id,
+  )
+}
+
+/// The changes since `since_state`, at most `max_changes` of them: the state
+/// they leave the account in and the ids created, updated and destroyed.
+pub fn email_changes(
+  account_id: String,
+  since_state: String,
+  max_changes: Int,
+  call_id: String,
+) -> Invocation {
+  Invocation(
+    method: EmailChanges,
+    arguments: json.object([
+      #("accountId", json.string(account_id)),
+      #("sinceState", json.string(since_state)),
+      #("maxChanges", json.int(max_changes)),
+    ]),
+    call_id: call_id,
+  )
+}
+
+/// The mutable fields of `ids` only (design § 5.2): what
+/// `normalise.refresh` replaces, with no body values, so a refresh pays for
+/// nothing it discards.
+pub fn email_get_light(
+  account_id: String,
+  ids: List(String),
+  call_id: String,
+) -> Invocation {
+  Invocation(
+    method: EmailGet,
+    arguments: json.object([
+      #("accountId", json.string(account_id)),
+      #("ids", json.array(ids, json.string)),
+      #("properties", json.array(light_properties, json.string)),
     ]),
     call_id: call_id,
   )
