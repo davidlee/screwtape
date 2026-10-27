@@ -25,6 +25,8 @@ const html_text_path = "src/screwtape/html_text.gleam"
 
 const normalise_path = "src/screwtape/normalise.gleam"
 
+const retain_path = "src/screwtape/retain.gleam"
+
 const render_path = "src/screwtape/render.gleam"
 
 const html_sax_path = "src/screwtape/html_sax.gleam"
@@ -56,6 +58,15 @@ import screwtape/model
 import screwtape/utf8
 
 pub fn normalise(x: String) -> String {
+  x
+}
+"
+
+const retain_source =
+  "import screwtape/model
+import screwtape/normalise
+
+pub fn merge(x: String) -> String {
   x
 }
 "
@@ -115,6 +126,7 @@ fn resolve(module: String) -> Result(Origin, Nil) {
     | "screwtape/html_text"
     | "screwtape/html_sax"
     | "screwtape/utf8"
+    | "screwtape/normalise"
     | "screwtape/error" -> Ok(Local)
     _ -> Error(Nil)
   }
@@ -126,6 +138,7 @@ fn sources() -> List(#(String, String)) {
     #(utf8_path, utf8_source),
     #(html_text_path, html_text_source),
     #(normalise_path, normalise_source),
+    #(retain_path, retain_source),
     #(render_path, render_source),
     #(html_sax_path, html_sax_source),
   ]

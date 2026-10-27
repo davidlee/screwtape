@@ -261,6 +261,31 @@ fn body(
   )
 }
 
+/// A `Message` with every field at its empty value, for a test that reads only
+/// one or two fields; bend it with record update.
+pub fn bare_message(id: String, received_at: UtcDate) -> Message {
+  Message(
+    id: id,
+    thread_id: "thread-1",
+    blob_id: "blob-1",
+    received_at: received_at,
+    sent_at: None,
+    subject: None,
+    preview: "",
+    size: 0,
+    has_attachment: False,
+    is_seen: False,
+    is_flagged: False,
+    keywords: [],
+    email_state: "state-1",
+    mailbox_ids: [],
+    header_ids: HeaderIds(message_id: [], in_reply_to: [], references: []),
+    addresses: [],
+    bodies: [],
+    attachments: [],
+  )
+}
+
 /// The order a read must return a message's unordered relations in: its
 /// `mailbox_ids` by id, its `attachments` by `part_id`, and its `addresses` by
 /// field (the model's order, `From` first) then position. The store keeps no

@@ -298,6 +298,12 @@ fn civil_day_count(year: Int, month: Int, day: Int) -> Int {
   era * 146_097 + day_of_era - 719_468
 }
 
+/// The mutable fields of a message, as an `Email/get` light response delivers
+/// them.
+pub type Light {
+  Light(id: String, mailbox_ids: List(String), keywords: List(String))
+}
+
 /// Normalise one Email delivered by a response whose Email state was
 /// `email_state`. `textBody` parts are stored in order; HTML parts are
 /// converted to text; the stored text of all parts together is at most
@@ -307,6 +313,7 @@ pub fn message(
   email_state: String,
   max_body_bytes: Int,
 ) -> model.Message {
+  let #(is_seen, is_flagged) = flags(email.keywords)
   model.Message(
     id: email.id,
     thread_id: email.thread_id,
@@ -317,8 +324,8 @@ pub fn message(
     preview: email.preview,
     size: email.size,
     has_attachment: email.has_attachment,
-    is_seen: list.contains(email.keywords, "$seen"),
-    is_flagged: list.contains(email.keywords, "$flagged"),
+    is_seen: is_seen,
+    is_flagged: is_flagged,
     keywords: email.keywords,
     email_state: email_state,
     mailbox_ids: email.mailbox_ids,
@@ -327,6 +334,31 @@ pub fn message(
     bodies: bodies(email.text_body, email.body_values, max_body_bytes),
     attachments: list.map(email.attachments, attachment),
   )
+}
+
+/// Replace the mutable fields of `message` with those `light` carries, and set
+/// its `email_state` to the state of the response that delivered them; every
+/// other field is kept (design § 5.2).
+pub fn refresh(
+  message: model.Message,
+  light: Light,
+  state: String,
+) -> model.Message {
+  let #(is_seen, is_flagged) = flags(light.keywords)
+  model.Message(
+    ..message,
+    mailbox_ids: light.mailbox_ids,
+    keywords: light.keywords,
+    email_state: state,
+    is_seen: is_seen,
+    is_flagged: is_flagged,
+  )
+}
+
+/// The flags a keyword list implies: `$seen` and `$flagged`. The one
+/// keyword-to-flag mapping (EX-1).
+fn flags(keywords: List(String)) -> #(Bool, Bool) {
+  #(list.contains(keywords, "$seen"), list.contains(keywords, "$flagged"))
 }
 
 /// RFC 5322 header ids, each list in its header's order; an absent header is

@@ -17,6 +17,7 @@ import gleeunit
 import gleeunit/should
 import screwtape/model
 import screwtape/normalise
+import support/snapshot_fixture
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -98,31 +99,6 @@ fn value_with(
       is_encoding_problem: is_encoding_problem,
       is_truncated: is_truncated,
     ),
-  )
-}
-
-/// A `Message` that only `compare_received` reads, built without going through
-/// `normalise.message` so the ordering contract is tested on its own.
-fn sortable(id: String, received_at: model.UtcDate) -> model.Message {
-  model.Message(
-    id: id,
-    thread_id: "thread-1",
-    blob_id: "blob-1",
-    received_at: received_at,
-    sent_at: None,
-    subject: None,
-    preview: "",
-    size: 0,
-    has_attachment: False,
-    is_seen: False,
-    is_flagged: False,
-    keywords: [],
-    email_state: "state-1",
-    mailbox_ids: [],
-    header_ids: model.HeaderIds(message_id: [], in_reply_to: [], references: []),
-    addresses: [],
-    bodies: [],
-    attachments: [],
   )
 }
 
@@ -223,8 +199,8 @@ pub fn compare_received_same_millisecond_orders_by_id_test() {
 
   first.ms |> should.equal(second.ms)
 
-  let a = sortable("a", first)
-  let b = sortable("b", second)
+  let a = snapshot_fixture.bare_message("a", first)
+  let b = snapshot_fixture.bare_message("b", second)
 
   [b, a]
   |> list.sort(normalise.compare_received)
@@ -242,8 +218,8 @@ pub fn compare_received_ms_wins_over_id_test() {
   let early = model.UtcDate(raw: "2026-01-01T00:00:00Z", ms: 1_767_225_600_000)
   let late = model.UtcDate(raw: "2026-01-01T00:00:01Z", ms: 1_767_225_601_000)
 
-  let z = sortable("z", early)
-  let a = sortable("a", late)
+  let z = snapshot_fixture.bare_message("z", early)
+  let a = snapshot_fixture.bare_message("a", late)
 
   [a, z]
   |> list.sort(normalise.compare_received)
@@ -370,6 +346,53 @@ pub fn message_mailbox_ids_and_keywords_test() {
   bare.mailbox_ids |> should.equal([])
   bare.is_seen |> should.be_false
   bare.is_flagged |> should.be_false
+}
+
+/// `refresh` replaces `mailbox_ids`, `keywords` and `email_state` and
+/// re-derives the flags through the same helper `message` uses; every other
+/// field of the message survives.
+pub fn refresh_replaces_only_the_mutable_fields_test() {
+  let body =
+    model.Body(
+      part_id: "1",
+      source: model.PlainText,
+      text: "hello",
+      is_truncated: False,
+      truncated_by: None,
+      is_encoding_problem: False,
+      conversion_failed: False,
+      max_body_value_bytes: 4096,
+    )
+  let before =
+    model.Message(
+      ..snapshot_fixture.bare_message(
+        "m-1",
+        model.UtcDate(raw: received, ms: 1_767_225_600_000),
+      ),
+      subject: Some("s"),
+      bodies: [body],
+      is_seen: True,
+      is_flagged: False,
+      keywords: ["$seen"],
+      mailbox_ids: ["mb-1"],
+      email_state: "state-1",
+    )
+
+  let light =
+    normalise.Light(id: "m-1", mailbox_ids: ["mb-9"], keywords: ["$flagged"])
+  let after = normalise.refresh(before, light, "state-2")
+
+  after
+  |> should.equal(
+    model.Message(
+      ..before,
+      mailbox_ids: ["mb-9"],
+      keywords: ["$flagged"],
+      email_state: "state-2",
+      is_seen: False,
+      is_flagged: True,
+    ),
+  )
 }
 
 /// Addresses come out in the fixed field order, and within each field in the

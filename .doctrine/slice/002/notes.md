@@ -121,6 +121,9 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 01 | phase-plan | pi `implement` | 0.016 | sound sheet; missed that `nix/module-eval.nix:296,307` compare the whole `.window` object (orchestrator amended scope) |
 | 01 | implement | pi `implement` | 0.018 | green first pass; red evidence given; no deviations |
 | 01 | review (VA-1) | pi `review` | 0.021 | 5 findings: 1 accepted, 1 kept as is, 3 rejected (below) |
+| 02 | phase-plan | pi `implement` | 0.025 | thorough sheet; proposed copying a Message builder (POL-001) and stopping on a needed check_imports_test fixture row; both overridden by amendments at the sheet's top |
+| 02 | implement | pi `implement` | 0.043 | green first pass; read the top-of-sheet amendments correctly; sensible deviations reported |
+| 02 | review (VA-1) | Opus (orchestrator) | — | 4 findings, all fixed (below); negative controls: `>=`→`>` and filter-before-refresh each fail one test |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
@@ -137,3 +140,17 @@ PHASE-01 review dispositions:
 What pi got wrong: scope inference from a whole-object jq comparison (planner);
 reading a sheet's late amendment (reviewer). Brief fix: put amendments at the
 top of the sheet, or quote them in the brief.
+
+PHASE-02 review dispositions (Opus):
+- O1 `retain.refresh_all` / `add_fetched` were O(stored × refreshes) via
+  `list.find`/`list.any`; the full path refreshes every stored id — fixed with a
+  `dict` of refreshes and a `set` of fetched ids.
+- O2 refresh test asserted 11 fields one by one — replaced by one record
+  equality against `Message(..before, <mutable fields>)`, which pins every
+  field.
+- O3 empty-input merge test was TDD scaffolding — pruned (design § 9).
+- O4 `refresh` doc cited § 5.1 — corrected to § 5.2.
+- Design note (not a defect): ties at equal `received_at.ms` order by id
+  descending (compare_received, reversed), as the design states.
+- Improvement noted, not done: `snapshot_fixture.listing_message` could build
+  on the new `bare_message`.
