@@ -6,17 +6,20 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · design/inquiring (all inq resolved) · 48abe1c
+fresh-as-of: 2026-10-27 · design/reviewing (draft complete, RV-005 open) · 4796c6d
 
 ### Produced
-POL-001 · EVD-001 · DEC-022 · DEC-023 · DEC-024 · CHR-004 · mem.fact.jmap.fastmail-email-changes
+POL-001 · EVD-001 · DEC-024 · DEC-025 (supersedes DEC-022) · DEC-026 (supersedes DEC-023) · CHR-004 · design.md (sec-1..sec-10) · RV-005 · mem.fact.jmap.fastmail-email-changes · mem.fact.doctrine.design-section-order
 
 ### Learned
-mem.fact.jmap.fastmail-email-changes (EVD-001)
+mem.fact.jmap.fastmail-email-changes (EVD-001) · mem.fact.doctrine.design-section-order
 
 ### Open
-- satan:RFC-020 D8 amendment draft (no queryChanges; local window filter; retention) — at close
-- research/ untracked: skill says gitignored, .gitignore does not cover it — operator to decide
+- RV-005 hostile pass: operator chose GPT (Codex) as raiser — not yet run
+- section-reviewed (user lane, 14 sections), review-disposed, design-accepted — operator acts, after the pass
+- review.selectors runbook step: re-confirm after the pass (20 design-target selectors match § 10)
+- satan:RFC-020 D8 amendment draft (no queryChanges; query-driven membership; retention) — at close
+- research/ untracked: skill says gitignored, .gitignore does not cover it — operator to decide; research.md's "count-capped divergence no longer applies" is disproved (see GPT design review below)
 - CHR-004 (test debt; SL-002 absorbs only the opening_entries guard)
 
 ## Design triage (2026-10-27, exploring)
