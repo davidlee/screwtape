@@ -356,7 +356,7 @@ second copy of the get loop (POL-001).
   | `query_state` | the settled query | the settled query, or the `Prior`'s when nothing changed |
   | `sync.window_json` | the current window | the current window |
   | messages | `retain.merge` output | `retain.merge` output |
-  | threads | `Thread/get` over the merged set's distinct thread ids | same |
+  | threads | `Thread/get` over the merged set's distinct thread ids, sorted (canonical, independent of merge order; supersedes M1's first-seen order) | same |
 
 - **Per-message `email_state`:**
   - a fully fetched message: its `Email/get` page's state, as in M1;
@@ -580,7 +580,7 @@ Smaller choices made in drafting (operator-reviewed 2026-10-27):
 | A large delta (a bulk mark-read) wedges the run on budget | A finite `maxChanges` and the page cap turn it into a `too_many_changes` fallback. The pages are ids only, and the full run costs the query plus light gets, not bodies. A budget too small even for that fails every run until raised, as in M1 (§ 5.4 Budget) |
 | A concurrent change mid-run leaves a stale message in the window | Accepted: the next run reports and repairs it (I-M1, under concurrent change) |
 | `cannotCalculateChanges` undercounts the budget | Bounded at about twice `max_total_bytes`; documented (DEC-026) |
-| `receivedAt` ties at the boundary order differently from the server | Accepted and documented; the tests avoid boundary ties except one that pins the local order |
+| `receivedAt` ties at the boundary order differently from the server | Accepted and documented; sync fixtures share one `receivedAt` and order by the id tie-break, so a test whose claim depends on order builds its emails with `sync_fixture.newest_first` |
 
 <!-- doctrine:section sec-9 -->
 ## 9. Quality Engineering & Validation
@@ -666,8 +666,9 @@ reports `mode: incremental` and sends no `Email/get` with ids. `gleam format
 | `src/screwtape/sync.gleam` | `Prior` parameter, path choice, changes paging, `get_chunked`, `Mode`, summary fields |
 | `src/screwtape/cli.gleam` | load the `Prior`; render `mode` and `fallback_reason` |
 | `test/check_imports.gleam` | the `retain` purity rule |
-| `test/support/jmap_fixture.gleam`, `test/support/sync_fixture.gleam` | the extensions in § 9 |
-| `test/screwtape/{retain,sync,store,config,cli}_test.gleam`, `test/screwtape/jmap/decode_test.gleam` | the tests in § 9 |
+| `nix/module-eval.nix` | the module test's expected `window` object gains `retain_messages` |
+| `test/support/jmap_fixture.gleam`, `test/support/sync_fixture.gleam`, `test/support/cli_fixture.gleam`, `test/support/snapshot_fixture.gleam` | the extensions in § 9 |
+| `test/screwtape/{retain,sync,store,config,cli,normalise,jmap_fixture,check_imports}_test.gleam`, `test/screwtape/jmap/{decode,request}_test.gleam` | the tests in § 9 |
 | `README.md` | the sync section (§ 5.4 Operations) |
 
 Unchanged: `store.gleam`'s writer and schema, `jmap/client.gleam`, the read

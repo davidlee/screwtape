@@ -1,7 +1,7 @@
 id = 2
 slug = "m2-incremental"
 title = "Screwtape M2: minimal incremental sync"
-status = "reconcile"
+status = "done"
 created = "2026-10-26"
 updated = "2026-10-27"
 tags = []
@@ -105,6 +105,41 @@ intent = "design-target"
 [[selector]]
 selector = "test/screwtape/jmap/decode_test.gleam"
 intent = "design-target"
+
+[[selector]]
+selector = "nix/module-eval.nix"
+intent = "design-target"
+note = "RV-009 F-2"
+
+[[selector]]
+selector = "test/screwtape/check_imports_test.gleam"
+intent = "design-target"
+note = "RV-009 F-2"
+
+[[selector]]
+selector = "test/screwtape/jmap/request_test.gleam"
+intent = "design-target"
+note = "RV-009 F-2"
+
+[[selector]]
+selector = "test/screwtape/jmap_fixture_test.gleam"
+intent = "design-target"
+note = "RV-009 F-2"
+
+[[selector]]
+selector = "test/screwtape/normalise_test.gleam"
+intent = "design-target"
+note = "RV-009 F-2"
+
+[[selector]]
+selector = "test/support/cli_fixture.gleam"
+intent = "design-target"
+note = "RV-009 F-2"
+
+[[selector]]
+selector = "test/support/snapshot_fixture.gleam"
+intent = "design-target"
+note = "RV-009 F-2"
 
 [[relation]]
 label = "governed_by"

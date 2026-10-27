@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · /audit RV-009 done (reconcile next) · df9e11a + audit fixes
+fresh-as-of: 2026-10-27 · closed (RV-009 reconciled) · 2986782
 
 ### Produced
 - RV-005 hostile pass (Codex) disposed, integrated; design run locked rev 37 (8173079)
@@ -29,11 +29,10 @@ fresh-as-of: 2026-10-27 · /audit RV-009 done (reconcile next) · df9e11a + audi
 - sync fixture gotchas (expect_unchanged probe commit; spec bounds) — § PHASE-06 notes
 
 ### Open
-- next `/reconcile` over RV-009 § Reconciliation Brief (selectors F-2; design § 5 F-3; § 8 F-6)
 - PHASE-03 VT-3 stale keyword — operator: waive or append a corrected VT (RV-009 F-1)
 - unpinned by design: method-name guard; cannotCalculateChanges on a later page — § PHASE-09 notes
 - api_url as server identity — a Fastmail apiUrl change costs one full refetch
-- satan:RFC-020 D8 amendment draft — at close
+- satan:RFC-020 D8 amendment — drafted below (§ satan:RFC-020 D8 amendment draft); landing it in ~/dev/satan is the operator's call
 - research/ untracked and drifted (`doctrine slice research 2`) — operator to decide
 - CHR-004 — remaining items stay open
 - no request-level logging: VH-1's "no Email/get with ids" is inferred, not observed (§ PHASE-07 notes)
@@ -364,4 +363,23 @@ brief: `doctrine review show RV-009 --full`.
   (`window_json_test` pins the four-key string).
 - Gates after the fixes: `just check` (430), `gleam format --check`,
   `nix flake check`.
+
+## satan:RFC-020 D8 amendment draft
+
+Proposed replacement for item 2 of satan:RFC-020 § D8 (Sequencing). The text
+below is a draft for the satan repo; nothing there has been edited.
+
+> 2. **M2: incremental sync.** Upstream half only (D1): `Email/changes` from
+>    the stored Email state picks which stored messages need a light refresh
+>    (`mailboxIds`, `keywords`); `Email/query` still decides window
+>    membership, and runs only when something changed. Retention
+>    (`retain_messages`) is separate from the fetch window (partly answers
+>    OQ-10). Falls back to the M1 full sync on no stored state,
+>    `cannotCalculateChanges`, a changed window, or too many change pages;
+>    each run reports `mode` and `fallback_reason`. No duplicate body
+>    fetches: an unchanged account sends no `Email/get` with ids.
+>    `Email/queryChanges` and `Mailbox/changes` were not needed. The
+>    consumer cursor stays with M3 (OQ-11). **Slice: screwtape SL-002**,
+>    closed 2026-10-27 (live check: consecutive real syncs took the
+>    incremental path).
 

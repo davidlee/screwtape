@@ -124,3 +124,31 @@ among the undeclared paths.
   tested at `opening_pairs`. Waiving it, or appending a corrected VT, is a plan
   act for the operator; it is not a reconcile edit.
 - satan:RFC-020 D8 amendment draft — due at `/close` (cross-repo).
+
+## Reconciliation Outcome
+
+### Direct edits applied
+- Selector registry (F-2): `doctrine slice selector add 2 --intent design-target`
+  for the 7 test/nix paths. Conformance is now 11 undeclared (`.doctrine/`
+  bookkeeping only, deliberately), 0 undelivered. Mirrored in the design.md § 10
+  Code Impact table.
+- design.md § 5.3, outcome table, `threads` row (F-3): the ids are now
+  "sorted (canonical, independent of merge order; supersedes M1's first-seen
+  order)".
+- design.md § 8, the `receivedAt` ties row (F-6): it now states that fixtures
+  share one `receivedAt` and order by id, so order-dependent tests use
+  `sync_fixture.newest_first`.
+- Following the SL-001 precedent (902bd7a), design.md is edited directly. The
+  locked design-run record (`design.toml`) stays as the historical run.
+
+### REVs completed
+- None needed. No governance or spec item was in the brief.
+
+### Withdrawn / tolerated
+- F-1: tolerated. The PHASE-03 VT-3 keyword is stale, and the behaviour is
+  tested at `opening_pairs`. A plan act is still the operator's: waive it, or
+  append a corrected VT.
+- F-4, F-5, F-7, F-8: code or ledger fixes made during the audit. Nothing to
+  reconcile.
+
+Reconcile pass complete; handoff to /close.
