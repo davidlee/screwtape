@@ -147,8 +147,7 @@ fn list_document(args: argv.ListArgs) -> fn(store.Tx) -> Result(String, Error) {
         since_ms: args.since_ms,
         from: args.from,
         unread: args.unread,
-        limit: args.limit,
-        offset: args.offset,
+        page: query.Newest(limit: args.limit, offset: args.offset),
       ),
     ))
     Ok(render.list(offset: args.offset, limit: args.limit, items: items))

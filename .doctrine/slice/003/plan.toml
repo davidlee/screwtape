@@ -87,7 +87,7 @@ exit_criteria = [
   { id = "EX-6", text = "store_test's local helper messages_of(path, query) is renamed (e.g. listed), so it no longer reads as query.messages_of." },
 ]
 verification = [
-  { id = "VT-1", expects = "query: Oldest pages from Start over snapshot_fixture.listing() with limits 1, 2 and none return every id once in (received_at_ms, id) order across the m5/m6 tie; --since with a cursor combines by AND; Newest unchanged", test_file = "test/screwtape/store_test.gleam", keywords = ["query.Oldest", "query.Newest", "cursor.Start", "cursor.of"], waived = false },
+  { id = "VT-1", expects = "query: Oldest pages from Start over snapshot_fixture.listing() with limits 1, 2 and none return every id once in (received_at_ms, id) order across the m4/m5 tie; --since with a cursor combines by AND; Newest unchanged", test_file = "test/screwtape/store_test.gleam", keywords = ["query.Oldest", "query.Newest", "cursor.Start", "cursor.of"], waived = false },
   { id = "VT-2", expects = "messages_of: ids in, messages out in the same order; a missing id is Store(read_failed)", test_file = "test/screwtape/store_test.gleam", keywords = ["query.messages_of", "read_failed"], waived = false },
   { id = "VA-1", text = "Phase review (code-review, Opus subagent), probing the cursor predicate, tie handling and paging with design § 9 C2 as the oracle; findings disposed before the next phase." },
 ]
@@ -109,7 +109,7 @@ exit_criteria = [
   { id = "EX-5", text = "gleam format --check and just check are clean." },
 ]
 verification = [
-  { id = "VT-1", expects = "C2 through the CLI: a walk of list --after pages from \"\" with --limit 1, 2 and 500 over snapshot_fixture.listing() returns every id once, ascending, across the m5/m6 tie; --after with each filter; empty store and past-the-end give items []", test_file = "test/screwtape/cli_test.gleam", keywords = ["\"--after\"", "\"after\"", "invalid_cursor", "offset_with_after"], waived = false },
+  { id = "VT-1", expects = "C2 through the CLI: a walk of list --after pages from \"\" with --limit 1, 2 and 500 over snapshot_fixture.listing() returns every id once, ascending, across the m4/m5 tie; --after with each filter; empty store and past-the-end give items []", test_file = "test/screwtape/cli_test.gleam", keywords = ["\"--after\"", "\"after\"", "invalid_cursor", "offset_with_after"], waived = false },
   { id = "VT-2", expects = "render: cursor after has_attachment in summaries; list's after form", test_file = "test/screwtape/render_test.gleam", keywords = ["\"cursor\"", "\"after\""], waived = false },
   { id = "VA-1", text = "Phase review (code-review, Opus subagent), probing argv precedence and the Filters/Page split, with C2 as the oracle; findings disposed before the next phase." },
 ]

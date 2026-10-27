@@ -1,0 +1,58 @@
+id    = 12
+slug  = "sl-003-phase-03-code-review-query-page-cursor-predicate-message-idsmessages-of"
+title = "SL-003 PHASE-03 code review (query Page, cursor predicate, message_ids/messages_of)"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "code-review"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "adversary"
+responder = "orchestrator"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Adversary pass (Opus subagent) over the PHASE-03 working-tree diff on ed4e68e (query.gleam, cli.gleam, store_test.gleam) against design § 5.2 query, § 5.5 C2/C4/C6, § 9, plan EX-1..EX-6 / VT-1..VT-2, POL-001; probed the cursor predicate and its bind order, SQLite tie ordering, prior's behaviour and test strength by mutation. One finding (F-1). Recorded by the orchestrator from the ledger; handback failed."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+phase = "PHASE-03"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "VT-1 Oldest tests do not pin the id ASC tie-break; insertion order masks its removal"
+detail = """
+Expected (VT-1, design § 9 C2, the oldest_pages_walk test's own doc comment): the store_test Oldest tests prove the `id ASC` tie-break, i.e. "-m4 precedes -m5 on their shared millisecond" because of the ORDER BY.
+
+Observed: they prove it only by coincidence with insertion (rowid) order. snapshot_fixture.listing() inserts m4 before m5 (snapshot_fixture.gleam ~lines 423/439), and SQLite breaks an ORDER BY tie by scan order (the message_received_at_ms index, then rowid), so dropping `, id ASC` from both Oldest arms of page_sql still returns m4 before m5.
+
+Evidence (mutation, file restored afterwards, verified by cmp): sed 's/ORDER BY received_at_ms ASC, id ASC/ORDER BY received_at_ms ASC/g' on src/screwtape/store/query.gleam -> `gleam test`: 462 passed, 2 failures. Both failures are in sync_test (window_json_change_is_window_changed_test, retained_message_keeps_its_thread_test), via prior's shared builder. Every store_test oldest_* test (VT-1a..d) passes. The tie arm of the cursor predicate (`id > ?`) is pinned, but the ORDER BY tie-break is not.
+
+Why it matters: C2 is the invariant to probe hardest, and the tests that claim it do not pin it. Coverage is incidental: it comes from sync_test through prior, and would go if prior's selection or its tests change. The Newest tie test is robust only because id DESC is the opposite of insertion order.
+
+Suggestion: add a tie whose higher id is inserted first, e.g. a listing variant, or a test that writes the m4/m5 pair in reverse. Or add an Oldest assertion over a fixture where rowid order differs from id order. One added case is enough. Do not restructure the tests.
+"""
+disposition = "fix-now"
+response = "Confirmed by probe: dropping ', id ASC' from both Oldest arms left every store_test oldest_* test green (only two sync_test cases failed, via prior). Fix: oldest_pages_walk_the_whole_listing_in_ascending_order_test now writes listing() in both message orders (list.reverse of messages; no new fixture, POL-001), so -m5 is inserted before -m4 in one run. Re-probe with the same mutation: oldest_pages_walk fails (461 passed, 3 failures); restored source, suite 464 passed."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Confirmed by probe: dropping ', id ASC' from both Oldest arms left every store_test oldest_* test green (only two sync_test cases failed, via prior). Fix: oldest_pages_walk_the_whole_listing_in_ascending_order_test now writes listing() in both message orders (list.reverse of messages; no new fixture, POL-001), so -m5 is inserted before -m4 in one run. Re-probe with the same mutation: oldest_pages_walk fails (461 passed, 3 failures); restored source, suite 464 passed."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Recorded by the orchestrator for the adversary (subagent handback failed). Fix checked by the raiser's own probe: with ', id ASC' removed from both Oldest arms, oldest_pages_walk_the_whole_listing_in_ascending_order_test now fails; source restored, 464 passed."
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

@@ -21,6 +21,7 @@ import gleam/result
 import gleam/string
 import gleeunit
 import gleeunit/should
+import screwtape/cursor
 import screwtape/error.{type Error, Store}
 import screwtape/model
 import screwtape/store
@@ -648,16 +649,64 @@ pub fn round_trip_keeps_bodies_addresses_and_header_ids_test() {
 // in the one order it can keep.
 // ---------------------------------------------------------------------------
 
-/// The `list` query that selects every message, in the store's order.
+/// The `list` query that selects every message, in the store's order: the
+/// newest page of all of them.
 fn every_message() -> query.ListQuery {
   query.ListQuery(
     mailbox_ids: None,
     since_ms: None,
     from: None,
     unread: False,
-    limit: 50,
-    offset: 0,
+    page: query.Newest(limit: 50, offset: 0),
   )
+}
+
+/// The same filters, walked oldest first from `after`, at most `limit` a page.
+fn oldest(after: cursor.Cursor, limit: Option(Int)) -> query.ListQuery {
+  query.ListQuery(..every_message(), page: query.Oldest(after:, limit:))
+}
+
+/// The whole `listing()` in ascending `(received_at_ms, id)` order, the order
+/// `Oldest` walks: `-m4` before `-m5` on their shared receipt millisecond.
+fn ascending_ids() -> List(String) {
+  [
+    "acct-l-m2",
+    "acct-l-m1",
+    "acct-l-m3",
+    "acct-l-m4",
+    "acct-l-m5",
+    "acct-l-m6",
+  ]
+}
+
+/// Walk `oldest` pages of `limit` from `Start` to the first empty page,
+/// collecting every id in walk order. An empty page ends the walk, so a walk
+/// of one page fewer, or a repeated row, differs from the whole list. A walk
+/// that has collected more ids than the store holds stops there, so a cursor
+/// that never advances fails rather than hangs.
+fn oldest_ids(path: String, limit: Int) -> Result(List(String), Error) {
+  walk_oldest(path, limit, cursor.Start, [])
+}
+
+fn walk_oldest(
+  path: String,
+  limit: Int,
+  after: cursor.Cursor,
+  collected: List(String),
+) -> Result(List(String), Error) {
+  use summaries <- result.try(listed(path, oldest(after, Some(limit))))
+  let overrun = list.length(collected) > list.length(ascending_ids())
+  case list.last(summaries) {
+    Error(Nil) -> Ok(collected)
+    Ok(_) if overrun -> Ok(collected)
+    Ok(last) ->
+      walk_oldest(
+        path,
+        limit,
+        cursor.of(last.received_at.ms, last.id),
+        list.append(collected, list.map(summaries, fn(summary) { summary.id })),
+      )
+  }
 }
 
 fn listing_summaries(ids: List(String)) -> List(model.MessageSummary) {
@@ -693,7 +742,7 @@ fn mailbox_order(a: model.Mailbox, b: model.Mailbox) -> Order {
   }
 }
 
-fn messages_of(
+fn listed(
   path: String,
   query: query.ListQuery,
 ) -> Result(List(model.MessageSummary), Error) {
@@ -825,7 +874,7 @@ pub fn mailboxes_are_ordered_by_sort_order_then_name_then_id_test() {
 /// `-m5` share a receipt millisecond, and the higher id comes first.
 pub fn messages_are_newest_first_and_tie_on_id_descending_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
-  let result = messages_of(path, every_message())
+  let result = listed(path, every_message())
   temp.remove_dir(dir)
 
   result
@@ -848,7 +897,7 @@ pub fn messages_are_newest_first_and_tie_on_id_descending_test() {
 /// fixture names them archive first.
 pub fn messages_summary_carries_its_from_addresses_and_sorted_mailboxes_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
-  let result = messages_of(path, every_message())
+  let result = listed(path, every_message())
   temp.remove_dir(dir)
 
   let assert Ok(summaries) = result
@@ -903,17 +952,17 @@ pub fn messages_summary_carries_its_from_addresses_and_sorted_mailboxes_test() {
 pub fn messages_mailbox_filter_matches_any_listed_mailbox_once_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
   let inbox =
-    messages_of(
+    listed(
       path,
       query.ListQuery(..every_message(), mailbox_ids: Some(["acct-l-mb1"])),
     )
   let archive =
-    messages_of(
+    listed(
       path,
       query.ListQuery(..every_message(), mailbox_ids: Some(["acct-l-mb2"])),
     )
   let both =
-    messages_of(
+    listed(
       path,
       query.ListQuery(
         ..every_message(),
@@ -949,12 +998,9 @@ pub fn messages_since_includes_its_boundary_millisecond_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
   let midnight = snapshot_fixture.listing_midnight_ms
   let from_midnight =
-    messages_of(
-      path,
-      query.ListQuery(..every_message(), since_ms: Some(midnight)),
-    )
+    listed(path, query.ListQuery(..every_message(), since_ms: Some(midnight)))
   let from_just_before =
-    messages_of(
+    listed(
       path,
       query.ListQuery(..every_message(), since_ms: Some(midnight - 1)),
     )
@@ -992,7 +1038,7 @@ pub fn messages_since_includes_its_boundary_millisecond_test() {
 pub fn messages_from_matches_a_from_address_case_insensitively_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
   let result =
-    messages_of(path, query.ListQuery(..every_message(), from: Some("ACME")))
+    listed(path, query.ListQuery(..every_message(), from: Some("ACME")))
   temp.remove_dir(dir)
 
   result |> should.equal(Ok(listing_summaries(["acct-l-m1"])))
@@ -1003,9 +1049,9 @@ pub fn messages_from_matches_a_from_address_case_insensitively_test() {
 pub fn messages_from_treats_percent_and_underscore_literally_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
   let percent =
-    messages_of(path, query.ListQuery(..every_message(), from: Some("%")))
+    listed(path, query.ListQuery(..every_message(), from: Some("%")))
   let underscore =
-    messages_of(path, query.ListQuery(..every_message(), from: Some("_")))
+    listed(path, query.ListQuery(..every_message(), from: Some("_")))
   temp.remove_dir(dir)
 
   percent |> should.equal(Ok(listing_summaries(["acct-l-m6"])))
@@ -1015,10 +1061,8 @@ pub fn messages_from_treats_percent_and_underscore_literally_test() {
 /// `unread` keeps only unseen messages; `False` filters nothing.
 pub fn messages_unread_keeps_only_unseen_messages_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
-  let unread =
-    messages_of(path, query.ListQuery(..every_message(), unread: True))
-  let read =
-    messages_of(path, query.ListQuery(..every_message(), unread: False))
+  let unread = listed(path, query.ListQuery(..every_message(), unread: True))
+  let read = listed(path, query.ListQuery(..every_message(), unread: False))
   temp.remove_dir(dir)
 
   unread
@@ -1045,11 +1089,38 @@ pub fn messages_unread_keeps_only_unseen_messages_test() {
 /// the end returns nothing.
 pub fn messages_limit_and_offset_paginate_the_ordered_result_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
-  let one = messages_of(path, query.ListQuery(..every_message(), limit: 1))
-  let all = messages_of(path, query.ListQuery(..every_message(), limit: 100))
+  let one =
+    listed(
+      path,
+      query.ListQuery(
+        ..every_message(),
+        page: query.Newest(limit: 1, offset: 0),
+      ),
+    )
+  let all =
+    listed(
+      path,
+      query.ListQuery(
+        ..every_message(),
+        page: query.Newest(limit: 100, offset: 0),
+      ),
+    )
   let page =
-    messages_of(path, query.ListQuery(..every_message(), limit: 2, offset: 2))
-  let beyond = messages_of(path, query.ListQuery(..every_message(), offset: 6))
+    listed(
+      path,
+      query.ListQuery(
+        ..every_message(),
+        page: query.Newest(limit: 2, offset: 2),
+      ),
+    )
+  let beyond =
+    listed(
+      path,
+      query.ListQuery(
+        ..every_message(),
+        page: query.Newest(limit: 50, offset: 6),
+      ),
+    )
   temp.remove_dir(dir)
 
   one |> should.equal(Ok(listing_summaries(["acct-l-m6"])))
@@ -1070,12 +1141,151 @@ pub fn messages_limit_and_offset_paginate_the_ordered_result_test() {
   beyond |> should.equal(Ok([]))
 }
 
+/// VT-1a: `Oldest` walks the whole store ascending by `(received_at_ms, id)`.
+/// A page of one, a page of two and one unbounded page each name every message
+/// once, in that order, and `-m4` precedes `-m5` on their shared millisecond.
+/// The store is written in both message orders: SQLite breaks an `ORDER BY`
+/// tie by scan order, so with `-m4` inserted first an order without its `id`
+/// column would still pass (RV-012 F-1).
+pub fn oldest_pages_walk_the_whole_listing_in_ascending_order_test() {
+  let listing = snapshot_fixture.listing()
+  let reversed =
+    model.Snapshot(..listing, messages: list.reverse(listing.messages))
+  use snapshot <- list.each([listing, reversed])
+  let #(dir, path) = written(snapshot)
+  let one = oldest_ids(path, 1)
+  let two = oldest_ids(path, 2)
+  let whole = listed(path, oldest(cursor.Start, None))
+  temp.remove_dir(dir)
+
+  one |> should.equal(Ok(ascending_ids()))
+  two |> should.equal(Ok(ascending_ids()))
+  whole |> should.equal(Ok(listing_summaries(ascending_ids())))
+}
+
+/// VT-1b: the cursor is exclusive in both columns of the order. After `-m4`
+/// come `-m5` and `-m6`; after `-m5` only `-m6`; and an `after` a millisecond
+/// earlier starts at `-m4` whatever its id, because `received_at_ms` decides
+/// before the id does (`zzz` is past every id here).
+pub fn oldest_cursor_ties_break_on_id_and_an_earlier_instant_wins_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let m4_ms = snapshot_fixture.listing_midnight_ms + 3_600_000
+  let after_m4 = listed(path, oldest(cursor.of(m4_ms, "acct-l-m4"), None))
+  let after_m5 = listed(path, oldest(cursor.of(m4_ms, "acct-l-m5"), None))
+  let before_m4 = listed(path, oldest(cursor.of(m4_ms - 1, "zzz"), None))
+  temp.remove_dir(dir)
+
+  after_m4 |> should.equal(Ok(listing_summaries(["acct-l-m5", "acct-l-m6"])))
+  after_m5 |> should.equal(Ok(listing_summaries(["acct-l-m6"])))
+  before_m4
+  |> should.equal(
+    Ok(listing_summaries(["acct-l-m4", "acct-l-m5", "acct-l-m6"])),
+  )
+}
+
+/// VT-1c: a cursor past the newest message is an empty page, not an error, so
+/// a walk ends there rather than repeating its last page.
+pub fn oldest_cursor_past_the_newest_message_is_an_empty_page_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let newest_ms = snapshot_fixture.listing_midnight_ms + 7_200_000
+  let result = listed(path, oldest(cursor.of(newest_ms, "acct-l-m6"), Some(5)))
+  temp.remove_dir(dir)
+
+  result |> should.equal(Ok([]))
+}
+
+/// VT-1d: `since_ms` ANDs with the cursor. The cursor alone admits `-m1`
+/// (midnight is after `-m2`'s instant), and `since` half a second after
+/// midnight drops it; `-m2` is excluded twice over.
+pub fn oldest_since_ands_with_the_cursor_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let midnight = snapshot_fixture.listing_midnight_ms
+  let result =
+    listed(
+      path,
+      query.ListQuery(
+        ..oldest(cursor.of(midnight - 1, "acct-l-m2"), None),
+        since_ms: Some(midnight + 500),
+      ),
+    )
+  temp.remove_dir(dir)
+
+  result
+  |> should.equal(
+    Ok(
+      listing_summaries([
+        "acct-l-m3",
+        "acct-l-m4",
+        "acct-l-m5",
+        "acct-l-m6",
+      ]),
+    ),
+  )
+}
+
+/// VT-1d: a flag filter ANDs with the page the same way. `-m3` and `-m4` are
+/// seen, so unread in ascending order is `-m2`, `-m1`, `-m5`, `-m6`, and a
+/// first page of two is `-m2`, `-m1` — the limit cuts after the filter, not
+/// before it.
+pub fn oldest_unread_filter_ands_with_the_page_limit_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result =
+    listed(path, query.ListQuery(..oldest(cursor.Start, Some(2)), unread: True))
+  temp.remove_dir(dir)
+
+  result |> should.equal(Ok(listing_summaries(["acct-l-m2", "acct-l-m1"])))
+}
+
+/// VT-2: `messages_of` returns the whole messages named, in exactly the order
+/// asked for, not in the store's order and not deduplicated into it.
+pub fn messages_of_reads_the_whole_messages_in_the_order_asked_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result =
+    read_from(path, fn(tx) {
+      query.messages_of(tx, ["acct-l-m5", "acct-l-m2", "acct-l-m6"])
+    })
+  temp.remove_dir(dir)
+
+  let snapshot = snapshot_fixture.listing()
+  result
+  |> should.equal(
+    Ok([
+      message_in(snapshot, "acct-l-m5"),
+      message_in(snapshot, "acct-l-m2"),
+      message_in(snapshot, "acct-l-m6"),
+    ]),
+  )
+}
+
+/// VT-2: asking for no ids asks for nothing, so it is `Ok([])` rather than an
+/// error or every message.
+pub fn messages_of_no_ids_is_empty_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result = read_from(path, fn(tx) { query.messages_of(tx, []) })
+  temp.remove_dir(dir)
+
+  result |> should.equal(Ok([]))
+}
+
+/// VT-2: an id the store does not hold fails the whole read as
+/// `Store("read_failed")`, rather than returning the ids it did hold.
+pub fn messages_of_an_unknown_id_is_read_failed_test() {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result =
+    read_from(path, fn(tx) {
+      query.messages_of(tx, ["acct-l-m1", "acct-l-missing"])
+    })
+  temp.remove_dir(dir)
+
+  result |> should.equal(Error(Store(store.read_failed)))
+}
+
 /// The filters combine with AND: the inbox, since midnight, unseen. `-m2` fails
 /// `since`, `-m3` is seen, and `-m6` is in another mailbox.
 pub fn messages_filters_combine_with_and_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
   let result =
-    messages_of(
+    listed(
       path,
       query.ListQuery(
         ..every_message(),

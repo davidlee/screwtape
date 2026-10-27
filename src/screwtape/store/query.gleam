@@ -11,6 +11,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import screwtape/cursor.{type Cursor}
 import screwtape/error.{type Error, Store}
 import screwtape/model.{
   type Address, type Attachment, type Body, type HeaderIds, type Mailbox,
@@ -23,16 +24,22 @@ import screwtape/store/codec
 import sqlight
 
 /// What `list` asks for (design § 5.2). The filters are optional and combine
-/// with AND; `mailbox_ids` matches a message in any of them.
+/// with AND; `mailbox_ids` matches a message in any of them; `page` is the page
+/// of the selection the caller wants.
 pub type ListQuery {
   ListQuery(
     mailbox_ids: Option(List(String)),
     since_ms: Option(Int),
     from: Option(String),
     unread: Bool,
-    limit: Int,
-    offset: Int,
+    page: Page,
   )
+}
+
+/// Which page of the selection: newest first, or oldest first after a cursor.
+pub type Page {
+  Newest(limit: Int, offset: Int)
+  Oldest(after: Cursor, limit: Option(Int))
 }
 
 // ---------------------------------------------------------------------------
@@ -57,14 +64,15 @@ pub fn mailboxes(tx: store.Tx) -> Result(List(Mailbox), Error) {
   store.select(tx, select_mailboxes_sql, [], mailbox_decoder())
 }
 
-/// The summaries `query` selects, newest first: `received_at_ms` descending,
-/// then `id` descending (design § 5.3 ordering, reversed by operator decision
-/// PHASE-06 D5), then `offset` and `limit`.
+/// The summaries `query` selects, in the page's order: a `Newest` page is
+/// `received_at_ms` descending, then `id` descending (design § 5.3 ordering,
+/// reversed by operator decision PHASE-06 D5), then its `offset` and `limit`;
+/// an `Oldest` page ascends from its cursor.
 pub fn messages(
   tx: store.Tx,
   query: ListQuery,
 ) -> Result(List(MessageSummary), Error) {
-  let #(sql, arguments) = list_sql(query)
+  let #(sql, arguments) = list_sql(select_summaries_sql, query)
   use rows <- result.try(store.select(tx, sql, arguments, summary_row_decoder()))
   list.try_map(rows, fn(row) { summary_of_row(tx, row) })
 }
@@ -132,13 +140,8 @@ pub fn prior(tx: store.Tx) -> Result(Prior, Error) {
   use email_state <- result.try(email_state(tx))
   use stored_mailboxes <- result.try(mailboxes(tx))
   use query <- result.try(query_state(tx))
-  use ids <- result.try(message_ids(tx))
-  use stored_messages <- result.try(
-    list.try_map(ids, fn(id) {
-      use found <- result.try(message(tx, id))
-      option.to_result(found, Store(store.read_failed))
-    }),
-  )
+  use ids <- result.try(message_ids(tx, whole_store_ascending()))
+  use stored_messages <- result.try(messages_of(tx, ids))
   Ok(Prior(
     account_id: account_id,
     api_url: api_url,
@@ -189,14 +192,44 @@ fn query_state(tx: store.Tx) -> Result(QueryState, Error) {
   no_snapshot_when_empty(rows)
 }
 
-/// Every message id, in the store's order; `Ok([])` for a store with none.
-fn message_ids(tx: store.Tx) -> Result(List(String), Error) {
+/// The whole store, ascending by `(received_at_ms, id)`: the selection `prior`
+/// reads, in the order its doc comment promises.
+fn whole_store_ascending() -> ListQuery {
+  ListQuery(
+    mailbox_ids: None,
+    since_ms: None,
+    from: None,
+    unread: False,
+    page: Oldest(cursor.Start, None),
+  )
+}
+
+/// The ids `query` selects, in the page's order; `Ok([])` for a selection of
+/// none.
+pub fn message_ids(
+  tx: store.Tx,
+  query: ListQuery,
+) -> Result(List(String), Error) {
+  let #(sql, arguments) = list_sql(select_ids_sql, query)
   store.select(
     tx,
-    select_message_ids_sql,
-    [],
+    sql,
+    arguments,
     decode.field(0, decode.string, decode.success),
   )
+}
+
+/// The whole messages `ids` names, one select each, in exactly the order asked
+/// for. An id the store does not hold fails the read as `Store("read_failed")`
+/// rather than returning the ids it did hold.
+pub fn messages_of(
+  tx: store.Tx,
+  ids: List(String),
+) -> Result(List(Message), Error) {
+  list.try_map(ids, fn(id) {
+    use found <- result.try(message(tx, id))
+    option.to_result(found, Store(store.read_failed))
+  })
 }
 
 /// The first row, or `no_snapshot`: each table a snapshot cannot do without
@@ -624,6 +657,7 @@ fn list_where(query: ListQuery) -> #(String, List(sqlight.Value)) {
       since_filter(query.since_ms),
       from_filter(query.from),
       unread_filter(query.unread),
+      after_filter(query.page),
     ]
     |> list.fold(#([], []), fn(acc, filter) {
       let #(clauses, arguments) = acc
@@ -696,16 +730,53 @@ fn unread_filter(unread: Bool) -> Option(#(String, List(sqlight.Value))) {
   }
 }
 
-/// The `list` query's statement: its filters, the newest-first order, and the
-/// page.
-fn list_sql(query: ListQuery) -> #(String, List(sqlight.Value)) {
-  let #(where, arguments) = list_where(query)
-  #(
-    select_summaries_sql
-      <> where
-      <> " ORDER BY received_at_ms DESC, id DESC LIMIT ? OFFSET ?",
-    list.append(arguments, [sqlight.int(query.limit), sqlight.int(query.offset)]),
-  )
+/// The page's cursor as one more ANDed filter: an `Oldest` page resumes just
+/// past its cursor, so it asks for the rows beyond it in either order column.
+/// `Start`, and any `Newest` page, adds nothing.
+fn after_filter(page: Page) -> Option(#(String, List(sqlight.Value))) {
+  case page {
+    Oldest(cursor.After(received_at_ms, id), _) ->
+      Some(
+        #("(received_at_ms > ? OR (received_at_ms = ? AND id > ?))", [
+          sqlight.int(received_at_ms),
+          sqlight.int(received_at_ms),
+          sqlight.text(id),
+        ]),
+      )
+    Oldest(cursor.Start, _) | Newest(_, _) -> None
+  }
+}
+
+/// The order and bounds `page` asks for, with their arguments: a `Newest` page
+/// is `LIMIT`ed and `OFFSET`ed, an `Oldest` page ascends from its cursor and is
+/// `LIMIT`ed only when it has a limit.
+fn page_sql(page: Page) -> #(String, List(sqlight.Value)) {
+  case page {
+    Newest(limit, offset) -> #(
+      " ORDER BY received_at_ms DESC, id DESC LIMIT ? OFFSET ?",
+      [
+        sqlight.int(limit),
+        sqlight.int(offset),
+      ],
+    )
+    Oldest(_after, Some(limit)) -> #(
+      " ORDER BY received_at_ms ASC, id ASC LIMIT ?",
+      [sqlight.int(limit)],
+    )
+    Oldest(_after, None) -> #(" ORDER BY received_at_ms ASC, id ASC", [])
+  }
+}
+
+/// The `list` query's one statement: `select`, then its filters, then the
+/// page's order and bounds. `messages` and `message_ids` differ only in
+/// `select`, so there is one `WHERE` and one `ORDER BY` (POL-001).
+fn list_sql(
+  select: String,
+  query: ListQuery,
+) -> #(String, List(sqlight.Value)) {
+  let #(where, filter_arguments) = list_where(query)
+  let #(order, page_arguments) = page_sql(query.page)
+  #(select <> where <> order, list.append(filter_arguments, page_arguments))
 }
 
 const select_account_id_sql = "SELECT account_id FROM sync"
@@ -767,5 +838,4 @@ const select_query_state_sql =
   "SELECT filter_json, sort_json, collapse_threads, query_state,"
   <> " can_calculate_changes FROM query_state LIMIT 1"
 
-const select_message_ids_sql =
-  "SELECT id FROM message ORDER BY received_at_ms, id"
+const select_ids_sql = "SELECT id FROM message"

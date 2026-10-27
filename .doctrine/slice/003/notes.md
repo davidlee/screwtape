@@ -123,3 +123,37 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
   findings (3 minor, 2 nit), all terminal; see the ledger. Gotcha: the
   subagent could not hand back directly (SubagentHandback failed); its report
   came via the main thread.
+
+### PHASE-03 (charter 2)
+
+- `query.Page = Newest(limit, offset) | Oldest(after: Cursor, limit:
+  Option(Int))`; `ListQuery.page` replaces `limit`/`offset`. One builder:
+  `list_sql(select, query)` = select <> `list_where` (the cursor is one more
+  ANDed filter, `after_filter`) <> `page_sql` (order + bounds). `messages`
+  and `pub message_ids` differ only in the select (POL-001);
+  `select_message_ids_sql` deleted. `pub messages_of(tx, ids)` extracted
+  from `prior`; `prior` = `message_ids(tx, whole_store_ascending())` +
+  `messages_of`. `cli.list_document` maps argv to `Newest`.
+- C6 audit: no existing expectation changed. store_test's construction
+  syntax moved to `page: query.Newest(..)` (values byte-identical); local
+  helper `messages_of` → `listed` (EX-6). `list`, `prior` suites unchanged.
+- Fixture fact: `listing()`'s shared millisecond is **m4/m5**, not m5/m6.
+  plan.toml VT-1 (PHASE-03 and PHASE-04) amended in place.
+  **For /reconcile:** design § 9 C2 row says `m5`/`m6` and cites
+  `snapshot_fixture.gleam:421`; correct it. handover.md:61 has the same slip.
+- Negative controls (orchestrator, each fails ≥ 1 test): `>=` on ms; no tie
+  arm; `id >=`; `id DESC` in the limited arm; a LIMIT on `None`; swapped bind
+  order. The walk helper stops once it has more ids than the store holds, so
+  a cursor that never advances fails rather than hangs.
+- RV-012 F-1 (minor, fix-now): dropping `id ASC` from the Oldest order was
+  masked by insertion order (SQLite breaks ORDER BY ties by scan order). The
+  walk test now writes `listing()` in both message orders. Gotcha for
+  PHASE-04's CLI walk: a tie test passes by accident unless the higher id is
+  inserted first in one run.
+- Research advisory drift (plan.md/plan.toml added after the stamp) judged
+  benign; not refreshed.
+- Passes: pi `implement` red tests (16 req, $0.020; correct; orchestrator
+  added the walk's overrun guard); pi `implement` green (13 req, $0.015;
+  correct first time, matched the brief exactly). Review RV-012 (Opus
+  adversarial subagent, ~96k tokens): 1 finding; handback failed again,
+  findings read off the ledger.
