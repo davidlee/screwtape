@@ -10,11 +10,11 @@ Written in Gleam, runs on BEAM, a systemd runner, login to Fastmail via JMAP.
 Intended to broker read-only agent access for summarisation & authoring reviewable, 
 auditable execution plans for deterministic invocation by the user.
 
-TBD: the role of Jev / system one models vs traditional LLMs; classifiers are likely 
-better suited to classification, unsurprisingly.
+It will also provide authenticated access to Jev classifiers for mail which are 
+composable with the read tools, though application of these to mails is left to consumers.
 
-These systems in aggregate (secure, agentic mail augmentation) constitute Belphegor - the patron daemon of 
-elaborate automation to avoid doing any actual work (and sysadmins).
+These systems in aggregate, including their collaborators, constitute Belphegor - 
+the patron daemon of elaborate automation to avoid doing any actual work (and sysadmins).
 
 Uses [quotient](https://github.com/davidlee/quotient) for subagent confinement in development; 
 this repo provides an example of its forms.
