@@ -169,3 +169,25 @@ Sources worth opening:
 - F-10: plan.toml criteria; tolerated, ids immutable.
 - F-11: README fixed in the audit commit.
 - handover.md:61 (`m5/m6`): gitignored packet; ignore.
+
+## Reconciliation Outcome
+
+Operator agreed to the full brief in session ("agreed", 2026-10-28).
+
+### Registry
+- F-1: `slice selector add 3 --intent design-target` for the six paths; design § 10 mirrors them. Conformance: 0 undelivered, 18 conformant, undeclared = `.doctrine/**` only (tolerated, F-2).
+- F-3: `slice record-delta 3 PHASE-04 --start 3bd4f40 --end 25f96fa`.
+
+### Direct edits applied (design.md)
+- § 3 sqlight badarg: the cursor module owns its int64 bounds; argv keeps `max_offset` (F-7).
+- § 4 and § 5.2 (field comment, README-contract bullet): opaque except the DEC-028 future-date read (F-6).
+- § 5.2 One limit parser: `flag_value` via `parse_value_flag`; `thread` via `parse_sole_int_flag` (F-8).
+- § 9 C2: tie is `m4`/`m5` (F-5). § 9 C6: adds `thread_marks_in_store_entries_test` and the store_test thread adaptation (F-4). § 9 C1/C4 name their tests (F-8 optional).
+
+### Governance
+- F-9: DEC-028 consequences gain the three RV-010 limits, worded as design § 5.2 / README state them. Written with `doctrine knowledge edit decision DEC-028`: the REV surface does not target knowledge records. Choice unchanged. No REV needed: no ADR, policy, standard or spec changed.
+
+### Withdrawn / tolerated / off-surface
+- F-2, F-10 tolerated (rationale on the findings). F-11 fixed in 2d856c6. handover.md is gitignored; not written.
+
+Reconcile pass complete — handoff to /close.

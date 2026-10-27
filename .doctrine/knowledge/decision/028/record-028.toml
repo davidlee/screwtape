@@ -15,7 +15,7 @@ context = "satan:RFC-020 D1 gives each consumer its own cursor over the store. T
 choice = "An arrival cursor: list returns messages strictly after a consumer-held cursor in (received_at_ms, id) order. Screwtape keeps no per-consumer state and no schema change."
 alternatives = ["a change cursor: schema v2 with a per-run sequence and per-message changed_seq, bumped when a message is new or its mailboxIds/keywords change"]
 rationale = "Triage and classification act on new mail; a message's current flags are already in the read output. The change cursor costs a migration and a merge comparison for cases (flag changes, moves back into the window) triage does not need yet."
-consequences = ["Misses mail that enters the window with an older received_at (late delivery, moved back to Inbox, widened window); a consumer may re-scan a short overlap and drop seen ids", "A change cursor can be added later as schema v2 without breaking this one"]
+consequences = ["Misses mail that enters the window with an older received_at (late delivery; moved back to Inbox; widened window); a consumer may re-scan a short overlap and drop seen ids", "Filters do not reopen positions already passed: a message that newly matches a filter behind the cursor is not returned", "A future-dated received_at moves a cursor past later arrivals; consumers must not store a cursor whose ms part exceeds now plus clock skew (the one sanctioned read of the cursor)", "The cursor is not scoped to an account: after the store is re-synced to another account an old cursor is still accepted", "A change cursor can be added later as schema v2 without breaking this one"]
 decided_by = "operator (david), 2026-10-27: 'ok, arrival it is'"
 decided_on = "2026-10-27"
 

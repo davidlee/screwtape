@@ -70,6 +70,36 @@ intent = "design-target"
 selector = "test/support/snapshot_fixture.gleam"
 intent = "design-target"
 
+[[selector]]
+selector = "src/screwtape.gleam"
+intent = "design-target"
+note = "RV-015 F-1: touched in-scope, undeclared at design"
+
+[[selector]]
+selector = "test/check_imports.gleam"
+intent = "design-target"
+note = "RV-015 F-1: touched in-scope, undeclared at design"
+
+[[selector]]
+selector = "test/screwtape/check_imports_test.gleam"
+intent = "design-target"
+note = "RV-015 F-1: touched in-scope, undeclared at design"
+
+[[selector]]
+selector = "test/screwtape/store_test.gleam"
+intent = "design-target"
+note = "RV-015 F-1: touched in-scope, undeclared at design"
+
+[[selector]]
+selector = "test/support/cli_fixture.gleam"
+intent = "design-target"
+note = "RV-015 F-1: touched in-scope, undeclared at design"
+
+[[selector]]
+selector = "test/support/paging.gleam"
+intent = "design-target"
+note = "RV-015 F-1: touched in-scope, undeclared at design"
+
 # STRUCTURAL relations are uniform `[[relation]]` rows, never a typed
 # `[relationships]` axis. Slices carry no typed STRUCTURAL
 # relation axes — the `[relationships]` table above holds only the dep/seq payload

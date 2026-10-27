@@ -36,6 +36,9 @@ queries (deferred until evidence of need), schema changes, sync changes.
 | `src/screwtape/render.gleam` | `cursor` in `summary_fields`; `list` `after`; `thread` `total`/`truncated`. |
 | `src/screwtape/cli.gleam` | `dispatch` → `Option(String)`; `read --after` document; `thread` limit. |
 | `test/screwtape/{cursor,cli,render,read_snapshot}_test.gleam`, `test/support/snapshot_fixture.gleam` | Tests per § 9. |
+| `test/screwtape/store_test.gleam`, `test/support/{cli_fixture,paging}.gleam` | Query tests per § 9; shared test support (`paging.walk`, fixture helpers). |
+| `test/check_imports.gleam`, `test/screwtape/check_imports_test.gleam` | Purity rule for `cursor`; `render` may import it. |
+| `src/screwtape.gleam` | Stdout prose for `read --after`. |
 | `README.md` | CLI table; new § Contract. |
 | `~/dev/satan/.doctrine/rfc/020` | Draft amendment (OQ-11 answered, D1 cursor, IDE-001 note), uncommitted, for the operator. |
 
@@ -82,16 +85,17 @@ queries (deferred until evidence of need), schema changes, sync changes.
 - **I8.** Every query of a verb runs in one read transaction.
 - **sqlight `badarg`.** Binding an integer outside int64 crashes
   (memory `mem.fact.sqlite.esqlite-readonly-uri`): `cursor.parse` range-checks
-  the millisecond part, using the one int64 bound constant that argv's
-  `--offset` check shares.
+  the millisecond part against int64 bounds the cursor module owns; argv's
+  `--offset` keeps its own `max_offset`.
 - **Brief §4.4.** Bounded results and explicit truncation metadata.
 - **Rigorous simplicity.** No schema change, no new verb.
 
 <!-- doctrine:section sec-4 -->
 ## 4. Guiding Principles
 
-- The cursor is **opaque** to consumers: they store and return it, never
-  parse it. Screwtape owns its encoding in one module.
+- The cursor is **opaque** to consumers: they store and return it, and
+  parse nothing except the integer before the first `:`, which DEC-028's
+  future-date check reads. Screwtape owns its encoding in one module.
 - `--after` always means **oldest first**, so a page that hits `--limit` can
   be continued from its last item without a gap.
 - A line-per-message stream is a sequence of exactly the envelopes a single
@@ -160,8 +164,8 @@ pub fn parse(text: String) -> Result(Cursor, Nil)
   `ReadAfter` holds its cursor directly.
 - **One limit parser:** `limit_value(raw) -> Result(Int, Error)` is
   `int_value(raw, in_limit_range)` with the 1..500 range named once.
-  `list`'s and the selection's `--limit` (through `parse_int_flag`, which
-  already takes a validator) and `thread --limit` all call it.
+  `list`'s and the selection's `--limit` (through `flag_value`, via
+  `parse_value_flag`; `thread` via `parse_sole_int_flag`) and `thread --limit` all call it.
 - `thread <id> [--limit 1..500]`, default 50.
 
 #### query
@@ -227,7 +231,7 @@ tests follow this block.
   "subject": str|null, "from": [address], "preview": str,
   "is_seen": bool, "is_flagged": bool, "mailbox_ids": [str] /* sorted */,
   "has_attachment": bool,
-+ "cursor": str /* opaque */ }
++ "cursor": str /* opaque; see § 4 */ }
 
 address = { "name": str|null, "email": str }
 
@@ -272,7 +276,7 @@ Semantics a consumer needs:
 #### The published contract (README § Contract)
 
 - Envelope, `version` 1, compatibility rule (DEC-029); field table per `kind`.
-- Cursor: opaque string; `""` starts; paging rule: pass the last item's
+- Cursor: opaque string (except the DEC-028 future-date check); `""` starts; paging rule: pass the last item's
   `cursor`, stop when fewer than `--limit` come back.
 - `read --after` is line-delimited JSON, one `read` envelope per line.
 - Bounds: `--limit ≤ 500`, `--max-bytes` per message, `thread` `total`/
@@ -379,12 +383,12 @@ RV-010 (adversarial review) changes: shared `message_ids`/`messages_of` with
 
 | Invariant | Evidence |
 |---|---|
-| C1 | `cli_test`: `read --after` stdout splits into lines that each decode as a `read` envelope; empty stream → `stdout == None`. |
-| C2 | `cli_test` over `snapshot_fixture.listing()` (already has `m5`/`m6` sharing a millisecond, `snapshot_fixture.gleam:421`): walk with `--limit 1`, `2` and `500`; ids in order, each once; `--after` with each filter. |
+| C1 | `cli_test`: `read --after` stdout splits into lines that each decode as a `read` envelope; empty stream → `stdout == None`. Tests: `read_after_streams_the_listing_one_line_per_message_test`, `read_after_empty_selection_prints_nothing_test`. |
+| C2 | `cli_test` over `snapshot_fixture.listing()` (already has `m4`/`m5` sharing a millisecond, `snapshot_fixture.gleam:421`): walk with `--limit 1`, `2` and `500`; ids in order, each once; `--after` with each filter. |
 | C3 | `cursor_test`: round trip; `""`; missing `:`; empty id; non-int; `+05:x`, `007:x`; int64 ± 1; id with `:`. argv tests for `invalid_cursor`, `offset_with_after`, `missing_after`, `missing_max_bytes`, their precedence, repeated `--after`. |
-| C4 | Extend the I8 tests (`read_snapshot_test.gleam:83-110`) to `read --after`, with snapshot B deleting or re-dating a selected message, so a two-transaction implementation fails; assert stdout equals snapshot A's. `prior` keeps its existing tests through the shared `messages_of`. |
+| C4 | Extend the I8 tests (`read_snapshot_test.gleam:83-110`) to `read --after`, with snapshot B deleting or re-dating a selected message, so a two-transaction implementation fails; assert stdout equals snapshot A's. `prior` keeps its existing tests through the shared `messages_of`. Tests: the two `cli_read_after_stream_serves_one_snapshot_*` tests. |
 | C5 | `render_test` and query tests: thread shorter than, equal to and longer than the limit; `total`, `truncated`. |
-| C6 | Expectations that change, and only these: `render_test` field-order tests (`cursor`), `render_test` thread (`ThreadPage`, `total`, `truncated`, `render_test.gleam:726`), `cli_test` `summary_keys` and `read_keys` (`cli_test.gleam:549-552,909-915`), and `cli_test.gleam:646` (`thread … --limit 5` moves from usage error to accepted). |
+| C6 | Expectations that change, and only these: `render_test` field-order tests (`cursor`), `render_test` thread (`ThreadPage`, `total`, `truncated`, `render_test.gleam:726`), `cli_test` `summary_keys` and `read_keys` (`cli_test.gleam:549-552,909-915`), and `cli_test.gleam:646` (`thread … --limit 5` moves from usage error to accepted), `cli_test` `thread_marks_in_store_entries_test` (data keys gain `total`, `truncated`; in-store items gain `cursor` via `summary_keys`), and `store_test` thread tests (adapted to `query.thread(tx, id, limit)` / `ThreadPage`, values unchanged). |
 
 Fixtures: `snapshot_fixture.listing()` as is (POL-001, CHR-004).
 
