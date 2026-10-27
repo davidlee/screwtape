@@ -2,4 +2,5 @@ slice = "SL-003"
 date = "2026-10-27"
 
 [hashes]
-".doctrine/slice/003/slice-003.md" = "6f6ebd3df4ed63c3d247f6827971b268d74f81b2187b88e049476c462c37f06c"
+".doctrine/slice/003/design.md" = "693c90173b4279bb2e5f70d8d15d85b42813e1f3c474d660e33c355d6d9ee2eb"
+".doctrine/slice/003/slice-003.md" = "68f131ced2d290bbf394c56a94edbaa6c3b19fb4d380130817abf6e68804bfba"

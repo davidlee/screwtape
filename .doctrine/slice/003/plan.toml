@@ -1,0 +1,157 @@
+# Implementation plan for SL-003 — the authored, durable phase plan.
+#
+# This is the single source of each phase's objective, criteria, verification,
+# and links. Runtime status lives separately under .doctrine/state/ (phase
+# tracking) — never record progress here. Hand-edit freely: the tool reads this
+# file but does not rewrite it.
+schema  = "doctrine.plan.overview"
+version = 1
+slice   = "SL-003"
+
+# Canonical spec/requirement links — cite ids, never restate what they say. The
+# plan reader does not model these yet, so nothing downstream consumes them.
+[specs]
+primary       = []
+collaborators = []
+
+[requirements]
+targets      = []
+dependencies = []
+
+# One [[phase]] per ordered phase, in execution order — the authored array order
+# IS the order; never sort by id. Ids are PHASE-NN (zero-padded), immutable and
+# never reused once authored — edits append, they never renumber, so the id
+# sequence goes non-monotonic after a split and that is expected. Criterion ids
+# are local to their phase, bare, and equally immutable
+# (`lib:reference/glossary.md` § reference forms). The prefix is
+# the only mode marker; there is no mode field. Reference a criterion from
+# another phase phase-qualified (PHASE-03/EX-8) — bare EX-8 is ambiguous.
+[[phase]]
+id        = "PHASE-01"
+name      = "Cursor module"
+objective = "Add the pure module screwtape/cursor (design § 5.2 screwtape/cursor): Cursor = Start | After(received_at_ms, id), of, to_string, parse (canonical only), and the int64 bounds parse checks. Hold it to the purity rule, and let render import it."
+entrance_criteria = [
+  { id = "EN-1", text = "SL-003 design is locked (run rev 43), including the RV-010 repairs." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "to_string(Start) is \"\"; to_string(After(ms, id)) is \"<ms>:<id>\"; of(ms, id) is After(ms, id)." },
+  { id = "EX-2", text = "parse splits at the first ':'; it is Ok(c) only when to_string(c) == text (C3): \"\" is Start; missing ':', empty id, non-integer, non-canonical integer (+05, 007) and an integer outside int64 are Error(Nil); an id containing ':' round-trips." },
+  { id = "EX-3", text = "The int64 bounds live in cursor only; argv's max_offset is unchanged (design § 5.2, RV-010 N-3)." },
+  { id = "EX-4", text = "test/check_imports.gleam lists src/screwtape/cursor.gleam as pure (gleam_stdlib only, no @external), and render's rule allows screwtape/cursor; just check-imports passes." },
+  { id = "EX-5", text = "gleam format --check and just check are clean." },
+]
+verification = [
+  { id = "VT-1", expects = "C3 units: round trip; \"\"; missing ':'; empty id; non-int; +05:x and 007:x refused; int64 max and min accepted, ±1 beyond refused; id with ':'", test_file = "test/screwtape/cursor_test.gleam", keywords = ["cursor.parse", "cursor.to_string", "cursor.Start", "+05:", "007:", "9223372036854775808"], waived = false },
+  { id = "VT-2", expects = "cursor is held to the purity rule; render may import it", test_file = "test/check_imports.gleam", keywords = ["src/screwtape/cursor.gleam", "screwtape/cursor"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-02"
+name      = "Bounded thread"
+objective = "Bound thread, the one unbounded read (design § 5.2 argv, query, render; C5): one limit parser limit_value shared by list --limit and thread --limit (default 50); query.thread(tx, id, limit) returns ThreadPage(total, entries) keeping the last limit entries; render.thread adds total and truncated."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-01 is complete." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "argv.limit_value(raw) is int_value(raw, in_limit_range) with the 1..500 range named once; list's --limit goes through it with no behaviour change (existing list argv tests unchanged) (POL-001)." },
+  { id = "EX-2", text = "argv accepts thread <id> [--limit n], --limit once, 1..500, default 50; a bad or repeated --limit is the same usage code list gives." },
+  { id = "EX-3", text = "model.ThreadPage(total: Int, entries: List(ThreadEntry)); query.thread(tx, id, limit) -> Result(Option(ThreadPage), Error) reads all ids in position order, total is their count, and summaries are read only for the last min(limit, total) kept (C5)." },
+  { id = "EX-4", text = "render.thread(id, page) prints id, total, truncated (total > length(entries)), items, in that order." },
+  { id = "EX-5", text = "C6, thread part: the only changed existing expectations are render_test's thread test (render_test.gleam:726) and cli_test.gleam:646 moving from usage error to accepted." },
+  { id = "EX-6", text = "gleam format --check and just check are clean." },
+]
+verification = [
+  { id = "VT-1", expects = "query: a thread shorter than, equal to and longer than the limit; total and the kept tail", test_file = "test/screwtape/store_test.gleam", keywords = ["ThreadPage", "query.thread(tx, \"acct-l-th1\","], waived = false },
+  { id = "VT-2", expects = "render: total and truncated, false at and below the limit, true above it", test_file = "test/screwtape/render_test.gleam", keywords = ["ThreadPage", "truncated", "total"], waived = false },
+  { id = "VT-3", expects = "cli: thread --limit accepted and bounded; out-of-range and repeated --limit are usage errors", test_file = "test/screwtape/cli_test.gleam", keywords = ["\"thread\", \"acct-l-th1\", \"--limit\""], waived = false },
+  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review, Opus subagent) and findings disposed before the next phase." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-03"
+name      = "Cursor selection in query"
+objective = "Give query the oldest-first cursor page and share the ids → messages loop with prior (design § 5.2 query; RV-010 F-1, F-12): query.Page = Newest(limit, offset) | Oldest(after: Cursor, limit: Option(Int)); the cursor predicate; message_ids(tx, ListQuery) on the same builder as messages; messages_of extracted from prior. No CLI behaviour change."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-02 is complete and reviewed." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "ListQuery(mailbox_ids, since_ms, from, unread, page: Page); query imports screwtape/cursor and never argv (RV-010 N-1); cli maps today's list flags to Newest, and list output is unchanged." },
+  { id = "EX-2", text = "Oldest(After(ms, id), _) adds (received_at_ms > ? OR (received_at_ms = ? AND id > ?)); Start adds nothing; order is received_at_ms ASC, id ASC; LIMIT ? only when the limit is Some. Newest is unchanged." },
+  { id = "EX-3", text = "One statement builder serves messages and message_ids(tx, ListQuery), which selects only id; no second WHERE/ORDER builder exists (POL-001)." },
+  { id = "EX-4", text = "pub messages_of(tx, ids) reads each id with message, a missing one being Store(read_failed); prior uses message_ids with no filters and Oldest(Start, None) plus messages_of, and its existing tests pass unchanged." },
+  { id = "EX-5", text = "gleam format --check and just check are clean." },
+]
+verification = [
+  { id = "VT-1", expects = "query: Oldest pages from Start over snapshot_fixture.listing() with limits 1, 2 and none return every id once in (received_at_ms, id) order across the m5/m6 tie; --since with a cursor combines by AND; Newest unchanged", test_file = "test/screwtape/store_test.gleam", keywords = ["query.Oldest", "query.Newest", "cursor.Start", "cursor.of"], waived = false },
+  { id = "VT-2", expects = "messages_of: ids in, messages out in the same order; a missing id is Store(read_failed)", test_file = "test/screwtape/store_test.gleam", keywords = ["query.messages_of", "read_failed"], waived = false },
+  { id = "VA-1", text = "Phase review (code-review, Opus subagent), probing the cursor predicate, tie handling and paging with design § 9 C2 as the oracle; findings disposed before the next phase." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-04"
+name      = "Cursor field and list --after"
+objective = "Publish the cursor and let list page by it (design § 5.2 argv, render; C2, C6): summary_fields gains cursor; argv splits ListArgs into Filters plus Page = Offset(limit, offset) | After(limit, Cursor) and accepts --after; render.list prints after instead of offset under --after."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-03 is complete and reviewed." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "summary_fields appends cursor (cursor.to_string(cursor.of(ms, id))) after has_attachment, so list items, in-store thread items and read carry it." },
+  { id = "EX-2", text = "argv: List(Filters, Page); --after once; a bad cursor is Usage(\"invalid_cursor\"); --after with --offset is Usage(\"offset_with_after\") after the flags parse; reason codes never carry an argument (DEC-011)." },
+  { id = "EX-3", text = "cli maps Offset to query.Newest and After to query.Oldest(cursor, Some(limit)); render.list under --after prints {\"after\": <cursor text>, \"limit\", \"items\"}, oldest first." },
+  { id = "EX-4", text = "C6, cursor part: the only changed existing expectations are render_test's field-order tests and cli_test's summary_keys and read_keys (cli_test.gleam:549-552, 909-915)." },
+  { id = "EX-5", text = "gleam format --check and just check are clean." },
+]
+verification = [
+  { id = "VT-1", expects = "C2 through the CLI: a walk of list --after pages from \"\" with --limit 1, 2 and 500 over snapshot_fixture.listing() returns every id once, ascending, across the m5/m6 tie; --after with each filter; empty store and past-the-end give items []", test_file = "test/screwtape/cli_test.gleam", keywords = ["\"--after\"", "\"after\"", "invalid_cursor", "offset_with_after"], waived = false },
+  { id = "VT-2", expects = "render: cursor after has_attachment in summaries; list's after form", test_file = "test/screwtape/render_test.gleam", keywords = ["\"cursor\"", "\"after\""], waived = false },
+  { id = "VA-1", text = "Phase review (code-review, Opus subagent), probing argv precedence and the Filters/Page split, with C2 as the oracle; findings disposed before the next phase." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-05"
+name      = "read --after stream"
+objective = "Bodies in bulk, one process, one snapshot (design § 5.2 argv, cli and stdout; C1, C4): read's selection mode ReadAfter(filters, after, limit, max_bytes), dispatch returning Option(String), and the line-per-message stream composed from message_ids, messages_of and render.read."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-04 is complete and reviewed (Filters, --after and the cursor field exist)." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "read whose first argument starts with -- is a selection: list's flags plus --max-bytes, any order, each once; read <id> [--max-bytes n] is unchanged." },
+  { id = "EX-2", text = "Precedence after the flags parse: no --after → missing_after; then --after with --offset → offset_with_after; then no --max-bytes → missing_max_bytes (RV-010 N-2)." },
+  { id = "EX-3", text = "dispatch returns Option(String); None prints nothing; every other verb returns Some as today." },
+  { id = "EX-4", text = "In one read_store: account_id, message_ids(Oldest(after, Some(limit))), messages_of, each rendered by render.read(…, Some(max_bytes)), joined by \\n; no messages → stdout None, exit 0 (C1, C4)." },
+  { id = "EX-5", text = "gleam format --check and just check are clean." },
+]
+verification = [
+  { id = "VT-1", expects = "C1: stdout splits into lines that each decode as a read envelope carrying cursor; empty selection → stdout None; argv usage codes and their precedence", test_file = "test/screwtape/cli_test.gleam", keywords = ["missing_after", "missing_max_bytes", "\"read\", \"--after\""], waived = false },
+  { id = "VT-2", expects = "C4: extend the I8 tests so snapshot B deletes or re-dates a selected message; stdout equals snapshot A's, so a two-transaction implementation fails", test_file = "test/screwtape/read_snapshot_test.gleam", keywords = ["--after", "--max-bytes"], waived = false },
+  { id = "VA-1", text = "Phase review (code-review, Opus subagent), probing the one-transaction stream and argv precedence, with C1/C4 as the oracle; findings disposed before the next phase." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-06"
+name      = "Published contract"
+objective = "State the contract (DEC-029, DEC-030, DEC-031; design § 5.2 Published shape v1 and The published contract) in README.md, and draft the satan:RFC-020 amendment answering OQ-11 for the operator to commit."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-05 is complete and reviewed: the output the README describes exists." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "README's CLI table lists list --after, read --after and thread --limit; a § Contract states the envelope, version 1 and the compatibility rule, one field table per kind matching design § 5.2 Published shape v1, the cursor (opaque, \"\" starts, paging rule), the line-delimited read --after, the bounds, the four known limits (DEC-028) and reader needs (DEC-031)." },
+  { id = "EX-2", text = "~/dev/satan/.doctrine/rfc/020 carries an uncommitted amendment: OQ-11 answered (CLI JSON contract, with the reasoning), D1's consumer cursor (arrival cursor, consumer-held, known limits), and a note on IDE-001 composing by pipe. Only rfc-020 files change; the operator's other uncommitted satan work is untouched." },
+]
+verification = [
+  { id = "VT-1", expects = "README states the contract", test_file = "README.md", keywords = ["Contract", "--after", "cursor", "truncated", "output_truncated", "thread --limit"], waived = false },
+  { id = "VA-1", text = "README field tables match render's output: checked against the C6 key lists in cli_test and render_test." },
+  { id = "VH-1", text = "Operator reviews and commits the satan:RFC-020 amendment in ~/dev/satan." },
+]
+specs        = []
+requirements = []
