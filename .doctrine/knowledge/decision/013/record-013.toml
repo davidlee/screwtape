@@ -15,7 +15,7 @@ context = "Any jail that can run op could read the Fastmail item straight from 1
 choice = "A new satan flake check, op-unjailed, wired into check-jails. It scans each jailPkgs launcher, its inner launcher, and the --args and runtime-closure files they reference, forbidding /run/wrappers/bin/op, onepassword-cli, .1password, 1Password socket names, and binds of the ancestors /run, /run/wrappers and /run/user/<uid>; a synthetic --ro-bind /run /run launcher is its positive control. It is a regression guard for known paths, not proof of NF-004 (RV-001 F-13); whole-home binds stay with ISS-028. Since DEC-016 a whole-home bind also exposes Screwtape's store, its credential and ~/.config/systemd/user; the operator accepted that as SL-001 design I7's launch condition (a jail's working directory must not be or contain the store directory, the credential directory or ~/.config/systemd/user), with ~/flakes IMP-042 proposing a guard on every jail entry point that enforces it (RV-001 F-27)."
 alternatives = ["mandating --unshare-net for model-output jails"]
 rationale = "Networked jails cannot drop the network namespace, so the abstract socket is covered by 1Password's GID check (ASM)."
-consequences = ["Lands in ~/dev/satan; operator owns commits there"]
+consequences = ["The scanner and its op preset live in the nix-config agents lib (nix-config:IMP-051 moved them 2026-10-27)", "satan's op-unjailed and runner-socket-unjailed checks call them", "The operator owns commits in both repos"]
 decided_by = "agent proposal; operator assent (david)"
 decided_on = "2026-10-26"
 
