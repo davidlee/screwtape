@@ -38,6 +38,14 @@ intent = "scope-relevant"
 selector = "README.md"
 intent = "scope-relevant"
 
+[[selector]]
+selector = "src/screwtape/config.gleam"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "nix/module.nix"
+intent = "scope-relevant"
+
 [[relation]]
 label = "governed_by"
 target = "POL-001"

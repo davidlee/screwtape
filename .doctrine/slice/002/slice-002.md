@@ -23,32 +23,49 @@ is not reopened here.
 
 ## Scope & Objectives
 
-1. **Incremental sync path.** When a stored Email state exists:
-   1. `Email/changes` from the stored state, paging while `hasMoreChanges` is
-      true, within the existing page and byte bounds.
-   2. `Email/get` the `created` and `updated` ids, using the same properties
-      and body bounds as the full sync. Keep only messages inside the
-      configured window (mailboxes, max age); others count as removed.
-   3. Refetch with `Mailbox/get`. There are few mailboxes, so this is cheap
-      and needs no `Mailbox/changes`.
-   4. `Thread/get` for the threads the changed messages touch.
-   5. Write in one transaction:
-      - upsert the fetched messages;
-      - delete `destroyed` ids and messages that left the window;
-      - trim locally to the window (max age, max count, keeping the newest);
-      - store the new states.
+1. **Retention separate from the fetch window** (operator, 2026-10-27; partly
+   answers satan:RFC-020 OQ-10, which asks how much mail the store keeps).
+   - The fetch window (`mailboxes`, `max_age_days`, `max_messages`) decides
+     which ids a full sync asks `Email/query` for.
+   - A new optional `retain_messages`, at least `max_messages`, decides what
+     the store keeps. When it is absent, retention equals the fetch window,
+     as in M1.
+   - Config validation makes sure `max_total_bytes` can cover a fallback
+     fetch of `retain_messages` bodies.
+2. **Two id sources, one merge.** A run differs only in where its ids come
+   from:
+   - **incremental**, when a stored Email state exists: `Email/changes` from
+     that state, paging while `hasMoreChanges` is true, within the existing
+     page and byte bounds;
+   - **full**: the `Email/query` ids together with the ids already stored.
+     This refreshes the retained tail. A stored id the server reports
+     `notFound` is dropped.
 
-      A failure leaves the store intact (DEC-008's atomicity rule).
-2. **Fallback to the M1 full sync, unchanged,** in three cases:
-   - no stored state (first run, or a store wiped by a migration);
+   After either, the run:
+   1. fetches the ids with the existing `Email/get` path (same properties,
+      same body bounds);
+   2. refetches with `Mailbox/get`, which is cheap and needs no
+      `Mailbox/changes`;
+   3. loads the stored messages and merges them in one pure function shared
+      by both paths:
+      - replace a message by its id;
+      - drop destroyed and `notFound` ids;
+      - keep only messages that are in a configured mailbox;
+      - trim to the newest `retain_messages`;
+   4. fetches the merged set's threads with `Thread/get`;
+   5. commits through the unchanged `store.write_snapshot`, with no new
+      store write code, so DEC-008's atomicity holds.
+3. **Fallback to the full path,** in these cases:
+   - no stored state (a first run, or a store wiped by a migration);
    - `cannotCalculateChanges`;
-   - a mismatch between the stored config window and the current one.
+   - the stored `window_json` differs from the current config window;
+   - `hasMoreChanges` is still true at the page cap.
 
    Each fallback is logged to stderr with its reason. Any other error fails
    the run, as in M1, and the next run retries.
-3. **No duplicate fetches.** An unchanged account costs one small request:
+4. **No duplicate fetches.** An unchanged account costs one small request:
    `Email/changes` returns nothing, and `Mailbox/get` is refetched.
-4. **Test-suite survey (research and design input).** Before designing,
+5. **Test-suite survey (research and design input).** Before designing,
    survey the existing test patterns:
    - fixtures (`jmap_fixture`, `sync_fixture`, `local_jmap`);
    - helpers and `store_dump`;
@@ -66,8 +83,9 @@ is not reopened here.
   to M3 and the Screwtape↔SATAN contract (satan:RFC-020 OQ-11).
 - Any new security mechanism. Credential handling, the error allowlists and
   the crash containment from SL-001 are reused unchanged.
-- Changing the schema, beyond what a config-window fingerprint needs, if
-  design keeps that fallback.
+- A schema change. `window_json` is already stored (research, Thread 2b).
+- Retention by age, or bodies ageing out before their metadata (the rest of
+  satan:RFC-020 OQ-10).
 - A daemon, push (EventSource), or anything in M3 or M4.
 - IMP-001 (fail closed when the account is writable): a separate item.
 
@@ -76,8 +94,10 @@ is not reopened here.
 - `src/screwtape/sync.gleam`: choose between the incremental and full paths,
   and add the incremental path.
 - `src/screwtape/jmap/request.gleam`, `jmap/decode.gleam`: `Email/changes`.
-- `src/screwtape/store.gleam`, `store/query.gleam`: upsert, delete, trim, and
-  read the stored state.
+- `src/screwtape/store/query.gleam`: load the stored messages, the Email
+  state and `window_json`, reusing `query.message`.
+- `src/screwtape/config.gleam`: `retain_messages` and its validation.
+- `nix/module.nix`: the `retain_messages` option.
 - `src/screwtape/model.gleam`: only if the changes result needs a type.
 - `test/support/**`, `test/screwtape/sync_test.gleam`,
   `test/screwtape/jmap/*`, `test/screwtape/store_test.gleam`.
@@ -89,22 +109,22 @@ is not reopened here.
   Mailbox, Email and Thread states are equal (verified 2026-10-27,
   `mem.fact.jmap.query-get-response-semantics`). Nothing should depend on
   that.
-- **Window edges.** Max age moves forward with time, and max count can push
-  older messages out when new ones arrive. A local trim handles both. Mail
-  aged out of the window never returns via `/changes`, which is correct
-  because it is out of the window. Design must confirm that mail moving into
-  a configured mailbox arrives as an `updated` id: `mailboxIds` changes, and
-  RFC 8621 counts that as an Email update.
-- **Max-count trim versus the full sync.** The incremental path must select
-  the same set as the full sync's query order (`receivedAt` descending), or
-  the two paths diverge. Design should state this as an invariant, and one
-  test should check it (incremental equals full over the same server state).
-- **Thread state.** Thread membership can change with no Email of our window
-  changing. Design decides whether threads are refetched for touched messages
-  only, or for every stored thread (bounded by the window).
-- **Open question:** does the config-window fingerprint earn its place, or
-  should a config change simply fall back to a full sync because the first
-  run after any config change is a full sync anyway? Design decides.
+- **Mailbox moves (assumed, to be probed).** Mail moving into or out of a
+  configured mailbox is assumed to arrive as an `updated` id, because
+  `mailboxIds` changes and RFC 8621 counts that as an Email update. This is
+  recalled from the RFC, not checked. An early live probe of `Email/changes`
+  against Fastmail must confirm it.
+- **Invariant for design:** after either path, the store's newest
+  `max_messages` messages equal what a full sync would fetch. Ties on
+  `receivedAt` at the boundary are ordered by the server, which is
+  unspecified. Design states how the local `id` tiebreak treats them.
+- **Retention covers configured mailboxes only.** Archiving a message out of
+  a configured mailbox drops it from the store. To keep archived mail, add
+  the archive mailbox to the window.
+- **The write cost is accepted.** Every run rewrites the whole retained set
+  through `write_snapshot`. That is bounded by `retain_messages` and is local
+  (about 12 KB per message today). A test must show that writing, loading
+  and rewriting leaves the dump unchanged.
 
 ## Verification / closure intent
 
