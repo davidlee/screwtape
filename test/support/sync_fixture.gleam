@@ -225,6 +225,16 @@ pub fn changes(
   )
 }
 
+/// `Email/changes` answered by the method error `type_`.
+pub fn changes_error(type_: String) -> Step {
+  Expect(
+    request.EmailChanges,
+    ok(
+      jmap_fixture.responses([jmap_fixture.error_entry(type_, request.call_id)]),
+    ),
+  )
+}
+
 /// An `Email/changes` page that reports nothing, from `old_state`.
 pub fn no_changes(old_state: String, new_state: String) -> Step {
   changes(old_state, new_state, False, [], [], [])

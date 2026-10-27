@@ -1613,3 +1613,96 @@ pub fn incremental_equals_full_test() {
   list.map(incremental, fn(m) { m.0 }) |> should.equal(["e1", "e3", "e4"])
   incremental |> should.equal(full)
 }
+
+// ---------------------------------------------------------------- fallbacks (SL-002 PHASE-09)
+
+/// The full path with the Prior over e1 and e2, as a fallback runs it: the
+/// query, one light refresh of every stored id, and the threads.
+fn full_with_prior() -> List(Step) {
+  [
+    page(["e1", "e2"], "qs-1", 0, 2, None),
+    sync_fixture.lights(emails_of(["e1", "e2"]), "es-1", []),
+    threads(threads_of(emails_of(["e1", "e2"])), "ts-1"),
+  ]
+}
+
+/// `cannotCalculateChanges` falls back to the full path with the Prior, and
+/// says why.
+pub fn cannot_calculate_changes_falls_back_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let script = [
+    inbox_step(),
+    sync_fixture.changes_error("cannotCalculateChanges"),
+    ..full_with_prior()
+  ]
+  let run = again(store, script)
+
+  expect_calls(run, methods(script))
+  summary(run).mode |> should.equal(sync.Full)
+  summary(run).fallback_reason
+  |> should.equal(Some("cannot_calculate_changes"))
+  message_states(store) |> should.equal([#("e1", "es-1"), #("e2", "es-1")])
+}
+
+/// `hasMoreChanges` still true after `max_pages` pages falls back to the full
+/// path with the Prior: no further page is asked for, and e1's reported
+/// update does not narrow the refresh.
+pub fn too_many_changes_falls_back_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let script = [
+    inbox_step(),
+    sync_fixture.changes("es-0", "es-1", True, [], ["e1"], []),
+    sync_fixture.changes("es-1", "es-2", True, [], [], []),
+    ..full_with_prior()
+  ]
+  let base = spec(script)
+  let run =
+    sync_fixture.run_with_prior(
+      store,
+      Spec(..base, bounds: sync.Bounds(..base.bounds, max_pages: 2)),
+    )
+
+  expect_calls(run, methods(script))
+  summary(run).mode |> should.equal(sync.Full)
+  summary(run).fallback_reason |> should.equal(Some("too_many_changes"))
+  message_states(store) |> should.equal([#("e1", "es-1"), #("e2", "es-1")])
+}
+
+/// DEC-026: the `cannotCalculateChanges` response is not charged, so a
+/// `max_total_bytes` one byte over the fallback's full path — below that plus
+/// the error response — still completes; one byte under it does not.
+pub fn cannot_calculate_changes_within_max_total_bytes_test() {
+  let error_step = sync_fixture.changes_error("cannotCalculateChanges")
+  let script = [inbox_step(), error_step, ..full_with_prior()]
+  let full_cost =
+    string.byte_size(sync_fixture.session_body(spec(script)))
+    + sync_fixture.bytes([inbox_step(), ..full_with_prior()])
+  let with_budget = fn(budget) {
+    use store <- with_store(None)
+    seed_two(store)
+    sync_fixture.run_with_prior(
+      store,
+      Spec(..spec(script), max_total_bytes: budget),
+    )
+  }
+
+  { full_cost + 1 < full_cost + sync_fixture.bytes([error_step]) }
+  |> should.be_true
+  summary(with_budget(full_cost + 1)).fallback_reason
+  |> should.equal(Some("cannot_calculate_changes"))
+  with_budget(full_cost - 1).result
+  |> should.equal(Error(error.LimitExceeded("max_total_bytes")))
+}
+
+/// Any other `Email/changes` error fails the run before the write.
+pub fn other_changes_error_fails_the_run_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let script = [inbox_step(), sync_fixture.changes_error("serverFail")]
+  let run = again(store, script)
+
+  expect_calls(run, methods(script))
+  expect_unchanged(store, run, error.JmapMethod("Email/changes", "serverFail"))
+}

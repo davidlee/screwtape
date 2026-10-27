@@ -143,6 +143,7 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 08 | review (VA-1) | Codex gpt-6.1-sol, high, read-only | — | 3 minor findings, all accepted and fixed red-first; Codex's 2 named surviving mutants now killed |
 | 06 | plan + implement | Opus | — | red-first (9 tests red for the right reason); green at 421; 7 negative controls each killed |
 | 06 | review (VA-1) | Codex gpt-6.1-sol, high, ledger RV-006 | — | 1 minor (F-1), fix-now; 2 tests added, 3 fold mutants killed; green at 423; RV-006 done |
+| 09 | plan + implement | Opus | — | red-first (3 red at the Email/changes stop; EX-3 test green by construction); green at 427; 6 negative controls each killed |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
@@ -254,3 +255,28 @@ PHASE-06 review dispositions (RV-006, Codex raiser, Opus responder):
   `created_only_runs_the_query_test`; each mutant now fails one of them
   (both parties re-ran them). Lesson: a paging test needs the decisive
   change on a non-final page, and an arrival that only `created` can reveal.
+
+PHASE-09 notes:
+- `Start.Reuse` carries its reason and `choose` returns a `Start` only;
+  `Scope.mode` became `fallback_reason`, and `summary` derives `mode` from it
+  (one source for "a run with a fallback reason is full").
+- `changes` answers `Counted(delta) | Uncounted(reason)`. A fallback is
+  `reuse(prior, reason, opening_state)`, the same pure constructor the
+  `window_changed` start uses: no second full-path builder (POL-001).
+- Page cap: `too_many_changes` continues with the client after the pages
+  (their bytes stay spent: the cap bounds them). `cannotCalculateChanges`
+  continues with the client held before the call, so its error bytes are
+  never charged. That is structural: `client.call` returns no client on an
+  error.
+- VT-2 arithmetic: the budget is the session plus `bytes` of the fallback's
+  full-path steps, plus 1. The run completes. One byte under that fails
+  `LimitExceeded("max_total_bytes")`, so the test is exact, not loose.
+  `fixture_send` honours the per-call cap (`TooLarge`), as the real `Send`
+  does.
+- Negative controls killed: catch every Email/changes method error; page cap
+  → `LimitExceeded`; cannotCalculateChanges → error; swapped reasons; mode
+  from the reason inverted; page cap off by one.
+- Not pinned: the method-name guard (`failed == method`), since only
+  Email/changes is in flight there. I6 / check_imports keeps the literal out.
+  A cannotCalculateChanges on a later page also falls back, keeping the
+  earlier pages' spend. Consistent with the design, not tested separately.
