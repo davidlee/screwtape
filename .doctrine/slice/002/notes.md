@@ -6,15 +6,16 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · PHASE-09 (01-06, 08, 09 completed; 07 next) · 50ed117
+fresh-as-of: 2026-10-27 · PHASE-07 (all 9 phases completed; /audit next) · 796e371
 
 ### Produced
 - RV-005 hostile pass (Codex) disposed, integrated; design run locked rev 37 (8173079)
 - DEC-024 accepted; DEC-024/025/026 amended per RV-005 (8173079, 176932c)
 - plan.toml/plan.md: 9 phases, order 01-02-03-04-05-08-06-09-07 (68f52ce..5b4e7e7)
 - POL-001 · EVD-001 · DEC-025 · DEC-026 · CHR-004 · design.md (sec-1..sec-10)
-- code: PHASE-01 90c37b1 · 02 2b6f47b · 03 108994b · 04 54885c7 · 05 d15afc9 · 08 fc0d1b3 · 06 3db888e..9564d91 · 09 59be0ae..50ed117
-- RV-006 (PHASE-06, Codex) done; RV-007 (PHASE-09, fresh Opus) done
+- code: PHASE-01 90c37b1 · 02 2b6f47b · 03 108994b · 04 54885c7 · 05 d15afc9 · 08 fc0d1b3 · 06 3db888e..9564d91 · 09 59be0ae..50ed117 · 07 22bb354..796e371
+- RV-006 (PHASE-06, Codex) done; RV-007 (PHASE-09, fresh Opus) done; RV-008 (PHASE-07, fresh Opus) done
+- README `## How sync works` (EX-3); VH-1 live pass recorded (§ PHASE-07 notes)
 - CHR-004 opening_entries guard recorded done (108994b)
 - per-phase passes + review dispositions: § Execution passes (below)
 
@@ -35,6 +36,8 @@ fresh-as-of: 2026-10-27 · PHASE-09 (01-06, 08, 09 completed; 07 next) · 50ed11
 - satan:RFC-020 D8 amendment draft — at close
 - research/ untracked and drifted (`doctrine slice research 2`) — operator to decide
 - CHR-004 — remaining items stay open
+- no request-level logging: VH-1's "no Email/get with ids" is inferred, not observed (§ PHASE-07 notes)
+- `doctrine memory verify mem.pattern.testing.sync-mutant-killing-fixtures` still pending (refused while research/ untracked)
 
 ## Design triage (2026-10-27, exploring)
 
