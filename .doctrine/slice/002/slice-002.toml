@@ -46,6 +46,14 @@ intent = "scope-relevant"
 selector = "nix/module.nix"
 intent = "scope-relevant"
 
+[[selector]]
+selector = "src/screwtape/retain.gleam"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/cli.gleam"
+intent = "scope-relevant"
+
 [[relation]]
 label = "governed_by"
 target = "POL-001"

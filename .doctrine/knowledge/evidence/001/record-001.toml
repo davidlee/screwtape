@@ -1,0 +1,29 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 1
+slug = "fastmail-emailchanges-behaviour-probed-live-2026-10-27"
+title = "Fastmail Email/changes behaviour, probed live 2026-10-27"
+record_kind = "evidence"
+status = "captured"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+datum = "Fastmail Email/changes: paging via intermediate newState + hasMoreChanges; cannotCalculateChanges for invalid or outdated sinceState; a mailbox move is reported as updated."
+provenance = "experiment"
+confidence = "high"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 22
+slug = "screwtape-retention-merge-one-pure-function-over-stored-fetched-refreshed-and-gone"
+title = "Screwtape retention merge: one pure function over stored, fetched, refreshed and gone"
+record_kind = "decision"
+status = "proposed"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Both sync paths must produce the retained set the same way (POL-001); store equals neither the fetch window nor the server."
+choice = "New pure module screwtape/retain: drop gone ids (destroyed or notFound); apply light refreshes (mailboxIds, keywords and derived is_seen/is_flagged) to stored messages; add fully fetched new messages; keep messages in at least one configured window mailbox; sort receivedAt desc, id desc (the list order); take the newest retention count (and age bound when retention defaults to the window). Invariant: the newest max_messages equal a full sync's window; receivedAt ties at the boundary may order differently from the server (accepted, documented)."
+alternatives = ["SQL upsert/delete/trim in the store", "separate merge per path"]
+rationale = "Pure, SQLite-free tests; shared by both paths; reuses write_snapshot unchanged."
+consequences = ["every run rewrites the retained set (bounded, local, ~12 KB/message)"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-27"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

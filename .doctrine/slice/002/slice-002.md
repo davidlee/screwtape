@@ -30,8 +30,9 @@ is not reopened here.
    - A new optional `retain_messages`, at least `max_messages`, decides what
      the store keeps. When it is absent, retention equals the fetch window,
      as in M1.
-   - Config validation makes sure `max_total_bytes` can cover a fallback
-     fetch of `retain_messages` bodies.
+   - Byte-budget validation isn't needed. A fallback refreshes stored ids
+     with the light `Email/get` (about 1 MB for the retained tail), not their
+     bodies (DEC-023, DEC-024).
 2. **Two id sources, one merge.** A run differs only in where its ids come
    from:
    - **incremental**, when a stored Email state exists: `Email/changes` from
@@ -42,17 +43,20 @@ is not reopened here.
      `notFound` is dropped.
 
    After either, the run:
-   1. fetches the ids with the existing `Email/get` path (same properties,
-      same body bounds);
+   1. fetches the ids. Ids not yet stored go through the existing full
+      `Email/get` path, with bodies. Stored ids get a light `Email/get` of
+      only `mailboxIds` and `keywords`, since JMAP content is immutable.
+      `notFound` means gone (DEC-023);
    2. refetches with `Mailbox/get`, which is cheap and needs no
       `Mailbox/changes`;
-   3. loads the stored messages and merges them in one pure function shared
-      by both paths:
-      - replace a message by its id;
+   3. merges the stored messages (the CLI loads them as a `Prior`) in one
+      pure function shared by both paths, `screwtape/retain` (DEC-022):
       - drop destroyed and `notFound` ids;
+      - apply the light refreshes;
+      - add the newly fetched messages;
       - keep only messages that are in a configured mailbox;
       - trim to the newest `retain_messages`;
-   4. fetches the merged set's threads with `Thread/get`;
+   4. fetches the merged set's threads with `Thread/get`, every run;
    5. commits through the unchanged `store.write_snapshot`, with no new
       store write code, so DEC-008's atomicity holds.
 3. **Fallback to the full path,** in these cases:
@@ -61,10 +65,13 @@ is not reopened here.
    - the stored `window_json` differs from the current config window;
    - `hasMoreChanges` is still true at the page cap.
 
-   Each fallback is logged to stderr with its reason. Any other error fails
-   the run, as in M1, and the next run retries.
-4. **No duplicate fetches.** An unchanged account costs one small request:
-   `Email/changes` returns nothing, and `Mailbox/get` is refetched.
+   The sync summary reports `mode` (`incremental` or `full`) and
+   `fallback_reason`. The unit's stdout already goes to the journal, so that
+   is the log (DEC-023). Any other error fails the run, as in M1, and the
+   next run retries.
+4. **No duplicate body fetches.** An unchanged account costs three small
+   requests (the opening request, `Email/changes` and `Thread/get`) and no
+   `Email/get`. A seen, flag or move change costs only a light refresh.
 5. **Test-suite survey (research and design input).** Before designing,
    survey the existing test patterns:
    - fixtures (`jmap_fixture`, `sync_fixture`, `local_jmap`);
@@ -93,7 +100,11 @@ is not reopened here.
 
 - `src/screwtape/sync.gleam`: choose between the incremental and full paths,
   and add the incremental path.
-- `src/screwtape/jmap/request.gleam`, `jmap/decode.gleam`: `Email/changes`.
+- `src/screwtape/jmap/request.gleam`, `jmap/decode.gleam`: `Email/changes`
+  and the light `Email/get` (`mailboxIds`, `keywords`).
+- `src/screwtape/retain.gleam` (new, pure): the shared merge (DEC-022).
+- `src/screwtape/cli.gleam`: load the `Prior`; the summary gains `mode` and
+  `fallback_reason`.
 - `src/screwtape/store/query.gleam`: load the stored messages, the Email
   state and `window_json`, reusing `query.message`.
 - `src/screwtape/config.gleam`: `retain_messages` and its validation.

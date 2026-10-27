@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 23
+slug = "screwtape-m2-id-sources-fetch-split-and-fallbacks"
+title = "Screwtape M2 id sources, fetch split and fallbacks"
+record_kind = "decision"
+status = "proposed"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "M2 adds Email/changes beside the M1 full sync; content is immutable in JMAP, only mailboxIds and keywords change."
+choice = "cli loads a Prior (stored messages, Email state, window_json) and passes it to sync.run (sync never reads the store). Incremental when a Prior exists with equal window_json: Email/changes from the stored Email state, maxChanges omitted, pages count against max_pages. Full otherwise: Email/query ids union stored ids. Either way ids split: not in store -> full Email/get (bodies, existing path); in store -> light Email/get [mailboxIds, keywords]; notFound -> gone. Fallback to full on no_state, cannot_calculate_changes, window_changed, too_many_changes (hasMoreChanges at the page cap), reported in the sync summary as mode and fallback_reason (journald logs stdout). Stored Email state: last Email/changes newState (incremental) or the opening state (full). Opening request unchanged; Email/changes is its own request."
+alternatives = ["refetch bodies for every changed or retained id (budget up to ~1 GB at defaults)", "Email/queryChanges", "fail instead of falling back"]
+rationale = "No duplicate body fetches; fallback cost ~1 MB for the retained tail, so no byte-budget validation; one shared tail for both paths."
+consequences = ["one extra Email/get property set and a light-response decoder", "sync summary gains mode and fallback_reason"]
+decided_by = "agent proposal; operator assent (david)"
+decided_on = "2026-10-27"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

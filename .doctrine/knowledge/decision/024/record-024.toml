@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 24
+slug = "screwtape-retain-messages-optional-window-field-retention-separate-from-the-fetch-window"
+title = "Screwtape retain_messages: optional window field, retention separate from the fetch window"
+record_kind = "decision"
+status = "proposed"
+created = "2026-10-27"
+updated = "2026-10-27"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Operator wants to retain more than the fetch limit (satan:RFC-020 OQ-10, in part)."
+choice = "config window.retain_messages: Option(Int), positive, >= max_messages when both set. Absent: retention equals the fetch window (count and age), as in M1. Inside window, so window_json changes and a change triggers a (harmless) full fallback. Home Manager option window.retainMessages, default null. No byte-budget validation (light refresh, DEC on fetch split)."
+alternatives = ["top-level field outside window", "retention by age"]
+rationale = "Smallest change; reuses window_json mismatch detection."
+consequences = ["retention covers configured mailboxes only: archiving out of the window drops the message"]
+decided_by = "operator (david), shape by agent"
+decided_on = "2026-10-27"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

@@ -1,0 +1,46 @@
+memory_uid = "mem_01a17ac009d978a0bf5a4f86531c7414"
+memory_key = "mem.fact.jmap.fastmail-email-changes"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "Fastmail Email/changes: paging, cannotCalculateChanges forms, mailbox moves are updates"
+summary = "Probed live 2026-10-27 (EVD-001): intermediate newState paging, cannotCalculateChanges for invalid/outdated state, move = updated"
+created = "2026-10-27"
+updated = "2026-10-27"
+
+[scope]
+paths = ["src/screwtape/sync.gleam", "src/screwtape/jmap/decode.gleam", "src/screwtape/jmap/request.gleam"]
+globs = []
+commands = []
+tags = ["jmap"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "68c89568f033172e1bfb871de5ff493576555d48"
+ref_name = "refs/heads/main"
+checkout_state_id = "c00d7087c8a971cc9cc041d51df2bcd245fa0caaf6246886ac8bae2ac9c8c39e"
+base_commit = "33ab737ca6d21a2424c1716506436559a0af144c"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "medium"
+weight = 0
+
+[[source]]
+kind = "record"
+ref = "EVD-001"
+
