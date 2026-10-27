@@ -37,7 +37,7 @@ ref   = "SL-002"
 
 [[finding]]
 id = "F-1"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "Bind cached bodies to the JMAP source, not only account_id"
 detail = """
@@ -67,9 +67,14 @@ response = """
 Observation verified: config.session_url is configurable (config.gleam:29, :115-118); the sync row stores api_url (model.gleam:22-32, store.gleam:253-264); design Prior omits it and usability checks only account_id and body limit. Ids are scoped per account per server (RFC 8620 §1.2), so a server change with a colliding account id would reuse foreign bodies. Repair: Prior carries the stored api_url; a Prior whose api_url differs from the session's apiUrl is unusable (no_state), alongside account_id and body limit. No new store column (api_url already written). One sync test: a Prior with another api_url refetches everything. The two-source colliding-id fixture the raiser proposes reduces to that test.
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Audit RV-009 (post-implementation): repair landed — Prior carries api_url; prior_from_another_server_is_no_state_test (sync_test.gleam:1133)."
+
 [[finding]]
 id = "F-2"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "Age-only windows permit retention below the fetch window and repeated discarded body fetches"
 detail = """
@@ -99,9 +104,14 @@ response = """
 Observation verified: validate (config.gleam:102-108) allows max_age_days without max_messages; DEC-024 compares retain_messages only when both are set, so an age-only window with retain_messages smaller than the window fetches bodies retention immediately discards, and I-M1's "newest max_messages" is undefined there. Repair (simplest): retain_messages requires max_messages (config error retain_without_max_messages); retention is a count extension of a count window. I-M1 restated for max_messages None without retention (all window-eligible messages). DEC-024 amended to record the requirement. Test: config rejects retain_messages without max_messages. The raiser's two-run age-only sync case is then unreachable and not added.
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Audit RV-009: retain_messages requires max_messages; retain_without_max_messages_test (config_test.gleam:143); DEC-024 amended."
+
 [[finding]]
 id = "F-3"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "The changes page cap does not ensure a budget-feasible fallback"
 detail = """
@@ -131,9 +141,14 @@ response = """
 Observation verified in principle: client.exchange (client.gleam:141-156) refuses on an exhausted budget and successful changes pages are charged, so the page cap does not reserve budget for the full path; § 8 overclaims. Weight: a changes page is ids only; max_pages x maxChanges ids (defaults 20 x maxObjectsInGet) is on the order of hundreds of KB against a 256 MiB default budget, and the fallback full path fetches no stored bodies. A budget too small for that is a misconfiguration that already fails M1. Repair: no new mechanism. The design states the bound on changes-page cost, corrects the § 8 claim, and states the recovery: a run failing LimitExceeded leaves the store unchanged and fails again until max_total_bytes is raised, as in M1. The raiser's two-attempt exhaustion tests would pin M1's existing budget behaviour and are not added.
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Audit RV-009: design § 8 restated (locked rev 37); changes pages charged, pinned by too_many_changes_pages_are_charged_test (RV-007 F-1)."
+
 [[finding]]
 id = "F-4"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "Prior cannot support the promised identical full-store round trip"
 detail = """
@@ -163,9 +178,14 @@ response = """
 Observation verified: Prior (design § 5.2) omits AccountMeta, non-Email type states and thread membership; the fixture's thread names an out-of-store message (snapshot_fixture.gleam:82-85); store_dump compares rowid order while query.message canonicalises (query.gleam:75-78). A whole-store round trip from Prior is impossible and unnecessary. Repair: I-M5 narrowed to what body reuse needs: query.prior returns each stored message equal to its canonical form, plus the stored query record, mailboxes, Email state, window_json and api_url. Evidence: extend the existing read_queries_round_trip_every_fixture_message_test (store_test.gleam:706) to read through query.prior, not a new dump test (POL-001).
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Audit RV-009: I-M5 narrowed; read_queries_round_trip_every_fixture_message_test reads through query.prior (store_test.gleam:712)."
+
 [[finding]]
 id = "F-5"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "Replay safety does not prove window equality for a run with concurrent mailbox changes"
 detail = """
@@ -195,9 +215,14 @@ response = """
 Observation verified: changes, then query, then gets are separate exchanges; a move after the last changes page leaves a stored message unrefreshed and the merge (no query-id input) can rank it above a newly fetched one. M1's full sync has the same non-atomic read across query and gets. Repair: I-M1 is stated for a server state that does not change during the run; under concurrent change it holds after the next run, because I-M3 stores a state that predates the change, which Email/changes then reports. No coordination mechanism (none exists in JMAP short of Email/queryChanges, out of scope). Evidence: one sync test, a move scripted between Email/changes and Email/query, asserting the stored Email state is the pre-move newState and that the next run converges to the full-sync ids.
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Audit RV-009: concurrent_move_converges_test (sync_test.gleam:1544) stores the pre-move newState and converges on the next run."
+
 [[finding]]
 id = "F-6"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "The unchanged-run acceptance check conflates state probes, message gets and HTTP requests"
 detail = """
@@ -224,6 +249,11 @@ disposition = "fix-now"
 response = """
 Partly accepted. Verified: the opening carries Email/get with ids [] (request.gleam:186-198), so "fetches no Email/get" is literally false, and Thread/get is chunked by maxObjectsInGet (sync.gleam:433-452), so "three requests" holds only for one thread chunk. Repair: prose states "no Email/get with ids beyond the opening's state probe" and the cost as opening + changes pages + ceil(distinct retained threads / maxObjectsInGet) Thread/get (none when nothing is retained). The unchanged-run test also checks run.requests so the opening's calls are pinned. Contested: new zero/one/many thread-chunk cases. Thread chunking is unchanged M1 code already covered by the chunking tests (sync_test.gleam:472, :530).
 """
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Audit RV-009: unchanged_account_fetches_no_email_test pins run.requests (opening Email/get ids []); contested chunk cases accepted as covered by M1 chunking tests."
 
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.

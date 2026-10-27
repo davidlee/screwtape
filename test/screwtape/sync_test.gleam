@@ -1384,17 +1384,19 @@ pub fn outside_window_change_ignored_test() {
   message_ids(store) |> should.equal(["e1", "e2"])
 }
 
-/// I-M1: store [e1, e2], server [e1, e2, e3], `max_messages` 2, e1 destroyed:
-/// the change runs the query, and the next-oldest message comes in.
+/// I-M1: store [e1, e2], server [e1, e2, e3] newest first, `max_messages` 2,
+/// e1 destroyed: the change runs the query, and the next-oldest message comes
+/// in. e1 is the newest, so only the deletion can make room for e3.
 pub fn deletion_backfills_test() {
   use store <- with_store(None)
-  seed(store, inbox_step(), bounds(Some(2)), emails_of(["e1", "e2"]))
+  let assert [e1, e2, e3] = sync_fixture.newest_first(["e1", "e2", "e3"])
+  seed(store, inbox_step(), bounds(Some(2)), [e1, e2])
   let script = [
     inbox_step(),
     sync_fixture.changes("es-0", "es-1", False, [], [], ["e1"]),
     page(["e2", "e3"], "qs-1", 0, 2, None),
-    emails(emails_of(["e3"]), "es-1", []),
-    threads(threads_of(emails_of(["e2", "e3"])), "ts-1"),
+    emails([e3], "es-1", []),
+    threads(threads_of([e2, e3]), "ts-1"),
   ]
   let run =
     sync_fixture.run_with_prior(
@@ -1627,12 +1629,13 @@ fn full_with_prior() -> List(Step) {
 }
 
 /// `cannotCalculateChanges` falls back to the full path with the Prior, and
-/// says why.
+/// says why. I-M3: it stores the opening's Email state, not the Prior's, or
+/// every later run would fall back again.
 pub fn cannot_calculate_changes_falls_back_test() {
   use store <- with_store(None)
   seed_two(store)
   let script = [
-    inbox_step(),
+    sync_fixture.opening([sync_fixture.inbox()], "ms-1", "es-5", "ts-0"),
     sync_fixture.changes_error("cannotCalculateChanges"),
     ..full_with_prior()
   ]
@@ -1643,6 +1646,7 @@ pub fn cannot_calculate_changes_falls_back_test() {
   summary(run).fallback_reason
   |> should.equal(Some("cannot_calculate_changes"))
   message_states(store) |> should.equal([#("e1", "es-1"), #("e2", "es-1")])
+  type_states(store) |> list.key_find("Email") |> should.equal(Ok("es-5"))
 }
 
 /// Two pages, each with more to come, then the fallback's full path: under

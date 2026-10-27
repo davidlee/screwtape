@@ -297,6 +297,18 @@ pub fn emails_of(ids: List(String)) -> List(jmap_fixture.Email) {
   list.map(ids, jmap_fixture.email)
 }
 
+/// `emails_of(ids)` received a second apart, newest first, so the merge orders
+/// them as listed instead of by the id tie-break `emails_of` leaves it.
+pub fn newest_first(ids: List(String)) -> List(jmap_fixture.Email) {
+  list.index_map(emails_of(ids), fn(email, i) {
+    let second = string.pad_start(int.to_string(59 - i), to: 2, with: "0")
+    jmap_fixture.Email(
+      ..email,
+      received_at: "2026-10-25T21:04:" <> second <> "Z",
+    )
+  })
+}
+
 /// A 500 with no body where `method` was expected.
 pub fn failure(method: request.Method) -> Step {
   Expect(method, Ok(Response(status: 500, headers: [], body: "")))

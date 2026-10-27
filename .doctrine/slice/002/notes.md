@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-27 · PHASE-07 (all 9 phases completed; /audit next) · 796e371
+fresh-as-of: 2026-10-27 · /audit RV-009 done (reconcile next) · df9e11a + audit fixes
 
 ### Produced
 - RV-005 hostile pass (Codex) disposed, integrated; design run locked rev 37 (8173079)
@@ -18,8 +18,10 @@ fresh-as-of: 2026-10-27 · PHASE-07 (all 9 phases completed; /audit next) · 796
 - README `## How sync works` (EX-3); VH-1 live pass recorded (§ PHASE-07 notes)
 - CHR-004 opening_entries guard recorded done (108994b)
 - per-phase passes + review dispositions: § Execution passes (below)
+- RV-009 audit (reconciliation): 8 findings terminal; fixes F-5..F-8 (sync_test, sync_fixture.newest_first, sync.unix_seconds, nix option text); RV-005 verified → done
 
 ### Learned
+- sync fixtures share one receivedAt: order-dependent tests need `sync_fixture.newest_first` (RV-009 F-6); distinct opening states expose Prior/opening mix-ups (F-5)
 - mem.fact.jmap.fastmail-email-changes — EVD-001's Fastmail Email/changes behaviour
 - mem.fact.doctrine.design-section-order — design section ordering
 - mem.pattern.testing.sync-mutant-killing-fixtures — paging/budget tests that kill mutants
@@ -27,11 +29,9 @@ fresh-as-of: 2026-10-27 · PHASE-07 (all 9 phases completed; /audit next) · 796
 - sync fixture gotchas (expect_unchanged probe commit; spec bounds) — § PHASE-06 notes
 
 ### Open
-- PHASE-07 done (VH-1 passed live); next `/audit`
-- Thread/get ids now sorted, not first-seen (M1 A8 superseded) — reconcile at audit (§ PHASE-08 decisions)
-- PHASE-02 phase delta tightened past foreign commit 0103779 (DEC-013) — check at audit
+- next `/reconcile` over RV-009 § Reconciliation Brief (selectors F-2; design § 5 F-3; § 8 F-6)
+- PHASE-03 VT-3 stale keyword — operator: waive or append a corrected VT (RV-009 F-1)
 - unpinned by design: method-name guard; cannotCalculateChanges on a later page — § PHASE-09 notes
-- RV-005 — optional raiser verify/contest round not run
 - api_url as server identity — a Fastmail apiUrl change costs one full refetch
 - satan:RFC-020 D8 amendment draft — at close
 - research/ untracked and drifted (`doctrine slice research 2`) — operator to decide
@@ -346,3 +346,22 @@ PHASE-07 review dispositions (RV-008, fresh Opus raiser, Opus responder):
 - F-3 `load_prior` pass-through over undocumented `prior_or_none` (nit) —
   fix-now: folded.
 - F-4 README diagram spelled `max_body_bytes` (nit) — fix-now.
+
+## Audit (RV-009, 2026-10-27)
+
+Conformance audit over 40048a6..df9e11a. An independent fresh-context Opus
+raised the cross-phase findings; the audit confirmed each one by mutation in
+a scratch copy. The ledger holds the findings, synthesis and reconciliation
+brief: `doctrine review show RV-009 --full`.
+
+- F-5 (major) fixed: the fallback stored-state mutant now dies in
+  `cannot_calculate_changes_falls_back_test` (the opening state is `es-5`).
+- F-6 fixed: `deletion_backfills_test` uses `newest_first`, and the
+  `gone: []` mutant now dies there.
+- F-7 and F-8 fixed (nix option text; `unix_seconds`).
+- RV-005 verified finding by finding against the code, so it is done.
+- Not raised: the README upgrade claim, which holds by composition
+  (`window_json_test` pins the four-key string).
+- Gates after the fixes: `just check` (430), `gleam format --check`,
+  `nix flake check`.
+

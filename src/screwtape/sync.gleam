@@ -425,10 +425,7 @@ fn rule(
       Some(_) -> None
       None ->
         age_bound(now, window.max_age_days)
-        |> option.map(fn(bound) {
-          let #(seconds, _) = timestamp.to_unix_seconds_and_nanoseconds(bound)
-          seconds * 1000
-        })
+        |> option.map(fn(bound) { unix_seconds(bound) * 1000 })
     },
   )
 }
@@ -438,8 +435,12 @@ fn rule(
 /// `now` without its sub-second part: `to_rfc3339` then prints no fraction
 /// (A11), so `synced_at` and `after` read `…T09:00:00Z`.
 fn whole_seconds(now: Timestamp) -> Timestamp {
-  let #(seconds, _) = timestamp.to_unix_seconds_and_nanoseconds(now)
-  timestamp.from_unix_seconds(seconds)
+  timestamp.from_unix_seconds(unix_seconds(now))
+}
+
+fn unix_seconds(time: Timestamp) -> Int {
+  let #(seconds, _) = timestamp.to_unix_seconds_and_nanoseconds(time)
+  seconds
 }
 
 fn rfc3339(time: Timestamp) -> String {
@@ -450,8 +451,7 @@ fn rfc3339(time: Timestamp) -> String {
 // milliseconds, the value `normalise.utc_date` would parse back from that
 // text. Built directly, so the run needs no error for a parse that cannot fail.
 fn synced_at(now: Timestamp) -> model.UtcDate {
-  let #(seconds, _) = timestamp.to_unix_seconds_and_nanoseconds(now)
-  model.UtcDate(raw: rfc3339(now), ms: seconds * 1000)
+  model.UtcDate(raw: rfc3339(now), ms: unix_seconds(now) * 1000)
 }
 
 /// The `after` bound of a window with an age limit, as `Email/query` sends it.

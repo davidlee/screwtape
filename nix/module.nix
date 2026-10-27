@@ -143,7 +143,7 @@ in {
       retainMessages = mkOption {
         type = types.nullOr types.ints.positive;
         default = null;
-        description = "Keep at most this many messages in the store; requires maxMessages (DEC-024).";
+        description = "Keep at most this many messages in the store, newest first; requires maxMessages and must be at least it. Null keeps exactly the window.";
       };
     };
 

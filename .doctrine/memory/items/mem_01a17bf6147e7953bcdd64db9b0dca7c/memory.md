@@ -21,3 +21,8 @@ shown by running mutants. Patterns that close those gaps:
 - **Mutate without git.** Copy `src/screwtape/sync.gleam` to the scratchpad,
   apply one exact-string replacement, run `gleam test`, and restore with
   `cp`, checking it with `cmp`. Never use `git checkout`/`stash` here.
+
+## Fixture defaults that hide mutants (SL-002 audit, RV-009)
+
+- **One shared `receivedAt`.** `jmap_fixture.email` gives every message the same `receivedAt`, so the merge orders by the id tie-break. A test whose claim depends on order (backfill, trim) can pass for the wrong reason. Build its emails with `sync_fixture.newest_first(ids)`, and make the decisive message win by date, not by id.
+- **One shared Email state.** Openings answer `es-0` and seeded Priors hold `es-0`, so "stored the opening's state" and "stored the Prior's state" look the same. Give a fallback test's opening a distinct state (for example `sync_fixture.opening(..., "es-5", ...)`) and assert the stored `type_state`.

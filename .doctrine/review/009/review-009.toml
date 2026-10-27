@@ -1,0 +1,288 @@
+id    = 9
+slug  = "sl-002-audit-conformance-whole-slice"
+title = "SL-002 audit: conformance (whole slice)"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "reconciliation"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Whole-slice conformance audit of SL-002 (40048a6..df9e11a, nine phases) against the locked design (rev 37), the scope, plan.toml and POL-001. Evidence: slice conformance (18 undeclared, 0 undelivered, 20 conformant), verify-vt (18/19 pass; VT-3 stale keyword), check gate, just check, gleam format --check, nix flake check, all green after the fixes. An independent fresh-context Opus checked 13 cross-phase invariants. The audit confirmed its findings by mutation in a scratch copy and fixed them red-first (F-5..F-8). RV-005 was verified against the implementation. A synthesis and a reconciliation brief are written.
+"""
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-002"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "PHASE-03 VT-3 expected PASS; verify-vt reports FAIL (keyword opening_entries absent from jmap_fixture_test)"
+detail = """
+Expected: `doctrine slice verify-vt SL-002` passes every VT.
+Observed: PHASE-03 VT-3 FAIL — "keyword `opening_entries` absent from `test/screwtape/jmap_fixture_test.gleam`"; rc=1. All 18 other VTs pass.
+Evidence: the guard was factored into `jmap_fixture.opening_pairs` (test/support/jmap_fixture.gleam:383); `opening_entries` (:399) has no call-list parameter and asserts `Ok` from `opening_pairs`. The behaviour VT-3 names (a wrong-length pairing fails instead of truncating, in both directions) is tested at that seam: `opening_pairs_requires_one_argument_set_per_call_test` and `opening_pairs_test` (jmap_fixture_test.gleam:88, :100). The mandate's keyword names the wrapper, not the seam.
+"""
+disposition = "tolerated"
+response = """
+The behaviour VT-3 mandates is verified at the seam it was factored into (`opening_pairs`, both directions, plus order); `opening_entries` takes no call list, so a test "over a call list of the wrong length" cannot name it without being vacuous or a duplicate (design § 9 forbids both). The defect is the VT's keyword mandate, a plan criterion, which is off the reconcile surface (plan.toml criteria are immutable-append). Tolerated: verify-vt stays FAIL on this one VT with this rationale. Escalated to the operator: setting VT-3 `waived = true` (or appending a corrected VT) is a plan act, theirs to approve.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = """
+The behaviour VT-3 mandates is verified at the seam it was factored into (`opening_pairs`, both directions, plus order); `opening_entries` takes no call list, so a test "over a call list of the wrong length" cannot name it without being vacuous or a duplicate (design § 9 forbids both). The defect is the VT's keyword mandate, a plan criterion, which is off the reconcile surface (plan.toml criteria are immutable-append). Tolerated: verify-vt stays FAIL on this one VT with this rationale. Escalated to the operator: setting VT-3 `waived = true` (or appending a corrected VT) is a plan act, theirs to approve.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "Conformance expected no undeclared source paths; observed 7 undeclared code/test paths outside any design-target selector"
+detail = """
+Expected: every path the slice edited is covered by a `design-target` selector (`doctrine slice conformance SL-002`).
+Observed: undeclared (18) = 11 doctrine bookkeeping paths (.doctrine/review/006-008, notes.md, CHR-004 body) plus 7 code/test paths:
+  nix/module-eval.nix (PHASE-01 orchestrator amendment: the module test compares the whole `.window` object),
+  test/screwtape/check_imports_test.gleam, test/screwtape/jmap/request_test.gleam, test/screwtape/jmap_fixture_test.gleam, test/screwtape/normalise_test.gleam (VT test files named in plan.toml),
+  test/support/cli_fixture.gleam, test/support/snapshot_fixture.gleam (shared test support extended per scope objective 5).
+All are within `test/**` scope-relevant or are the nix module's own test; none is scope creep. Undelivered: 0. Conformant: 20.
+The doctrine bookkeeping paths are ledger/notes writes the lifecycle itself produces, not design targets.
+"""
+disposition = "design-wrong"
+response = """
+Not scope creep: the 7 code/test paths are the plan's own VT files, the shared test support scope objective 5 asked to extend, and the nix module's test. The selector registry under-declared them. Reconcile: `doctrine slice selector add SL-002 --intent design-target` for nix/module-eval.nix, test/screwtape/{check_imports_test,jmap/request_test,jmap_fixture_test,normalise_test}.gleam, test/support/{cli_fixture,snapshot_fixture}.gleam (Reconciliation Brief). The 11 .doctrine bookkeeping paths are lifecycle output (review ledgers, notes, CHR-004 body) and stay undeclared deliberately: declaring .doctrine/** a design target would be false.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Not scope creep: the 7 code/test paths are the plan's own VT files, the shared test support scope objective 5 asked to extend, and the nix module's test. The selector registry under-declared them. Reconcile: `doctrine slice selector add SL-002 --intent design-target` for nix/module-eval.nix, test/screwtape/{check_imports_test,jmap/request_test,jmap_fixture_test,normalise_test}.gleam, test/support/{cli_fixture,snapshot_fixture}.gleam (Reconciliation Brief). The 11 .doctrine bookkeeping paths are lifecycle output (review ledgers, notes, CHR-004 body) and stay undeclared deliberately: declaring .doctrine/** a design target would be false.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "nit"
+title = "Design expected to state Thread/get id order; observed sorted order (PHASE-08) recorded only in notes"
+detail = """
+Expected: design.md states the order of the ids sent to `Thread/get`, since it changed from M1.
+Observed: design.md § 5 (line ~359) says "`Thread/get` over the merged set's distinct thread ids" with no order. PHASE-08 made them sorted (canonical) rather than first-seen, superseding SL-001 runtime-sheet assumption A8 (.doctrine/state/slice/001/phases/phase-05.md:73). The reason (merge returns newest-first with id-descending ties; first-seen order would tie chunking to merge internals) lives only in notes.md § PHASE-08 decisions.
+Inference: A8 was a disposable runtime-sheet assumption, not governance, so nothing binding is contradicted; the gap is that canon is silent.
+"""
+disposition = "design-wrong"
+response = """
+Canon should state the order since it changed from M1. Reconcile: design.md § 5 sync-steps table, `threads` row → "`Thread/get` over the merged set's distinct thread ids, sorted (canonical; independent of merge order)" (Reconciliation Brief). SL-001's A8 lives in a disposable runtime sheet, so no governance REV is needed.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Canon should state the order since it changed from M1. Reconcile: design.md § 5 sync-steps table, `threads` row → "`Thread/get` over the merged set's distinct thread ids, sorted (canonical; independent of merge order)" (Reconciliation Brief). SL-001's A8 lives in a disposable runtime sheet, so no governance REV is needed.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "Design ledger RV-005 expected done; observed active with 6 answered findings awaiting the raiser"
+detail = """
+Expected: the slice's design-review ledger is done (every finding terminal) before the slice reconciles.
+Observed: `doctrine review status RV-005` → active · await=raiser · 5 major + 1 minor answered (fix-now / design-wrong), concluded. The optional Codex verify/contest round was never run (notes.md § Further review passes).
+Evidence that the repairs landed (checked this audit):
+  F-1 api_url binding → `prior_from_another_server_is_no_state_test` (sync_test.gleam:1133);
+  F-2 retain requires max_messages → `retain_without_max_messages_test` (config_test.gleam:143);
+  F-3 page-cap budget claim → design § 8 restated (locked rev 37); budget tests in PHASE-09 (RV-007 F-1);
+  F-4 narrowed I-M5 → `read_queries_round_trip_every_fixture_message_test` reads through `query.prior` (store_test.gleam:712);
+  F-5 concurrent change → `concurrent_move_converges_test` (sync_test.gleam:1544);
+  F-6 unchanged-run cost → `unchanged_account_fetches_no_email_test` (sync_test.gleam:1347) pins run.requests.
+None is a blocker, so the close-gate does not bite; the ledger is simply unfinished.
+"""
+disposition = "fix-now"
+response = """
+Fixed in this audit: each RV-005 finding verified as raiser against the implementation (roles belong to acts), citing the test or design text that carries its repair. `doctrine review status RV-005` → done · await=none.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed in this audit: each RV-005 finding verified as raiser against the implementation (roles belong to acts), citing the test or design text that carries its repair. `doctrine review status RV-005` → done · await=none.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "major"
+title = "I-M3 on fallback paths expected pinned (store the opening's Email state); observed a surviving mutant storing the Prior's state"
+detail = """
+Raised by the independent fresh-context reviewer; re-run by the audit in a scratch copy at df9e11a.
+Expected: design § 5.3 / I-M3 — a full run stores the opening request's Email state; a test fails if a fallback run stores anything else.
+Observed: `sync.reuse` (src/screwtape/sync.gleam:274-283) sets `email_state: opening_state`. Mutant `email_state: prior.email_state` → 430 passed, no failures.
+Cause: every test opening answers Email state `es-0` (test/support/sync_fixture.gleam:120-122) and seeded Priors also hold `es-0`, so opening and Prior states are indistinguishable; `stored_email_state_test` (sync_test.gleam:1432) checks the full path only on the no-Prior seed.
+Consequence (inferred): with that regression, a store that hit `cannotCalculateChanges` would keep the stale state and fall back on every run; incremental sync would never resume.
+"""
+disposition = "fix-now"
+response = """
+Fixed: `cannot_calculate_changes_falls_back_test` now opens with Email state `es-5` (distinct from the Prior's `es-0`) and asserts the stored Email type_state is `es-5`. Under the mutant (`email_state: prior.email_state` in `sync.reuse`) it fails (429/1); on the real code 430 pass. `reuse` serves all three Prior-keeping fallbacks, so one pin covers them.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed: `cannot_calculate_changes_falls_back_test` now opens with Email state `es-5` (distinct from the Prior's `es-0`) and asserts the stored Email type_state is `es-5`. Under the mutant (`email_state: prior.email_state` in `sync.reuse`) it fails (429/1); on the real code 430 pass. `reuse` serves all three Prior-keeping fallbacks, so one pin covers them.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "I-M1 sync tests expected free of receivedAt ties (design § 8); observed every sync fixture shares one receivedAt, so deletion_backfills_test passes with destroyed ids ignored"
+detail = """
+Raised by the independent reviewer; re-run by the audit.
+Expected: design § 8 risk table — "the tests avoid boundary ties except one that pins the local order"; § 9 names `deletion_backfills_test` as I-M1 evidence (the deletion causes the backfill).
+Observed: `jmap_fixture.email` fixes `received_at: "2026-10-25T21:04:11Z"` (test/support/jmap_fixture.gleam:223); no sync test varies it, so the merge orders by the id tie-break. Mutant `gone: []` in `sync.incremental` (sync.gleam:293): `deletion_backfills_test` still passes (store [e1,e2] + fetched e3, keep 2 → [e3,e2] by id alone). The mutant is killed only by changes_pages_accumulate_and_destroyed_wins_test, changes_on_an_earlier_page_count_test, incremental_equals_full_test (427 passed, 3 failures).
+Also: scripted server orders contradict the local order (incremental_equals_full_test pages [e4,e1,e3]; local order e4,e3,e1), passing only because keep retains all.
+No surviving mutant suite-wide: the gap is the evidence a named I-M1 test claims, and a false design sentence.
+"""
+disposition = "fix-now"
+response = """
+Fixed (test evidence): new `sync_fixture.newest_first(ids)` builds `emails_of(ids)` a second apart, newest first, so the merge orders them as listed. `deletion_backfills_test` now makes e1 (the destroyed message) the newest; under the mutant `gone: []` it fails (now 4 tests kill it, was 3); on the real code 430 pass. The design sentence is wrong as written (sync fixtures do share one receivedAt; order is by the id tie-break): restate design § 8 risk-table row — Reconciliation Brief. The incremental_equals_full_test server/local order mismatch is harmless there (keep retains all) and left; future order-dependent tests use `newest_first`.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed (test evidence): new `sync_fixture.newest_first(ids)` builds `emails_of(ids)` a second apart, newest first, so the merge orders them as listed. `deletion_backfills_test` now makes e1 (the destroyed message) the newest; under the mutant `gone: []` it fails (now 4 tests kill it, was 3); on the real code 430 pass. The design sentence is wrong as written (sync fixtures do share one receivedAt; order is by the id tie-break): restate design § 8 risk-table row — Reconciliation Brief. The incremental_equals_full_test server/local order mismatch is harmless there (keep retains all) and left; future order-dependent tests use `newest_first`.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "nit"
+title = "nix retainMessages description expected to state both rules; observed it omits 'at least maxMessages' and cites an internal DEC id"
+detail = """
+Expected: the option text matches README § How sync works ("requires window.maxMessages and must be at least that") and config validation (`retain_below_max_messages`).
+Observed: nix/module.nix:146 — "Keep at most this many messages in the store; requires maxMessages (DEC-024)."
+(The reviewer's further claim that neither rule is checked at module evaluation is wrong: the module's checkPhase runs the program's parser over the generated config at build time, nix/module.nix:38-46.)
+"""
+disposition = "fix-now"
+response = """
+Fixed: nix/module.nix retainMessages description now reads "Keep at most this many messages in the store, newest first; requires maxMessages and must be at least it. Null keeps exactly the window." — matching README and config validation, no internal id. `nix flake check` re-run.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed: nix/module.nix retainMessages description now reads "Keep at most this many messages in the store, newest first; requires maxMessages and must be at least it. Null keeps exactly the window." — matching README and config validation, no internal id. `nix flake check` re-run.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "nit"
+title = "POL-001 expected one timestamp-to-ms conversion in sync; observed two copies"
+detail = """
+Expected: POL-001 (no parallel implementation).
+Observed: sync.gleam:429-430 (`rule`) and :453-454 (`synced_at`) each call `to_unix_seconds_and_nanoseconds` and multiply by 1000.
+"""
+disposition = "fix-now"
+response = """
+Fixed: one private `unix_seconds(time)` in sync.gleam's clock section; `rule`, `whole_seconds` and `synced_at` use it (there were three copies of the extraction, not two). Behaviour-preserving; `just check` 430 green, --warnings-as-errors.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed: one private `unix_seconds(time)` in sync.gleam's clock section; `rule`, `whole_seconds` and `synced_at` use it (there were three copies of the extraction, not two). Behaviour-preserving; `just check` 430 green, --warnings-as-errors.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.
