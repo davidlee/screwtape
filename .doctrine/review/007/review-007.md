@@ -26,3 +26,23 @@ Lines of attack:
 4. Design quality: `Start`/`Scope`/`Changes` shapes, reason/mode as one
    source of truth, POL-001 (no second full-path builder).
 5. Tests: behaviour, mutant-killing power, fixture growth.
+
+## Synthesis
+
+- **Overall**: solid
+- **Synopsis**: PHASE-09 turns both `Email/changes` dead ends into the full
+  run with the Prior, through the same `reuse` constructor `window_changed`
+  uses (POL-001). The reason lives on `Start.Reuse`/`Scope` and `mode` is
+  derived from it. `cannotCalculateChanges` is matched by
+  `request.method_name` and continues on the pre-call client (DEC-026). The
+  raiser confirmed fallback correctness, EX-3, and VT-2's exact boundary.
+  F-1 (minor) exposed a coverage hole dating from PHASE-06: nothing pinned
+  that change pages are charged. It is now killed by a counterpart budget
+  test. F-2 and F-3 (nits) fixed a stale module invariant and overloaded
+  naming. Standing, unpinned by design: the method-name guard (only
+  Email/changes is in flight), and a cannotCalculateChanges arriving on a
+  later page (falls back the same way).
+- **Haiku**:
+  The server shrugs: "can't say."
+  We keep the client from before
+  and pay for nothing.

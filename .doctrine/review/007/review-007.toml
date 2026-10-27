@@ -31,13 +31,20 @@ Raised findings: F-1 (minor), no test pins that changes pages are charged (mutan
 I did not run `just check`. EX-4 rests on the implementer's report plus the format check above.
 """
 
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Re-check of a719f42. F-1 is fixed: the new page-charge test kills the pages-uncharged mutant (re-run in /tmp/rv007-m4, 1 failure). F-2's module doc and F-3's rename are both correct. Suite green at 428, and `gleam format --check` is clean. All three findings are verified. No new findings.
+"""
+
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-002"
 phase = "PHASE-09"
 
 [[finding]]
 id = "F-1"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "No test pins that Email/changes pages are charged, so the page-cap spend before too_many_changes is unverified"
 detail = """
@@ -70,9 +77,14 @@ Fix: too_many_changes_pages_are_charged_test — under the too_many_changes scri
 Refactor alongside: the script moved to a shared `too_many_changes()` Spec; `on_budget(spec, bytes)` and `cost(spec, steps)` helpers now serve this test and the VT-2 test (no duplicated budget harness).
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "a719f42 adds too_many_changes_pages_are_charged_test (exact budget passes, one byte under fails). Re-ran the pages-uncharged mutant (Ok(#(_spent, page))) in /tmp/rv007-m4: 427 pass, 1 fails, so the mutant is now killed. The current tree is green at 428 and the format check is clean."
+
 [[finding]]
 id = "F-2"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Module doc's budget invariant now has an undocumented exception"
 detail = """
@@ -99,9 +111,14 @@ response = """
 Module header (sync.gleam:12-16) now names the exception: a cannotCalculateChanges answer continues on the Client held before it, so its bytes are not charged (DEC-026).
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "The module header now names the cannotCalculateChanges exception and cites DEC-026 (sync.gleam:12-16)."
+
 [[finding]]
 id = "F-3"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Four meanings of 'changes' in scope/changes, and Counted/Uncounted misnames the outcome"
 detail = """
@@ -129,5 +146,10 @@ disposition = "fix-now"
 response = """
 Renamed `type Changes { Counted | Uncounted }` to `type ChangeSet { Known(Delta) | Unknown(reason) }`; the local binding in `scope` is `change_set`, so it no longer shadows `fn changes`. The `Start.Changes(prior)` constructor stays: it names the start (incremental from Email/changes), parallel to Fresh/Reuse. No behaviour change; 428 green.
 """
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "The type is renamed ChangeSet { Known | Unknown } and the local binding to change_set, so nothing shadows fn changes any more. The Start.Changes constructor remains, but it is distinct enough now. No behaviour change."
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.
