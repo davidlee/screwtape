@@ -144,6 +144,7 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 06 | plan + implement | Opus | — | red-first (9 tests red for the right reason); green at 421; 7 negative controls each killed |
 | 06 | review (VA-1) | Codex gpt-6.1-sol, high, ledger RV-006 | — | 1 minor (F-1), fix-now; 2 tests added, 3 fold mutants killed; green at 423; RV-006 done |
 | 09 | plan + implement | Opus | — | red-first (3 red at the Email/changes stop; EX-3 test green by construction); green at 427; 6 negative controls each killed |
+| 09 | review (VA-1) | Opus subagent (fresh context), ledger RV-007 | — | 1 minor + 2 nits, all fix-now; pages-uncharged mutant (survived since PHASE-06) now killed; green at 428 |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
@@ -280,3 +281,14 @@ PHASE-09 notes:
   Email/changes is in flight there. I6 / check_imports keeps the literal out.
   A cannotCalculateChanges on a later page also falls back, keeping the
   earlier pages' spend. Consistent with the design, not tested separately.
+
+PHASE-09 review dispositions (RV-007, fresh Opus raiser, Opus responder):
+- F-1 "no test pins that Email/changes pages are charged" (minor) — fix-now.
+  Continuing on the pre-call client for every page survived the suite
+  (also at 9564d91). Fix: `too_many_changes_pages_are_charged_test`, the
+  counterpart of the VT-2 test: exact budget completes, one byte under fails.
+  Shared `too_many_changes()`, `on_budget`, `cost` helpers serve both.
+- F-2 module header claimed every call is charged (nit) — fix-now; names the
+  DEC-026 exception.
+- F-3 "changes" named four things; Counted/Uncounted misnamed (nit) — fix-now:
+  `ChangeSet { Known | Unknown }`, binding `change_set`.

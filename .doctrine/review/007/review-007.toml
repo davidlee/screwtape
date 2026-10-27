@@ -1,0 +1,133 @@
+id    = 7
+slug  = "code-review-review-of-sl-002"
+title = "code-review review of SL-002"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "code-review"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "opus-reviewer"
+responder = "opus"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Full-depth pass over 9564d91..59be0ae (sync.gleam, the sync_test fallbacks section, sync_fixture.changes_error), checked against design § 5.2 / § 5.4, PHASE-09 EX-1..EX-4 / VT-1 / VT-2, POL-001, client.gleam budget charging and fixture_send's cap.
+
+Verified as correct:
+- Both fallbacks go through the one `reuse` constructor that window_changed also uses, so there is no second full-path builder (POL-001). Every stored id is light-refreshed, the opening Email state is stored, carried is None, and Email/query runs.
+- Narrowing the fallback refresh (mutant) is killed, because the light decode refuses ids that were not asked for.
+- The cannotCalculateChanges catch matches `request.method_name(EmailChanges)` and continues on the pre-call client. The error is raised inside client.call after the exchange, so the charge is discarded by construction.
+- VT-2's boundary is exact: it passes at +1 and fails at -1.
+- EX-3 is tested with serverFail. `mode` is derived from `fallback_reason` alone.
+- `gleam format --check` is clean, and 427 tests pass.
+
+Raised findings: F-1 (minor), no test pins that changes pages are charged (mutant survives, gap since PHASE-06); F-2 (nit), the module header's budget invariant omits the DEC-026 exception; F-3 (nit), "changes" is overloaded, and Counted/Uncounted is a misnomer. No blocker or major.
+
+I did not run `just check`. EX-4 rests on the implementer's report plus the format check above.
+"""
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-002"
+phase = "PHASE-09"
+
+[[finding]]
+id = "F-1"
+status = "answered"
+severity = "minor"
+title = "No test pins that Email/changes pages are charged, so the page-cap spend before too_many_changes is unverified"
+detail = """
+Expected (design § 5.4 One incremental run: "Each request is its own HTTP exchange charged to the one budget"; § 5.4 Budget: "The page cap ... bounds what the changes can spend"; EX-1 makes the cannotCalculateChanges branch the single deliberate exception): a test that fails if Email/changes page bytes stop being charged, including the pages spent before a too_many_changes fallback (brief line of attack 2).
+
+Observed (by execution): mutant in a /tmp copy, src/screwtape/sync.gleam `changes` (~line 347): `Ok(#(client, page)) ->` changed to `Ok(#(_spent, page)) ->`, so every recursion and the too_many_changes guard continue with the pre-call client and no changes page is ever charged. `gleam test`: 427 passed, no failures. The mutant survives.
+
+The same mutant applied to 9564d91 (the old `use #(client, page) <- result.try(call(...))`) also survives (423 passed), so the gap dates from PHASE-06. PHASE-09 makes it matter more: it adds a branch that deliberately drops the charge, and then pins only that side (cannot_calculate_changes_within_max_total_bytes_test). Charging the other branches is now the half of the EX-1 contract that is not tested. The notes' claim that "their bytes stay spent" is true of the code as written, but no test enforces it.
+
+Suggestion: a counterpart to the VT-2 test. Under the too_many_changes script, set the budget to session + bytes(full path) + bytes(pages) - 1 and expect LimitExceeded("max_total_bytes"), and expect success at exactly that total. This kills the mutant above.
+"""
+disposition = "fix-now"
+response = """
+Accepted on evidence (mutant reproduced: `Ok(#(_spent, page))` in `changes`).
+Fix: too_many_changes_pages_are_charged_test — under the too_many_changes script, a budget of exactly the session plus every response completes; one byte under fails LimitExceeded("max_total_bytes"). The reviewer's mutant now fails this test (427 passed, 1 failure); restored, 428 green.
+Refactor alongside: the script moved to a shared `too_many_changes()` Spec; `on_budget(spec, bytes)` and `cost(spec, steps)` helpers now serve this test and the VT-2 test (no duplicated budget harness).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted on evidence (mutant reproduced: `Ok(#(_spent, page))` in `changes`).
+Fix: too_many_changes_pages_are_charged_test — under the too_many_changes script, a budget of exactly the session plus every response completes; one byte under fails LimitExceeded("max_total_bytes"). The reviewer's mutant now fails this test (427 passed, 1 failure); restored, 428 green.
+Refactor alongside: the script moved to a shared `too_many_changes()` Spec; `on_budget(spec, bytes)` and `cost(spec, steps)` helpers now serve this test and the VT-2 test (no duplicated budget harness).
+"""
+
+[[finding]]
+id = "F-2"
+status = "answered"
+severity = "nit"
+title = "Module doc's budget invariant now has an undocumented exception"
+detail = """
+Expected: the sync module header states how the budget is threaded, and it should stay true or name its exception.
+
+Observed: src/screwtape/sync.gleam:12-14 says "every request carries one call through `client.call_one` (A1) on the `Client` value the previous call handed back, so the byte budget is spent across the whole run." Since PHASE-09, the cannotCalculateChanges fallback continues on the Client from *before* the failed call (sync.gleam `changes`, ~line 343-345; DEC-026), so that response's bytes are not spent. The exception is documented only at `changes` (~line 314-318). A reader who trusts the module header will take the budget as exact; in fact it is bounded at about 2x (design § 5.2).
+
+Suggestion: one clause in the header citing DEC-026, e.g. "... except a cannotCalculateChanges reply, which is not charged (DEC-026)."
+"""
+disposition = "fix-now"
+response = """
+Module header (sync.gleam:12-16) now names the exception: a cannotCalculateChanges answer continues on the Client held before it, so its bytes are not charged (DEC-026).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Module header (sync.gleam:12-16) now names the exception: a cannotCalculateChanges answer continues on the Client held before it, so its bytes are not charged (DEC-026).
+"""
+
+[[finding]]
+id = "F-3"
+status = "answered"
+severity = "nit"
+title = "Four meanings of 'changes' in scope/changes, and Counted/Uncounted misnames the outcome"
+detail = """
+Expected: names that each denote one concept (project standard: naming matters).
+
+Observed (src/screwtape/sync.gleam ~lines 187-365): `Changes` is a `Start` constructor (`Changes(prior)`), a type (`type Changes { Counted(Delta) Uncounted(reason) }`), a function (`fn changes`), and in `scope` a local binding that shadows the function (`use #(client, changes) <- result.map(changes(...))`, then `case changes {`). Gleam accepts all of this, but in the `Changes(prior) ->` arm of `scope` the reader has to tell apart three of the four on adjacent lines.
+
+`Counted`/`Uncounted` also implies a counting concept that does not exist. In the too_many_changes case the pages were received and folded; the server simply had more. What the variants actually say is whether the change set is known.
+
+Suggestion (inference; the responder's call): `type ChangeSet { Known(Delta) Unknown(reason: String) }`, or similar, and a local name such as `answer`. No behaviour change.
+"""
+disposition = "fix-now"
+response = """
+Renamed `type Changes { Counted | Uncounted }` to `type ChangeSet { Known(Delta) | Unknown(reason) }`; the local binding in `scope` is `change_set`, so it no longer shadows `fn changes`. The `Start.Changes(prior)` constructor stays: it names the start (incremental from Email/changes), parallel to Fresh/Reuse. No behaviour change; 428 green.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Renamed `type Changes { Counted | Uncounted }` to `type ChangeSet { Known(Delta) | Unknown(reason) }`; the local binding in `scope` is `change_set`, so it no longer shadows `fn changes`. The `Start.Changes(prior)` constructor stays: it names the start (incremental from Email/changes), parallel to Fresh/Reuse. No behaviour change; 428 green.
+"""
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

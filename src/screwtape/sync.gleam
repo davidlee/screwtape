@@ -11,7 +11,9 @@
 ////
 //// After the opening request every request carries one call through
 //// `client.call_one` (A1) on the `Client` value the previous call handed back,
-//// so the byte budget is spent across the whole run. Nothing is retried.
+//// so the byte budget is spent across the whole run. The one exception is a
+//// `cannotCalculateChanges` answer: the run continues on the `Client` held
+//// before it, so its bytes are not charged (DEC-026). Nothing is retried.
 
 import gleam/bool
 import gleam/int
@@ -252,7 +254,7 @@ fn scope(
     Reuse(prior, reason) -> Ok(#(client, reuse(prior, reason, opening_state)))
     Changes(prior) -> {
       let since = Delta(prior.email_state, set.new(), set.new())
-      use #(client, changes) <- result.map(changes(
+      use #(client, change_set) <- result.map(changes(
         client,
         account_id,
         max_changes,
@@ -260,9 +262,9 @@ fn scope(
         since,
         0,
       ))
-      case changes {
-        Counted(delta) -> #(client, incremental(prior, delta))
-        Uncounted(reason) -> #(client, reuse(prior, reason, opening_state))
+      case change_set {
+        Known(delta) -> #(client, incremental(prior, delta))
+        Unknown(reason) -> #(client, reuse(prior, reason, opening_state))
       }
     }
   }
@@ -305,15 +307,16 @@ type Delta {
   Delta(new_state: String, changed: Set(String), destroyed: Set(String))
 }
 
-/// What `Email/changes` answered: the changes, or why it could not say.
-type Changes {
-  Counted(Delta)
-  Uncounted(reason: String)
+/// What `Email/changes` answered: the changes when they are known, else why
+/// they are not.
+type ChangeSet {
+  Known(Delta)
+  Unknown(reason: String)
 }
 
 /// `Email/changes` from `delta.new_state`, `max_changes` ids at most per page,
 /// paging while `hasMoreChanges`, at most `max_pages` pages. Two answers are
-/// `Uncounted` (design § 5.4 Choosing the path): more pages than `max_pages`,
+/// `Unknown` (design § 5.4 Choosing the path): more pages than `max_pages`,
 /// with the pages spent, and `cannotCalculateChanges`, with the client held
 /// before that call, so its error bytes are not charged (DEC-026).
 fn changes(
@@ -323,10 +326,10 @@ fn changes(
   max_pages: Int,
   delta: Delta,
   pages: Int,
-) -> Result(#(Client, Changes), Error) {
+) -> Result(#(Client, ChangeSet), Error) {
   use <- bool.guard(
     pages >= max_pages,
-    Ok(#(client, Uncounted(too_many_changes))),
+    Ok(#(client, Unknown(too_many_changes))),
   )
   let method = request.method_name(request.EmailChanges)
   let answer =
@@ -343,7 +346,7 @@ fn changes(
   case answer {
     Error(error.JmapMethod(failed, "cannotCalculateChanges"))
       if failed == method
-    -> Ok(#(client, Uncounted(cannot_calculate_changes)))
+    -> Ok(#(client, Unknown(cannot_calculate_changes)))
     Error(error) -> Error(error)
     Ok(#(client, page)) ->
       case page.has_more {
@@ -356,7 +359,7 @@ fn changes(
             fold(delta, page),
             pages + 1,
           )
-        False -> Ok(#(client, Counted(fold(delta, page))))
+        False -> Ok(#(client, Known(fold(delta, page))))
       }
   }
 }

@@ -30,10 +30,10 @@ import screwtape/sync
 import support/fixture_send.{type Step}
 import support/jmap_fixture
 import support/sync_fixture.{
-  type Run, type Store, Spec, bounds, count, emails, emails_of, expect_calls,
-  expect_unchanged, fail_at, fetch, fetch_chunked, id_lists, ids, mailboxes,
-  methods, page, page_with, positions, rows, run, run_sync, seeded, spec,
-  summary, threads, threads_of, type_states, with_store,
+  type Run, type Spec, type Store, Spec, bounds, count, emails, emails_of,
+  expect_calls, expect_unchanged, fail_at, fetch, fetch_chunked, id_lists, ids,
+  mailboxes, methods, page, page_with, positions, rows, run, run_sync, seeded,
+  spec, summary, threads, threads_of, type_states, with_store,
 }
 
 pub fn main() -> Nil {
@@ -1645,29 +1645,56 @@ pub fn cannot_calculate_changes_falls_back_test() {
   message_states(store) |> should.equal([#("e1", "es-1"), #("e2", "es-1")])
 }
 
+/// Two pages, each with more to come, then the fallback's full path: under
+/// `max_pages` 2, a `too_many_changes` run.
+fn too_many_changes() -> Spec {
+  let base =
+    spec([
+      inbox_step(),
+      sync_fixture.changes("es-0", "es-1", True, [], ["e1"], []),
+      sync_fixture.changes("es-1", "es-2", True, [], [], []),
+      ..full_with_prior()
+    ])
+  Spec(..base, bounds: sync.Bounds(..base.bounds, max_pages: 2))
+}
+
+/// `spec` run from `seed_two`'s store on a budget of `max_total_bytes`.
+fn on_budget(spec: Spec, max_total_bytes: Int) -> Run {
+  use store <- with_store(None)
+  seed_two(store)
+  sync_fixture.run_with_prior(store, Spec(..spec, max_total_bytes:))
+}
+
+/// What `steps` cost a run of `spec`: the session, then each response.
+fn cost(spec: Spec, steps: List(Step)) -> Int {
+  string.byte_size(sync_fixture.session_body(spec)) + sync_fixture.bytes(steps)
+}
+
 /// `hasMoreChanges` still true after `max_pages` pages falls back to the full
 /// path with the Prior: no further page is asked for, and e1's reported
 /// update does not narrow the refresh.
 pub fn too_many_changes_falls_back_test() {
   use store <- with_store(None)
   seed_two(store)
-  let script = [
-    inbox_step(),
-    sync_fixture.changes("es-0", "es-1", True, [], ["e1"], []),
-    sync_fixture.changes("es-1", "es-2", True, [], [], []),
-    ..full_with_prior()
-  ]
-  let base = spec(script)
-  let run =
-    sync_fixture.run_with_prior(
-      store,
-      Spec(..base, bounds: sync.Bounds(..base.bounds, max_pages: 2)),
-    )
+  let spec = too_many_changes()
+  let run = sync_fixture.run_with_prior(store, spec)
 
-  expect_calls(run, methods(script))
+  expect_calls(run, methods(spec.script))
   summary(run).mode |> should.equal(sync.Full)
   summary(run).fallback_reason |> should.equal(Some("too_many_changes"))
   message_states(store) |> should.equal([#("e1", "es-1"), #("e2", "es-1")])
+}
+
+/// The pages spent before `too_many_changes` are charged: a budget of exactly
+/// the run's responses completes, one byte under it does not.
+pub fn too_many_changes_pages_are_charged_test() {
+  let spec = too_many_changes()
+  let total = cost(spec, spec.script)
+
+  summary(on_budget(spec, total)).fallback_reason
+  |> should.equal(Some("too_many_changes"))
+  on_budget(spec, total - 1).result
+  |> should.equal(Error(error.LimitExceeded("max_total_bytes")))
 }
 
 /// DEC-026: the `cannotCalculateChanges` response is not charged, so a
@@ -1675,24 +1702,14 @@ pub fn too_many_changes_falls_back_test() {
 /// the error response — still completes; one byte under it does not.
 pub fn cannot_calculate_changes_within_max_total_bytes_test() {
   let error_step = sync_fixture.changes_error("cannotCalculateChanges")
-  let script = [inbox_step(), error_step, ..full_with_prior()]
-  let full_cost =
-    string.byte_size(sync_fixture.session_body(spec(script)))
-    + sync_fixture.bytes([inbox_step(), ..full_with_prior()])
-  let with_budget = fn(budget) {
-    use store <- with_store(None)
-    seed_two(store)
-    sync_fixture.run_with_prior(
-      store,
-      Spec(..spec(script), max_total_bytes: budget),
-    )
-  }
+  let spec = spec([inbox_step(), error_step, ..full_with_prior()])
+  let full_cost = cost(spec, [inbox_step(), ..full_with_prior()])
 
   { full_cost + 1 < full_cost + sync_fixture.bytes([error_step]) }
   |> should.be_true
-  summary(with_budget(full_cost + 1)).fallback_reason
+  summary(on_budget(spec, full_cost + 1)).fallback_reason
   |> should.equal(Some("cannot_calculate_changes"))
-  with_budget(full_cost - 1).result
+  on_budget(spec, full_cost - 1).result
   |> should.equal(Error(error.LimitExceeded("max_total_bytes")))
 }
 
