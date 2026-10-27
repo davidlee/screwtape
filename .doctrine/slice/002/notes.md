@@ -26,7 +26,7 @@ fresh-as-of: 2026-10-27 · PHASE-09 (01-06, 08, 09 completed; 07 next) · 50ed11
 - sync fixture gotchas (expect_unchanged probe commit; spec bounds) — § PHASE-06 notes
 
 ### Open
-- PHASE-07 (CLI, README, VH-1 live check by operator) — next
+- PHASE-07 VH-1: operator's two live syncs (second `mode: incremental`) — pending
 - Thread/get ids now sorted, not first-seen (M1 A8 superseded) — reconcile at audit (§ PHASE-08 decisions)
 - PHASE-02 phase delta tightened past foreign commit 0103779 (DEC-013) — check at audit
 - unpinned by design: method-name guard; cannotCalculateChanges on a later page — § PHASE-09 notes
@@ -148,6 +148,10 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 06 | review (VA-1) | Codex gpt-6.1-sol, high, ledger RV-006 | — | 1 minor (F-1), fix-now; 2 tests added, 3 fold mutants killed; green at 423; RV-006 done |
 | 09 | plan + implement | Opus | — | red-first (3 red at the Email/changes stop; EX-3 test green by construction); green at 427; 6 negative controls each killed |
 | 09 | review (VA-1) | Opus subagent (fresh context), ledger RV-007 | — | 1 minor + 2 nits, all fix-now; pages-uncharged mutant (survived since PHASE-06) now killed; green at 428 |
+| 07 | phase-plan | Opus | — | sheet with amendments A1-A5 at the top (load order, shared `read_store`, named `prior_or_none`, README and nix are the orchestrator's) |
+| 07 | implement (cli + tests) | pi `implement` | 0.045 | green first pass (430); red evidence for T1-T3 correct; followed A1-A3; no negative controls (not briefed) |
+| 07 | README + nix doc | Opus | — | sync section; `maxPages` now also bounds `Email/changes` (README table + module description) |
+| 07 | negative controls | Opus | — | 4 mutants (Prior dropped, all errors→None, mode names swapped, reason always null), each killed by exactly one test |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
@@ -295,3 +299,35 @@ PHASE-09 review dispositions (RV-007, fresh Opus raiser, Opus responder):
   DEC-026 exception.
 - F-3 "changes" named four things; Counted/Uncounted misnamed (nit) — fix-now:
   `ChangeSet { Known | Unknown }`, binding `change_set`.
+
+PHASE-07 notes:
+- `cli.sync` order: config → Prior (`load_prior` over the shared `read_store`,
+  reader closed) → credential → session → writer (sheet A1). A store read
+  error therefore fails with zero requests and no credential read; pinned by
+  `sync_fails_on_a_store_read_error_with_zero_requests_test` (run with no
+  credentials directory).
+- `read_store` is the one open/read/close helper; `read_verb` and
+  `load_prior` both use it (POL-001). `sync` now receives the injected
+  `open_reader` from `dispatch` like the read verbs.
+- `data` gains `mode` and `fallback_reason` (null when incremental).
+- README: new `## How sync works` (paths diagram, upgrade's one-off
+  `window_changed`, retention scope and `retainMessages` rules, the
+  cannotCalculateChanges overspend), `window.retainMessages` option row;
+  `maxPages` described as bounding `Email/changes` too (README and
+  `nix/module.nix` description).
+- The second-sync test proves "no Email/get of ids" by request count (9 =
+  5 + 4) with an exhausted script; local_jmap records no bodies.
+- Negative controls killed: Prior dropped; every read error → None; mode
+  names swapped; reason always null; credential read before the Prior.
+- Gates: `gleam format --check`, `just check` (430), `nix flake check`.
+- VH-1 pending: operator's two live syncs.
+
+PHASE-07 review dispositions (RV-008, fresh Opus raiser, Opus responder):
+- F-1 read-error test did not pin Prior-before-credential (minor) — fix-now:
+  test runs with `no_env`; negative control fails it.
+- F-2 `incremental_sync_script` copied three replies and hid `es-0` (minor) —
+  fix-now: shared `session_reply` / `opening_reply` / `threads_reply`, `pub
+  const full_sync_email_state`.
+- F-3 `load_prior` pass-through over undocumented `prior_or_none` (nit) —
+  fix-now: folded.
+- F-4 README diagram spelled `max_body_bytes` (nit) — fix-now.

@@ -1,0 +1,166 @@
+id    = 8
+slug  = "code-review-review-of-sl-002"
+title = "code-review review of SL-002"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "code-review"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "opus-reviewer"
+responder = "opus"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Examined `git diff` for src/screwtape/cli.gleam, test/screwtape/cli_test.gleam, test/support/cli_fixture.gleam, README.md and nix/module.nix against PHASE-07's EX-1..3, VT-1..2 and amendments A1..A3. Checked the README's claims against design § 5.2 and § 5.4 and against sync.gleam, retain.gleam, config.gleam and the store schema (unchanged since SL-001). F-1..F-4 are verified on the re-diff: the read-error test runs with `no_env`, the cli_fixture replies are shared and `full_sync_email_state` is named once, `load_prior` is a single function, and the diagram now says `maxBodyBytes`. The fixes introduced nothing new. Gates (430 tests, just check) and the negative controls are taken from the orchestrator's evidence; I did not re-run them.
+"""
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-002"
+phase = "PHASE-07"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "Read-error test does not pin Prior-before-credential (A1)"
+detail = """
+Expected: A1 (binding) fixes the order config -> Prior -> credential -> session -> writer, and the read-error test's doc claims the run fails "before any credential, session or writer".
+
+Observed: the test supplies a valid credentials directory (`credentials_env(credentials)` with `SENTINEL-cli-read-error`), so a `sync` that read the credential before the Prior would reach the same `schema_mismatch` with zero requests. Only "before the session" (zero requests) is pinned; the credential half of A1 and of the doc claim is not.
+
+Evidence: test/screwtape/cli_test.gleam, `sync_fails_on_a_store_read_error_with_zero_requests_test` (doc comment, and `cli.run([...,"sync"], credentials_env(credentials))`); src/screwtape/cli.gleam `sync`: `use prior <- result.try(load_prior(...))` precedes `credentials_directory(env)`.
+
+Suggestion: run the case with an env that has no `CREDENTIALS_DIRECTORY` (e.g. `fn(_) { Error(Nil) }`). Credential-first would then fail as a credential error, so the asserted `store`/`schema_mismatch` line pins the order; the credential fixture dir becomes unnecessary. Alternatively narrow the doc comment to what is shown.
+"""
+disposition = "fix-now"
+response = """
+Fixed. `sync_fails_on_a_store_read_error_with_zero_requests_test` now runs with `no_env` (no CREDENTIALS_DIRECTORY), so a credential-first order fails as `credential`, not `store`/`schema_mismatch`. Doc comment says so. Negative control: moving `load_prior` after `credential.read` fails exactly this test.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed. `sync_fails_on_a_store_read_error_with_zero_requests_test` now runs with `no_env` (no CREDENTIALS_DIRECTORY), so a credential-first order fails as `credential`, not `store`/`schema_mismatch`. Doc comment says so. Negative control: moving `load_prior` after `credential.read` fails exactly this test.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "incremental_sync_script duplicates full_sync_script replies; old_state hidden-coupled to es-0"
+detail = """
+Expected: POL-001 / write less code; a test fixture's parameters carry information the caller owns.
+
+Observed: `incremental_sync_script` repeats three of `full_sync_script`'s five replies verbatim in shape: the session reply, the opening response (`[inbox()]`, "mb-state-1", "ts-0"), and the `Thread/get` of `[#("t-m1",["m1"]), #("t-m2",["m2"])]`. Its `old_state` parameter has one caller, which must pass "es-0" because that literal is buried in `full_sync_script` (the Email state the first run commits); nothing ties the two together.
+
+Evidence: test/support/cli_fixture.gleam `full_sync_script` (~156-190) vs `incremental_sync_script` (~192-218); test/screwtape/cli_test.gleam `second_sync_is_incremental_test`: `cli_fixture.incremental_sync_script(base_url, "es-0")`.
+
+Suggestion: extract the shared replies (session, opening, threads) as private helpers used by both scripts, and name the committed Email state once (a const or derive it from the same helper) instead of the `old_state` parameter; or drop the parameter and use the shared constant inside the fixture.
+"""
+disposition = "fix-now"
+response = """
+Fixed. `cli_fixture` gains private `session_reply`, `opening_reply`, `threads_reply`, shared by `full_sync_script` and `incremental_sync_script`, and `pub const full_sync_email_state` names the committed Email state; `incremental_sync_script(base_url)` drops the `old_state` parameter. Negative control (Prior dropped) still fails `second_sync_is_incremental_test`.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed. `cli_fixture` gains private `session_reply`, `opening_reply`, `threads_reply`, shared by `full_sync_script` and `incremental_sync_script`, and `pub const full_sync_email_state` names the committed Email state; `incremental_sync_script(base_url)` drops the `old_state` parameter. Negative control (Prior dropped) still fails `second_sync_is_incremental_test`.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "nit"
+title = "load_prior is a pass-through over undocumented prior_or_none"
+detail = """
+Expected: A3 asks for no_snapshot -> None as one small named function; write less code; doc comments on each function, as the surrounding cli functions have.
+
+Observed: two layers. `load_prior` only forwards to `prior_or_none(read_store(open_reader, store_path, query.prior))`, and its doc comment describes `prior_or_none`'s behaviour; `prior_or_none`, the function A3 names, has no doc comment.
+
+Evidence: src/screwtape/cli.gleam, `load_prior` and `prior_or_none` (diff hunk @@ -229 +244).
+
+Suggestion: keep one function. Either inline `prior_or_none(read_store(open_reader, settings.store_path, query.prior))` in `sync` and move the doc comment onto `prior_or_none`, or fold the `case` into `load_prior`.
+"""
+disposition = "fix-now"
+response = """
+Fixed. `prior_or_none` folded into `load_prior`, which now holds the `case` under its own doc comment.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed. `prior_or_none` folded into `load_prior`, which now holds the `case` under its own doc comment.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "nit"
+title = "README diagram spells max_body_bytes; rest of section uses maxBodyBytes"
+detail = """
+Expected: the README names settings one way within a section; the options table and the new prose use the Home Manager names (`maxPages`, `maxTotalBytes`, `window.maxMessages`, `window.retainMessages`), and give the config-file name only where it is introduced explicitly (`retain_messages` "in the config").
+
+Observed: the path diagram's second test reads `same server, account, max_body_bytes?` (config-file spelling), while the same section and the options table say `maxBodyBytes`.
+
+Evidence: README.md ~102 (diagram) vs ~172 (`maxBodyBytes` row) and ~121 (`maxPages` prose).
+
+Suggestion: write `maxBodyBytes` in the diagram (realign the arrow).
+"""
+disposition = "fix-now"
+response = """
+Fixed. README diagram now reads `maxBodyBytes`, matching the section and the options table.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed. README diagram now reads `maxBodyBytes`, matching the section and the options table.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.
