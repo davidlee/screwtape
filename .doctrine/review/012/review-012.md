@@ -33,7 +33,7 @@ Lines of attack:
 
 ## Synthesis
 
-- **Overall**: solid.
+- **Overall**: acceptable (the adversary's verdict, given before F-1's fix; orchestrator reads it as solid after the fix).
 - **Synopsis**: PHASE-03 gives `query` an oldest-first cursor page without
   changing the CLI. One statement builder (`list_sql(select, query)`) serves
   `messages` and `message_ids`; the cursor is one more ANDed filter, so
@@ -42,5 +42,9 @@ Lines of attack:
   (F-1): the `id ASC` tie-break was pinned only by insertion order; fixed by
   writing the fixture in both message orders. Orchestrator mutations of the
   predicate, the bind order and the limit each fail a test. Standing risk:
-  PHASE-04's CLI walk needs the same both-orders discipline.
+  PHASE-04's CLI walk needs the same both-orders discipline. Not raised, by
+  the adversary: a negative `Some(n)` limit is no limit in SQLite, so argv
+  must keep `--limit` in 1..500 (PHASE-04); schema `id` has no COLLATE, so
+  comparison and ORDER BY both use BINARY.
 - **Haiku**: two letters, one tick — / the id breaks the tie, not / the order they came.
+- **Haiku (adversary)**: two keys share one tick — / the rowid quietly sorts them; / proof by accident.
