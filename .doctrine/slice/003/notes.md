@@ -4,6 +4,25 @@ Durable per-slice scratchpad — tracked in git. The place to lift anything from
 disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 `rm -rf` before the slice close-out audit harvests it.
 
+## Harvest
+<!-- single-copy: updated in place each harvest; ids only, never restated content -->
+fresh-as-of: 2026-10-27 · plan (design locked, run rev 43) · 611e6d5
+
+### Produced
+- slice-003.md · research/research.md · design.md (sec-1..sec-10, incl. § 5.2 Published shape v1)
+- DEC-027 · DEC-028 · DEC-029 · DEC-030 · DEC-031 · DEC-032 (accepted)
+- RV-010 (design review, Opus adversarial): F-1..F-14 verified, concluded
+- IDE-001 (classifier, separate, pipe-composed)
+
+### Learned
+- store has no change marker (design § 2; research F1/F2) → arrival cursor
+- `query.prior` already owns the ids→messages loop (RV-010 F-1)
+- Erlang `binary_to_integer` accepts `+05`/`007` (RV-010 F-5)
+
+### Open
+- satan:RFC-020 amendment draft (OQ-11 answered, D1 cursor, IDE-001 note) — due in plan as a phase; operator commits in satan
+- no open QUE/ASM; IMP-001 declined for now (operator)
+
 ## Design
 
 - 2026-10-27: research round by the orchestrator (no agents; `research/`).
