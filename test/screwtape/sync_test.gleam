@@ -66,6 +66,7 @@ fn window(mailboxes: List(String)) -> sync.Bounds {
       mailboxes: mailboxes,
       max_age_days: None,
       max_messages: Some(100),
+      retain_messages: None,
     ),
   )
 }
@@ -334,6 +335,7 @@ pub fn paging_clamped_without_max_messages_test() {
         mailboxes: ["inbox"],
         max_age_days: Some(30),
         max_messages: None,
+        retain_messages: None,
       ),
     )
   let spec = Spec(..spec(script), bounds: bounds)
@@ -750,6 +752,7 @@ pub fn query_state_row_test() {
         mailboxes: ["inbox"],
         max_age_days: Some(30),
         max_messages: Some(5),
+        retain_messages: None,
       ),
     )
   use store, run <- run_sync(Spec(..spec(script), bounds: bounds), None)

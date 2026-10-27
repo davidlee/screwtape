@@ -27,6 +27,7 @@ self: {
         inherit (cfg.window) mailboxes;
         max_age_days = cfg.window.maxAgeDays;
         max_messages = cfg.window.maxMessages;
+        retain_messages = cfg.window.retainMessages;
       };
       max_body_bytes = cfg.maxBodyBytes;
       max_pages = cfg.maxPages;
@@ -138,6 +139,11 @@ in {
         type = types.nullOr types.ints.positive;
         default = 2000;
         description = "Mirror at most this many messages, newest first.";
+      };
+      retainMessages = mkOption {
+        type = types.nullOr types.ints.positive;
+        default = null;
+        description = "Keep at most this many messages in the store; requires maxMessages (DEC-024).";
       };
     };
 

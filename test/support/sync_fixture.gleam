@@ -83,6 +83,7 @@ pub fn bounds(max_messages: Option(Int)) -> sync.Bounds {
       mailboxes: ["inbox"],
       max_age_days: None,
       max_messages: max_messages,
+      retain_messages: None,
     ),
     max_pages: 10,
     max_body_bytes: 1000,

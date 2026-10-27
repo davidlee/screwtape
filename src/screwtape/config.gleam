@@ -21,6 +21,7 @@ pub type Window {
     mailboxes: List(String),
     max_age_days: Option(Int),
     max_messages: Option(Int),
+    retain_messages: Option(Int),
   )
 }
 
@@ -80,6 +81,7 @@ pub fn window_json(window: Window) -> String {
     #("mailboxes", json.array(window.mailboxes, json.string)),
     #("max_age_days", json.nullable(window.max_age_days, json.int)),
     #("max_messages", json.nullable(window.max_messages, json.int)),
+    #("retain_messages", json.nullable(window.retain_messages, json.int)),
   ])
   |> json.to_string
 }
@@ -96,7 +98,17 @@ fn window_decoder() -> decode.Decoder(Window) {
     None,
     decode.optional(decode.int),
   )
-  decode.success(Window(mailboxes:, max_age_days:, max_messages:))
+  use retain_messages <- decode.optional_field(
+    "retain_messages",
+    None,
+    decode.optional(decode.int),
+  )
+  decode.success(Window(
+    mailboxes:,
+    max_age_days:,
+    max_messages:,
+    retain_messages:,
+  ))
 }
 
 fn validate(config: Config) -> Result(Config, Error) {
@@ -112,6 +124,21 @@ fn validate(config: Config) -> Result(Config, Error) {
   use _ <- result.try(positive(config.request_timeout_ms, "request_timeout_ms"))
   use _ <- result.try(positive_if_set(window.max_age_days, "max_age_days"))
   use _ <- result.try(positive_if_set(window.max_messages, "max_messages"))
+  use _ <- result.try(positive_if_set(window.retain_messages, "retain_messages"))
+  use _ <- result.try(check(
+    case window.retain_messages {
+      None -> True
+      Some(_) -> is_some(window.max_messages)
+    },
+    "retain_without_max_messages",
+  ))
+  use _ <- result.try(check(
+    case window.retain_messages, window.max_messages {
+      Some(retain), Some(max) -> retain >= max
+      _, _ -> True
+    },
+    "retain_below_max_messages",
+  ))
   use _ <- result.try(check(
     string.starts_with(config.session_url, "https://"),
     "non_https:session_url",

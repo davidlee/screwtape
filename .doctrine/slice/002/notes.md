@@ -110,3 +110,30 @@ What a further pass would probe, if the operator wants one:
 Otherwise none is needed: the remaining uncertainty is runtime behaviour
 (concurrent changes, budget arithmetic), which the § 9 tests and the live check
 settle better than another reading.
+
+## Execution passes (orchestrated; /pi-orchestrate)
+
+Form probe (2026-10-27): the pi `write` form has gleam, erl, just, git, sqlite3,
+rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's.
+
+| phase | step | who / profile | cost USD | outcome |
+|---|---|---|---|---|
+| 01 | phase-plan | pi `implement` | 0.016 | sound sheet; missed that `nix/module-eval.nix:296,307` compare the whole `.window` object (orchestrator amended scope) |
+| 01 | implement | pi `implement` | 0.018 | green first pass; red evidence given; no deviations |
+| 01 | review (VA-1) | pi `review` | 0.021 | 5 findings: 1 accepted, 1 kept as is, 3 rejected (below) |
+
+PHASE-01 review dispositions:
+- F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
+  missed the sheet's orchestrator amendment.
+- F2 no explicit-`null` decode test (minor) — accepted; assertion added to
+  `retain_messages_decoded_test`.
+- F3 "invalid relation fails only at timer run" — rejected: the module parses
+  the generated config at build time (`nix/module-eval.nix:131`).
+- F4 `///` vs `//` — rejected: the file uses `///` for doc comments.
+- F5 `case` vs boolean `check` — kept as is (legible).
+- Orchestrator nit: `window_json_changes_with_retain_messages_test` used an
+  invalid retain (7 < max 10); changed to 20.
+
+What pi got wrong: scope inference from a whole-object jq comparison (planner);
+reading a sheet's late amendment (reviewer). Brief fix: put amendments at the
+top of the sheet, or quote them in the brief.

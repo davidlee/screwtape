@@ -67,6 +67,7 @@ pub fn parse_full_valid_config_test() {
   parsed.window.mailboxes |> should.equal(["inbox"])
   parsed.window.max_age_days |> should.equal(Some(30))
   parsed.window.max_messages |> should.equal(Some(2000))
+  parsed.window.retain_messages |> should.equal(None)
   parsed.max_body_bytes |> should.equal(262_144)
   parsed.max_pages |> should.equal(20)
   parsed.max_total_bytes |> should.equal(268_435_456)
@@ -101,6 +102,65 @@ pub fn non_positive_max_age_days_test() {
 pub fn non_positive_max_messages_test() {
   config.parse(broken("\"max_messages\":2000", "\"max_messages\":-5"))
   |> should.equal(Error(error.Config("non_positive:max_messages")))
+}
+
+pub fn retain_messages_decoded_test() {
+  let text =
+    broken(
+      window_bounds,
+      "\"max_age_days\":30,\"max_messages\":2000,\"retain_messages\":2000",
+    )
+  let result = config.parse(text)
+
+  // Set, and equal to `max_messages`: retention may not be below the window.
+  let assert Ok(parsed) = result
+  parsed.window.retain_messages |> should.equal(Some(2000))
+
+  // Explicit null, as the Home Manager module writes it, means unset.
+  let assert Ok(parsed) =
+    config.parse(broken(
+      window_bounds,
+      "\"max_age_days\":30,\"max_messages\":2000,\"retain_messages\":null",
+    ))
+  parsed.window.retain_messages |> should.equal(None)
+}
+
+pub fn non_positive_retain_messages_test() {
+  // Refusal 1 is checked before the cross-field rules, so the missing
+  // `max_messages` here cannot mask the non-positive reason.
+  config.parse(broken(
+    window_bounds,
+    "\"max_age_days\":30,\"retain_messages\":0",
+  ))
+  |> should.equal(Error(error.Config("non_positive:retain_messages")))
+  config.parse(broken(
+    window_bounds,
+    "\"max_age_days\":30,\"retain_messages\":-5",
+  ))
+  |> should.equal(Error(error.Config("non_positive:retain_messages")))
+}
+
+pub fn retain_without_max_messages_test() {
+  // An age-only window is refused by design: retention extends a count window,
+  // and an age-only one would fetch bodies retention then discards.
+  config.parse(broken(
+    window_bounds,
+    "\"max_age_days\":30,\"retain_messages\":2000",
+  ))
+  |> should.equal(Error(error.Config("retain_without_max_messages")))
+}
+
+pub fn retain_below_max_messages_test() {
+  config.parse(broken(
+    window_bounds,
+    "\"max_age_days\":30,\"max_messages\":2000,\"retain_messages\":1999",
+  ))
+  |> should.equal(Error(error.Config("retain_below_max_messages")))
+  config.parse(broken(
+    window_bounds,
+    "\"max_age_days\":30,\"max_messages\":2000,\"retain_messages\":1000",
+  ))
+  |> should.equal(Error(error.Config("retain_below_max_messages")))
 }
 
 pub fn non_positive_body_bytes_test() {
@@ -215,9 +275,28 @@ pub fn window_json_test() {
     mailboxes: ["inbox", "Work"],
     max_age_days: None,
     max_messages: Some(5),
+    retain_messages: None,
   )
   |> config.window_json
   |> should.equal(
-    "{\"mailboxes\":[\"inbox\",\"Work\"],\"max_age_days\":null,\"max_messages\":5}",
+    "{\"mailboxes\":[\"inbox\",\"Work\"],\"max_age_days\":null,\"max_messages\":5,\"retain_messages\":null}",
   )
+}
+
+/// A change to retention changes the provenance string (EX-3), which is why
+/// M1's three-key `window_json` mismatches on the first M2 run.
+pub fn window_json_changes_with_retain_messages_test() {
+  let window = fn(retain_messages) {
+    config.Window(
+      mailboxes: ["inbox"],
+      max_age_days: None,
+      max_messages: Some(10),
+      retain_messages: retain_messages,
+    )
+  }
+  let without = window(None) |> config.window_json
+  let with = window(Some(20)) |> config.window_json
+
+  with |> should.not_equal(without)
+  with |> string.contains("\"retain_messages\":20") |> should.be_true
 }

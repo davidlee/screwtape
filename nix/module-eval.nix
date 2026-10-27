@@ -116,6 +116,7 @@
         mailboxes = ["inbox" "Archive"];
         maxAgeDays = null;
         maxMessages = 10;
+        retainMessages = 20;
       };
       maxBodyBytes = 1000;
       maxPages = 3;
@@ -293,7 +294,7 @@ in
         .session_url == "https://api.fastmail.com/jmap/session" and
         .credential_name == "fastmail" and
         .store_path == "/home/operator/.local/state/screwtape/mail.sqlite3" and
-        .window == {"mailboxes": ["inbox"], "max_age_days": 30, "max_messages": 2000} and
+        .window == {"mailboxes": ["inbox"], "max_age_days": 30, "max_messages": 2000, "retain_messages": null} and
         .max_body_bytes == 262144 and
         .max_pages == 20 and
         .max_total_bytes == 268435456 and
@@ -304,7 +305,7 @@ in
       # Every config option, set away from its default, reaches the config.
       ${pkgs.jq}/bin/jq -e '
         .session_url == "https://jmap.example/session" and
-        .window == {"mailboxes": ["inbox", "Archive"], "max_age_days": null, "max_messages": 10} and
+        .window == {"mailboxes": ["inbox", "Archive"], "max_age_days": null, "max_messages": 10, "retain_messages": 20} and
         .max_body_bytes == 1000 and
         .max_pages == 3 and
         .max_total_bytes == 50000 and
