@@ -59,7 +59,7 @@ exit_criteria = [
   { id = "EX-2", text = "argv accepts thread <id> [--limit n], --limit once, 1..500, default 50; a bad or repeated --limit is the same usage code list gives." },
   { id = "EX-3", text = "model.ThreadPage(total: Int, entries: List(ThreadEntry)); query.thread(tx, id, limit) -> Result(Option(ThreadPage), Error) reads all ids in position order, total is their count, and summaries are read only for the last min(limit, total) kept (C5)." },
   { id = "EX-4", text = "render.thread(id, page) prints id, total, truncated (total > length(entries)), items, in that order." },
-  { id = "EX-5", text = "C6, thread part: the only changed existing expectations are render_test's thread test (render_test.gleam:726) and cli_test.gleam:646 moving from usage error to accepted." },
+  { id = "EX-5", text = "C6, thread part: the only changed existing expectations are render_test's thread test (render_test.gleam:726), cli_test.gleam:646 moving from usage error to accepted, thread_marks_in_store_entries_test's data keys gaining total and truncated (the added fields C6 names; RV-011 F-1), and store_test's thread tests adapting to query.thread's limit and ThreadPage." },
   { id = "EX-6", text = "gleam format --check and just check are clean." },
 ]
 verification = [

@@ -22,7 +22,7 @@ import screwtape/model.{
   type Message, type MessageSummary, type Source, type TruncatedBy, type UtcDate,
   Address, Attachment, Bcc, Body, Cc, From, HeaderIds, Html, Mailbox, Message,
   MessageLimit, MessageSummary, PlainText, ReplyTo, Sender, Server, ThreadEntry,
-  To, UtcDate,
+  ThreadPage, To, UtcDate,
 }
 import screwtape/render
 
@@ -749,16 +749,21 @@ pub fn thread_prints_summaries_and_out_of_store_ids_in_order_test() {
       False,
     )
 
-  render.thread("th1", [
-    ThreadEntry(id: "m1", summary: Some(first)),
-    ThreadEntry(id: "m0", summary: None),
-    ThreadEntry(id: "m3", summary: Some(third)),
-  ])
+  render.thread(
+    "th1",
+    ThreadPage(total: 3, entries: [
+      ThreadEntry(id: "m1", summary: Some(first)),
+      ThreadEntry(id: "m0", summary: None),
+      ThreadEntry(id: "m3", summary: Some(third)),
+    ]),
+  )
   |> parse
   |> should.equal(envelope_doc(
     "thread",
     obj([
       #("id", str("th1")),
+      #("total", int(3)),
+      #("truncated", bool(False)),
       #(
         "items",
         arr([
@@ -793,6 +798,63 @@ pub fn thread_prints_summaries_and_out_of_store_ids_in_order_test() {
             "in_store",
             bool(True),
           ),
+        ]),
+      ),
+    ]),
+  ))
+}
+
+/// C6: a page shorter than the thread is `truncated: true`, and `total` still
+/// counts the whole thread's ids, not the printed entries.
+pub fn thread_page_shorter_than_total_is_truncated_test() {
+  let held =
+    summary(
+      "m1",
+      "th1",
+      "2026-10-25T21:04:11Z",
+      Some("Invoice"),
+      [address(From, Some("Acme"), "billing@acme.test")],
+      True,
+      False,
+      ["mb1"],
+      True,
+    )
+
+  render.thread(
+    "th1",
+    ThreadPage(total: 5, entries: [
+      ThreadEntry(id: "m1", summary: Some(held)),
+      ThreadEntry(id: "m0", summary: None),
+      ThreadEntry(id: "m3", summary: None),
+    ]),
+  )
+  |> parse
+  |> should.equal(envelope_doc(
+    "thread",
+    obj([
+      #("id", str("th1")),
+      #("total", int(5)),
+      #("truncated", bool(True)),
+      #(
+        "items",
+        arr([
+          with_field(
+            summary_json(
+              "m1",
+              "th1",
+              "2026-10-25T21:04:11Z",
+              Some("Invoice"),
+              addresses([#(Some("Acme"), "billing@acme.test")]),
+              True,
+              False,
+              ["mb1"],
+              True,
+            ),
+            "in_store",
+            bool(True),
+          ),
+          obj([#("id", str("m0")), #("in_store", bool(False))]),
+          obj([#("id", str("m3")), #("in_store", bool(False))]),
         ]),
       ),
     ]),

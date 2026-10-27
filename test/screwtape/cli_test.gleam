@@ -19,6 +19,7 @@ import gleam/bit_array
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
@@ -26,6 +27,7 @@ import gleam/string
 import gleeunit
 import gleeunit/should
 import screwtape/cli
+import screwtape/model
 import screwtape/store
 import support/cli_fixture
 import support/jmap_fixture
@@ -640,10 +642,15 @@ pub fn read_verb_usage_shapes_exit_two_test() {
     ["read", "acct-l-m1", "--max-bytes", "5", "--max-bytes", "6"],
     ["read", "acct-l-m1", "extra"],
     ["read", "acct-l-m1", "--unread"],
-    // `thread`: a missing id, an extra positional, a flag it does not take.
+    // `thread`: a missing id, an extra positional, a bad, missing or repeated
+    // --limit.
     ["thread"],
     ["thread", "acct-l-th1", "extra"],
-    ["thread", "acct-l-th1", "--limit", "5"],
+    ["thread", "acct-l-th1", "--limit", "0"],
+    ["thread", "acct-l-th1", "--limit", "501"],
+    ["thread", "acct-l-th1", "--limit", "ten"],
+    ["thread", "acct-l-th1", "--limit"],
+    ["thread", "acct-l-th1", "--limit", "5", "--limit", "6"],
   ]
 
   let outcomes = list.map(cases, fn(args) { #(args, read_verb(setup, args)) })
@@ -690,6 +697,28 @@ pub fn read_verb_named_usage_reasons_test() {
         <> "\"}",
       ]),
     )
+  })
+}
+
+/// EX-2 (PHASE-02): a bad, missing or repeated `thread --limit` is the same
+/// usage error, reason included, that `list --limit` gives.
+pub fn thread_limit_usage_matches_list_limit_test() {
+  let setup = cli_fixture.seeded("cli-limit-parity", snapshot_fixture.listing())
+  let tails = [["0"], ["501"], ["ten"], [], ["5", "--limit", "6"]]
+  let outcomes =
+    list.map(tails, fn(tail) {
+      #(
+        tail,
+        read_verb(setup, ["thread", "acct-l-th1", "--limit", ..tail]),
+        read_verb(setup, ["list", "--limit", ..tail]),
+      )
+    })
+  temp.remove_dir(setup.dir)
+
+  list.each(outcomes, fn(triple) {
+    let #(tail, thread, listed) = triple
+    #(tail, thread.exit_code) |> should.equal(#(tail, 2))
+    #(tail, thread.stderr) |> should.equal(#(tail, listed.stderr))
   })
 }
 
@@ -1119,9 +1148,14 @@ pub fn thread_marks_in_store_entries_test() {
   temp.remove_dir(setup.dir)
 
   let document = expect_document(outcome, "thread")
-  cli_fixture.keys(document, ["data"]) |> should.equal(Ok(["id", "items"]))
+  cli_fixture.keys(document, ["data"])
+  |> should.equal(Ok(["id", "items", "total", "truncated"]))
   cli_fixture.field(document, ["data", "id"], decode.string)
   |> should.equal(Ok("acct-l-th1"))
+  cli_fixture.field(document, ["data", "total"], decode.int)
+  |> should.equal(Ok(4))
+  cli_fixture.field(document, ["data", "truncated"], decode.bool)
+  |> should.equal(Ok(False))
   cli_fixture.item_ids(document)
   |> should.equal(Ok(listing_ids(["m5", "m3", "m0", "m1"])))
   cli_fixture.field(
@@ -1137,6 +1171,64 @@ pub fn thread_marks_in_store_entries_test() {
   cli_fixture.field(m5, ["subject"], decode.optional(decode.string))
   |> should.equal(Ok(Some("Subject m5")))
   cli_fixture.keys(m0, []) |> should.equal(Ok(["id", "in_store"]))
+}
+
+/// C5, C6: `--limit` keeps the thread's last entries in position order and
+/// sets `truncated`; `total` still counts the whole thread.
+pub fn thread_limit_prints_a_truncated_page_test() {
+  let setup = cli_fixture.seeded("cli-thread-limit", snapshot_fixture.listing())
+  let outcome = read_verb(setup, ["thread", "acct-l-th1", "--limit", "2"])
+  temp.remove_dir(setup.dir)
+
+  let document = expect_document(outcome, "thread")
+  cli_fixture.item_ids(document)
+  |> should.equal(Ok(listing_ids(["m0", "m1"])))
+  cli_fixture.field(document, ["data", "total"], decode.int)
+  |> should.equal(Ok(4))
+  cli_fixture.field(document, ["data", "truncated"], decode.bool)
+  |> should.equal(Ok(True))
+}
+
+/// C5: a `--limit` larger than the thread keeps every id, untruncated.
+pub fn thread_limit_beyond_the_thread_prints_every_id_test() {
+  let setup = cli_fixture.seeded("cli-thread-wide", snapshot_fixture.listing())
+  let outcome = read_verb(setup, ["thread", "acct-l-th1", "--limit", "500"])
+  temp.remove_dir(setup.dir)
+
+  let document = expect_document(outcome, "thread")
+  cli_fixture.item_ids(document)
+  |> should.equal(Ok(listing_ids(["m5", "m3", "m0", "m1"])))
+  cli_fixture.field(document, ["data", "total"], decode.int)
+  |> should.equal(Ok(4))
+  cli_fixture.field(document, ["data", "truncated"], decode.bool)
+  |> should.equal(Ok(False))
+}
+
+/// C6: with no `--limit`, a thread longer than 50 prints its last 50 entries,
+/// truncated. The thread's ids are outside the snapshot, so it needs no
+/// messages.
+pub fn thread_defaults_to_the_last_fifty_entries_test() {
+  let listing = snapshot_fixture.listing()
+  // long-1 .. long-51, built from the top down by prepending.
+  let ids =
+    int.range(from: 51, to: 0, with: [], run: fn(ids, n) {
+      ["long-" <> int.to_string(n), ..ids]
+    })
+  let snapshot =
+    model.Snapshot(..listing, threads: [
+      model.Thread("acct-l-th-long", ids),
+      ..listing.threads
+    ])
+  let setup = cli_fixture.seeded("cli-thread-default", snapshot)
+  let outcome = read_verb(setup, ["thread", "acct-l-th-long"])
+  temp.remove_dir(setup.dir)
+
+  let document = expect_document(outcome, "thread")
+  cli_fixture.item_ids(document) |> should.equal(Ok(list.drop(ids, 1)))
+  cli_fixture.field(document, ["data", "total"], decode.int)
+  |> should.equal(Ok(51))
+  cli_fixture.field(document, ["data", "truncated"], decode.bool)
+  |> should.equal(Ok(True))
 }
 
 // ---------------------------------------------------------------- EX-3

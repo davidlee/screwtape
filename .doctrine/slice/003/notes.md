@@ -91,3 +91,35 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
 - Gotcha: `doctrine slice verify-vt` reports UNATTRIBUTABLE until the phase is
   flipped `completed` — attribution reads the phase boundary
   (`code_start_oid`..`code_end_oid`) written at completion.
+
+### PHASE-02 Bounded thread — completed
+
+- `model.ThreadPage(total, entries)`; `query.thread(tx, id, limit)` reads all
+  ids, `list.drop(ids, total - limit)` (stdlib `drop` treats n ≤ 0 as no-op),
+  summaries only for kept ids; `render.thread(id, page)` adds `total`,
+  `truncated`.
+- argv: `limit_value` / `in_limit_range` hold the 1..500 range once;
+  `parse_int_flag` now takes a value parser (`limit_value`, `offset_value`),
+  not a predicate; `parse_max_bytes` generalised to `parse_sole_int_flag`,
+  shared by `read --max-bytes` and `thread --limit`. `Verb.Thread(id, limit)`.
+- Decision (orchestrator): `thread <id> extra` now reports
+  `unknown_argument` (was `unexpected_argument`) — a consequence of sharing
+  read's parser; still a usage error, never pinned (RV-011 F-2).
+- Added beyond the VTs: `thread_defaults_to_the_last_fifty_entries_test`
+  (51-id thread built inline from `listing()`; C6's default) and
+  `thread_limit_usage_matches_list_limit_test` (EX-2 reason parity, RV-011
+  F-3).
+- C6 audit: changed existing expectations are render_test's thread test,
+  cli_test:646 (removed from usage cases), `thread_marks_in_store_entries_test`
+  data keys (+ total, truncated) and store_test's thread tests (signature).
+  The last two were missing from EX-5; EX-5 amended in place (RV-011 F-1).
+- **For /reconcile:** design § 9's C6 row has the same enumeration gap
+  (RV-011 F-1, design-wrong); correct it there.
+- Passes: pi `implement` red tests (15 req, $0.016; correct, slightly
+  repetitive — orchestrator deduped store_test via `th1_page`/`th1_entries`);
+  pi `implement` green (14 req, $0.017; correct first time; one redundant
+  `int.max` and a shadowed `value` binding, both removed in refactor).
+- Review RV-011 (Opus adversarial subagent, ~97k tokens): acceptable, 5
+  findings (3 minor, 2 nit), all terminal; see the ledger. Gotcha: the
+  subagent could not hand back directly (SubagentHandback failed); its report
+  came via the main thread.

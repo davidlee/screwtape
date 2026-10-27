@@ -175,6 +175,12 @@ pub type ThreadEntry {
   ThreadEntry(id: String, summary: Option(MessageSummary))
 }
 
+/// A thread's page: `total` is the whole thread's id count, `entries` the last
+/// min(limit, total) of them in thread order, so a page may be truncated.
+pub type ThreadPage {
+  ThreadPage(total: Int, entries: List(ThreadEntry))
+}
+
 /// The mailboxes a window entry names: those whose role is `entry`; if none,
 /// those whose name is exactly `entry`; else none. Role beats name.
 pub fn mailboxes_matching(

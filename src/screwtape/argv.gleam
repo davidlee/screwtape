@@ -9,8 +9,8 @@
 //// Pure: no file, no environment, no store. `list`'s flags may come in any
 //// order, each at most once (A5); the page size and start default when no flag
 //// names them, and `--since YYYY-MM-DD` is turned into the midnight-UTC instant
-//// it names (A2). `read <id> [--max-bytes n]` and `thread <id>` (A7) take no
-//// other flag, and `sync` and `mailboxes` take no argument at all.
+//// it names (A2). `read <id> [--max-bytes n]` and `thread <id> [--limit n]` (A7)
+//// take no other flag, and `sync` and `mailboxes` take no argument at all.
 
 import gleam/int
 import gleam/option.{type Option, None, Some, is_some, unwrap}
@@ -30,7 +30,7 @@ pub type Verb {
   Mailboxes
   List(ListArgs)
   Read(id: String, max_bytes: Option(Int))
-  Thread(id: String)
+  Thread(id: String, limit: Int)
 }
 
 /// `list`'s checked flags with their defaults applied; `since_ms` is the
@@ -46,7 +46,7 @@ pub type ListArgs {
   )
 }
 
-/// The page size and start `list` uses when no flag names them, and the range
+/// The page size `list` and `thread` use when no flag names them, and the range
 /// `--limit` and `--offset` accept (A5): `--offset` reaches SQLite's signed
 /// 64-bit maximum, because a larger value cannot be bound.
 const default_limit = 50
@@ -90,7 +90,11 @@ fn verb_command(
         Command(path, Read(id, max_bytes))
       })
     "thread", _ ->
-      parse_thread(args) |> result.map(fn(id) { Command(path, Thread(id)) })
+      parse_thread(args)
+      |> result.map(fn(parsed) {
+        let #(id, limit) = parsed
+        Command(path, Thread(id, limit))
+      })
     _, _ -> usage("unknown_verb")
   }
 }
@@ -114,24 +118,34 @@ fn parse_read(args: List(String)) -> Result(#(String, Option(Int)), Error) {
   case args {
     [] -> usage("missing_message_id")
     [id, ..rest] -> {
-      use max_bytes <- result.try(parse_max_bytes(rest, None))
+      use max_bytes <- result.try(parse_sole_int_flag(
+        rest,
+        "--max-bytes",
+        max_bytes_value,
+        None,
+      ))
       Ok(#(id, max_bytes))
     }
   }
 }
 
-fn parse_max_bytes(
+/// A verb's one optional integer flag, which may appear once (A5): `value`
+/// reads and range-checks the raw text, and `found` carries what earlier
+/// occurrences stored.
+fn parse_sole_int_flag(
   args: List(String),
+  flag: String,
+  value: fn(String) -> Result(Int, Error),
   found: Option(Int),
 ) -> Result(Option(Int), Error) {
   case args {
     [] -> Ok(found)
-    ["--max-bytes", ..rest] -> {
+    [name, ..rest] if name == flag -> {
       use _ <- result.try(fresh(is_some(found)))
       use pair <- result.try(value_flag(rest))
       let #(raw, rest) = pair
-      use value <- result.try(max_bytes_value(raw))
-      parse_max_bytes(rest, Some(value))
+      use parsed <- result.try(value(raw))
+      parse_sole_int_flag(rest, flag, value, Some(parsed))
     }
     _ -> usage("unknown_argument")
   }
@@ -144,12 +158,19 @@ fn max_bytes_value(raw: String) -> Result(Int, Error) {
   }
 }
 
-/// `thread <id>`, with no other argument (A7).
-fn parse_thread(args: List(String)) -> Result(String, Error) {
+/// `thread <id> [--limit n]`, whose page defaults to `default_limit` (A7).
+fn parse_thread(args: List(String)) -> Result(#(String, Int), Error) {
   case args {
-    [id] -> Ok(id)
     [] -> usage("missing_thread_id")
-    _ -> usage("unexpected_argument")
+    [id, ..rest] -> {
+      use limit <- result.try(parse_sole_int_flag(
+        rest,
+        "--limit",
+        limit_value,
+        None,
+      ))
+      Ok(#(id, unwrap(limit, default_limit)))
+    }
   }
 }
 
@@ -213,7 +234,7 @@ fn parse_list_flags(
           parse_int_flag(
             rest,
             flags.limit,
-            fn(value) { value >= min_limit && value <= max_limit },
+            limit_value,
             fn(flags, value) { ListFlags(..flags, limit: Some(value)) },
             flags,
           )
@@ -221,7 +242,7 @@ fn parse_list_flags(
           parse_int_flag(
             rest,
             flags.offset,
-            offset_in_range,
+            offset_value,
             fn(flags, value) { ListFlags(..flags, offset: Some(value)) },
             flags,
           )
@@ -264,19 +285,20 @@ fn parse_text_flag(
   parse_list_flags(rest, store(flags, value))
 }
 
-/// A flag taking one integer value `allowed` accepts, stored once.
+/// A `list` flag taking one integer, which `value` reads and checks, stored
+/// once.
 fn parse_int_flag(
   args: List(String),
   found: Option(Int),
-  allowed: fn(Int) -> Bool,
+  value: fn(String) -> Result(Int, Error),
   store: fn(ListFlags, Int) -> ListFlags,
   flags: ListFlags,
 ) -> Result(ListFlags, Error) {
   use _ <- result.try(fresh(is_some(found)))
   use pair <- result.try(value_flag(args))
   let #(raw, rest) = pair
-  use value <- result.try(int_value(raw, allowed))
-  parse_list_flags(rest, store(flags, value))
+  use parsed <- result.try(value(raw))
+  parse_list_flags(rest, store(flags, parsed))
 }
 
 fn int_value(raw: String, allowed: fn(Int) -> Bool) -> Result(Int, Error) {
@@ -288,6 +310,20 @@ fn int_value(raw: String, allowed: fn(Int) -> Bool) -> Result(Int, Error) {
       }
     Error(Nil) -> usage("invalid_integer")
   }
+}
+
+/// `--limit`'s value for `list` and `thread`: an integer in 1..500 (A5).
+fn limit_value(raw: String) -> Result(Int, Error) {
+  int_value(raw, in_limit_range)
+}
+
+fn in_limit_range(value: Int) -> Bool {
+  value >= min_limit && value <= max_limit
+}
+
+/// `--offset`'s value for `list`: an integer in `offset_in_range`.
+fn offset_value(raw: String) -> Result(Int, Error) {
+  int_value(raw, offset_in_range)
 }
 
 /// The value after a flag; a flag with nothing after it is `Usage`.

@@ -103,7 +103,7 @@ fn dispatch(
     argv.Mailboxes -> run_read(mailboxes_document)
     argv.List(args) -> run_read(list_document(args))
     argv.Read(id, max_bytes) -> run_read(read_document(id, max_bytes))
-    argv.Thread(id) -> run_read(thread_document(id))
+    argv.Thread(id, limit) -> run_read(thread_document(id, limit))
   }
 }
 
@@ -197,11 +197,14 @@ fn read_document(
   }
 }
 
-fn thread_document(id: String) -> fn(store.Tx) -> Result(String, Error) {
+fn thread_document(
+  id: String,
+  limit: Int,
+) -> fn(store.Tx) -> Result(String, Error) {
   fn(tx) {
-    use entries <- result.try(query.thread(tx, id))
-    case entries {
-      Some(entries) -> Ok(render.thread(id, entries))
+    use page <- result.try(query.thread(tx, id, limit))
+    case page {
+      Some(page) -> Ok(render.thread(id, page))
       None -> Error(error.Usage("unknown_thread"))
     }
   }

@@ -12,8 +12,8 @@ import gleam/string
 import screwtape/model.{
   type Address, type AddressField, type Attachment, type Body, type Mailbox,
   type Message, type MessageSummary, type Source, type ThreadEntry,
-  type TruncatedBy, Bcc, Cc, From, Html, MessageLimit, MessageSummary, PlainText,
-  ReplyTo, Sender, Server, To,
+  type ThreadPage, type TruncatedBy, Bcc, Cc, From, Html, MessageLimit,
+  MessageSummary, PlainText, ReplyTo, Sender, Server, To,
 }
 import screwtape/utf8
 
@@ -94,13 +94,16 @@ pub fn read(
   )
 }
 
-/// `thread`: `{"id", "items": [summary + in_store: true | {id, in_store: false}]}`.
-pub fn thread(id: String, entries: List(ThreadEntry)) -> String {
+/// `thread`: `{"id", "total", "truncated", "items": [summary + in_store: true
+/// | {id, in_store: false}]}`. `truncated` marks a page shorter than `total`.
+pub fn thread(id: String, page: ThreadPage) -> String {
   envelope(
     "thread",
     json.object([
       #("id", json.string(id)),
-      #("items", json.array(entries, thread_entry_json)),
+      #("total", json.int(page.total)),
+      #("truncated", json.bool(page.total > list.length(page.entries))),
+      #("items", json.array(page.entries, thread_entry_json)),
     ]),
   )
 }

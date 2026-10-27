@@ -15,8 +15,8 @@ import screwtape/error.{type Error, Store}
 import screwtape/model.{
   type Address, type Attachment, type Body, type HeaderIds, type Mailbox,
   type Message, type MessageSummary, type Prior, type QueryState,
-  type ThreadEntry, type UtcDate, Address, Attachment, Body, HeaderIds, Mailbox,
-  Message, MessageSummary, Prior, QueryState, ThreadEntry, UtcDate,
+  type ThreadPage, type UtcDate, Address, Attachment, Body, HeaderIds, Mailbox,
+  Message, MessageSummary, Prior, QueryState, ThreadEntry, ThreadPage, UtcDate,
 }
 import screwtape/store
 import screwtape/store/codec
@@ -87,11 +87,14 @@ pub fn message(tx: store.Tx, id: String) -> Result(Option(Message), Error) {
 }
 
 /// Thread `id`'s message ids in position order, each with its summary when the
-/// message is in the store; `None` if the store holds no such thread.
+/// message is in the store; `None` if the store holds no such thread. `total`
+/// counts the whole thread; `entries` is its last `limit` ids in thread order,
+/// so a page shorter than `total` is truncated.
 pub fn thread(
   tx: store.Tx,
   id: String,
-) -> Result(Option(List(ThreadEntry)), Error) {
+  limit: Int,
+) -> Result(Option(ThreadPage), Error) {
   use message_ids <- result.try(store.select(
     tx,
     select_thread_emails_sql,
@@ -101,13 +104,15 @@ pub fn thread(
   case message_ids {
     [] -> Ok(None)
     _ -> {
+      let total = list.length(message_ids)
+      let kept = list.drop(message_ids, total - limit)
       use entries <- result.try(
-        list.try_map(message_ids, fn(message_id) {
+        list.try_map(kept, fn(message_id) {
           use summary <- result.try(summary_of(tx, message_id))
           Ok(ThreadEntry(message_id, summary))
         }),
       )
-      Ok(Some(entries))
+      Ok(Some(ThreadPage(total: total, entries: entries)))
     }
   }
 }

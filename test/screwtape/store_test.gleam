@@ -1093,29 +1093,51 @@ pub fn messages_filters_combine_with_and_test() {
 /// the store holds carries its `list`-shaped summary; `-m0`, named by the
 /// thread but outside the snapshot, carries none.
 pub fn thread_reads_entries_in_position_order_with_summaries_for_held_messages_test() {
-  let snapshot = snapshot_fixture.listing()
-  let #(dir, path) = written(snapshot)
-  let result = read_from(path, fn(tx) { query.thread(tx, "acct-l-th1") })
-  temp.remove_dir(dir)
-
-  result
-  |> should.equal(
-    Ok(
-      Some([
-        thread_entry(snapshot, "acct-l-m5"),
-        thread_entry(snapshot, "acct-l-m3"),
-        model.ThreadEntry("acct-l-m0", None),
-        thread_entry(snapshot, "acct-l-m1"),
-      ]),
-    ),
-  )
+  th1_page(50)
+  |> should.equal(Ok(Some(model.ThreadPage(total: 4, entries: th1_entries()))))
 }
 
 /// A thread id the store does not hold is `None`, not an empty list.
 pub fn thread_of_an_unknown_id_is_none_test() {
   let #(dir, path) = written(snapshot_fixture.listing())
-  let result = read_from(path, fn(tx) { query.thread(tx, "acct-l-th-missing") })
+  let result =
+    read_from(path, fn(tx) { query.thread(tx, "acct-l-th-missing", 50) })
   temp.remove_dir(dir)
 
   result |> should.equal(Ok(None))
+}
+
+/// C5: a limit equal to the thread keeps every entry.
+pub fn thread_page_with_limit_equal_to_the_thread_keeps_every_entry_test() {
+  th1_page(4)
+  |> should.equal(Ok(Some(model.ThreadPage(total: 4, entries: th1_entries()))))
+}
+
+/// C5: a limit shorter than the thread keeps its last entries in position
+/// order; `total` still counts the whole thread.
+pub fn thread_page_with_a_shorter_limit_keeps_the_last_entries_test() {
+  let assert [_, _, m0, m1] = th1_entries()
+  th1_page(2)
+  |> should.equal(Ok(Some(model.ThreadPage(total: 4, entries: [m0, m1]))))
+  th1_page(1)
+  |> should.equal(Ok(Some(model.ThreadPage(total: 4, entries: [m1]))))
+}
+
+/// `acct-l-th1`'s page under `limit`, read from a fresh `listing()` store.
+fn th1_page(limit: Int) -> Result(Option(model.ThreadPage), Error) {
+  let #(dir, path) = written(snapshot_fixture.listing())
+  let result = read_from(path, fn(tx) { query.thread(tx, "acct-l-th1", limit) })
+  temp.remove_dir(dir)
+  result
+}
+
+/// `acct-l-th1`'s entries in position order; `-m0` is outside the snapshot.
+fn th1_entries() -> List(model.ThreadEntry) {
+  let snapshot = snapshot_fixture.listing()
+  [
+    thread_entry(snapshot, "acct-l-m5"),
+    thread_entry(snapshot, "acct-l-m3"),
+    model.ThreadEntry("acct-l-m0", None),
+    thread_entry(snapshot, "acct-l-m1"),
+  ]
 }

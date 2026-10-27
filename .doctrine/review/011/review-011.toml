@@ -1,0 +1,171 @@
+id    = 11
+slug  = "sl-003-phase-0102-code-review-cursor-module-bounded-thread"
+title = "SL-003 PHASE-01+02 code review (cursor module, bounded thread)"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "code-review"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "adversary"
+responder = "orchestrator"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Opus adversarial subagent pass over git diff 23ea700 (PHASE-01 cursor module, PHASE-02 bounded thread), excluding .doctrine/, against design § 5.2, § 5.5 C3/C5/C6, § 9, plan.toml PHASE-01/02 EX/VT, POL-001 and the purity rule. Probed cursor.parse edge cases, argv list/read invariance, query.thread arithmetic, mutants (first-N, wrong default, truncated vs limit, total = page length), purity test. gleam test 455 passed at review time. Verification of the raiser's findings recorded by the orchestrator on the subagent's report (subagent cannot write the ledger).
+"""
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+phase = "PHASE-02"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "Expected EX-5/§ 9 C6 to list every changed thread expectation; observed thread_marks_in_store_entries_test keys change unlisted"
+detail = """
+test/screwtape/cli_test.gleam:1129: expected data keys move from ["id","items"] to ["id","items","total","truncated"]. PHASE-02 EX-5 and design § 9's C6 row list only render_test:726 and cli_test:646. The change is legitimate under C6's prose ("same JSON plus the added fields"); the enumeration is incomplete. Verified by reading the diff.
+"""
+disposition = "design-wrong"
+response = """
+Agreed: the code is right, the enumeration is short. plan.toml PHASE-02 EX-5 amended in place (id unchanged) to add thread_marks_in_store_entries_test's data keys (total, truncated) and store_test's thread tests adapting to the new signature. Design § 9's C6 row carries the same gap; the design is locked, so its correction is routed to /reconcile (direct edit of the per-slice artefact) and recorded in notes.md § Execution for that pass.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Agreed: the code is right, the enumeration is short. plan.toml PHASE-02 EX-5 amended in place (id unchanged) to add thread_marks_in_store_entries_test's data keys (total, truncated) and store_test's thread tests adapting to the new signature. Design § 9's C6 row carries the same gap; the design is locked, so its correction is routed to /reconcile (direct edit of the per-slice artefact) and recorded in notes.md § Execution for that pass.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "Expected thread <id> extra to keep reason unexpected_argument; observed unknown_argument"
+detail = """
+src/screwtape/argv.gleam parse_thread now routes [id, ..rest] through parse_sole_int_flag, whose catch-all is usage("unknown_argument") (as read's is). Before: [id, _] -> usage("unexpected_argument"). Still exit 2 / usage kind; no test pins the reason. Inferred from code.
+"""
+disposition = "aligned"
+response = """
+Deliberate, recorded in the PHASE-02 phase sheet before implementation: thread now shares read's sole-int-flag parser (DRY, POL-001), so an extra positional is unknown_argument, as read's is. The invocation was a usage error before and still is; C6 covers only invocations that worked, and reason codes for this case were never pinned or published. Recorded in notes.md.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "aligned"
+response = """
+Deliberate, recorded in the PHASE-02 phase sheet before implementation: thread now shares read's sole-int-flag parser (DRY, POL-001), so an extra positional is unknown_argument, as read's is. The invocation was a usage error before and still is; C6 covers only invocations that worked, and reason codes for this case were never pinned or published. Recorded in notes.md.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "minor"
+title = "Expected a test proving EX-2's 'same usage code list gives'; observed thread --limit cases check only the error kind"
+detail = """
+test/screwtape/cli_test.gleam:649-653 (read_verb_usage_shapes_exit_two_test) asserts exit 2 and kind "usage" only. Nothing compares thread --limit's reason with list --limit's, so a divergent reason code would pass.
+"""
+disposition = "fix-now"
+response = """
+Added cli_test thread_limit_usage_matches_list_limit_test: for --limit 0, 501, ten, missing value and repeated, thread's stderr line (reason included) equals list's, and exit is 2. just check green (456 passed).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Added cli_test thread_limit_usage_matches_list_limit_test: for --limit 0, 501, ten, missing value and repeated, thread's stderr line (reason included) equals list's, and exit is 2. just check green (456 passed).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "nit"
+title = "Expected a check of EX-4's field order (id, total, truncated, items); observed none"
+detail = """
+render_test's parse sorts keys and cli_fixture.keys sorts, so render.thread's key order is checked only by review (src/screwtape/render.gleam thread).
+"""
+disposition = "tolerated"
+response = """
+render_test deliberately compares parsed values with keys sorted (render_test.gleam:10, "not the text's key order or spacing"); JSON object key order carries no meaning for a consumer, and the published contract will not promise it. The order EX-4 names is met by inspection (render.gleam thread: id, total, truncated, items). Adding a raw-text order test would contradict the suite's stated policy for one field set.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = """
+render_test deliberately compares parsed values with keys sorted (render_test.gleam:10, "not the text's key order or spacing"); JSON object key order carries no meaning for a consumer, and the published contract will not promise it. The order EX-4 names is met by inspection (render.gleam thread: id, total, truncated, items). Adding a raw-text order test would contradict the suite's stated policy for one field set.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "nit"
+title = "Expected --offset and --limit value parsers to be symmetric; observed inline lambda for --offset"
+detail = """
+src/screwtape/argv.gleam parse_list_flags: --limit passes the named limit_value; --offset passes fn(raw) { int_value(raw, offset_in_range) }.
+"""
+disposition = "fix-now"
+response = """
+Added named offset_value beside limit_value in argv.gleam; parse_list_flags passes it. just check green.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Added named offset_value beside limit_value in argv.gleam; parse_list_flags passes it. just check green.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.
