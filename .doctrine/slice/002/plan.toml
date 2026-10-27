@@ -36,12 +36,12 @@ exit_criteria = [
   { id = "EX-2", text = "validate refuses, in this order: non_positive:retain_messages, retain_without_max_messages (set while max_messages is None), retain_below_max_messages (less than max_messages)." },
   { id = "EX-3", text = "window_json encodes retain_messages as a fourth key, so a change to it changes window_json." },
   { id = "EX-4", text = "nix/module.nix declares window.retainMessages (types.nullOr types.ints.positive, default null) and passes it as window.retain_messages; nix flake check passes." },
-  { id = "EX-5", text = "gleam format --check and just check are clean; the phase diff has been reviewed before PHASE-02 starts." },
+  { id = "EX-5", text = "gleam format --check and just check are clean." },
 ]
 verification = [
   { id = "VT-1", expects = "decode, the three refusals, and window_json carrying retain_messages", test_file = "test/screwtape/config_test.gleam", keywords = ["retain_messages", "retain_without_max_messages", "retain_below_max_messages", "non_positive:retain_messages"], waived = false },
   { id = "VT-2", expects = "the Home Manager option exists and is passed through", test_file = "nix/module.nix", keywords = ["retainMessages", "retain_messages"], waived = false },
-  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before PHASE-02." },
+  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before the next phase." },
 ]
 specs        = []
 requirements = []
@@ -51,20 +51,20 @@ id        = "PHASE-02"
 name      = "Pure merge"
 objective = "Add the pure core both paths share: normalise.Light, normalise.refresh and one keyword-flag helper; screwtape/retain with Rule and merge (DEC-025, design § 5.2 The merge); and the retain purity rule in check_imports (I5)."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-01 is complete and reviewed." },
+  { id = "EN-1", text = "PHASE-01 is complete and reviewed (phases run serially, one review each)." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "normalise.message and normalise.refresh derive is_seen and is_flagged through one helper; no second keyword-to-flag mapping exists (POL-001)." },
   { id = "EX-2", text = "normalise.refresh(message, light, state) replaces mailbox_ids and keywords, re-derives the flags and sets email_state to state; every other field is unchanged." },
-  { id = "EX-3", text = "retain.merge applies, in order: drop gone, apply refreshes by id, add fetched (fetched wins on a clash), mailbox filter, age bound (after_ms), newest first by normalise.compare_received, take keep." },
+  { id = "EX-3", text = "retain.merge applies, in order: drop gone, apply refreshes by id, add fetched (fetched wins on a clash), mailbox filter, age bound (rule.after_ms, when Some), newest first by normalise.compare_received, take rule.keep (when Some)." },
   { id = "EX-4", text = "test/check_imports.gleam lists src/screwtape/retain.gleam as pure, allowing only screwtape/model, screwtape/normalise and gleam_stdlib; just check-imports passes." },
-  { id = "EX-5", text = "gleam format --check and just check are clean; the phase diff has been reviewed before PHASE-03 starts." },
+  { id = "EX-5", text = "gleam format --check and just check are clean." },
 ]
 verification = [
-  { id = "VT-1", expects = "merge units: gone dropped; a refresh moving a message out of the window drops it; fetched wins; trim to keep; age bound only without retain_messages; order matches compare_received", test_file = "test/screwtape/retain_test.gleam", keywords = ["retain.merge", "Rule(", "compare_received"], waived = false },
+  { id = "VT-1", expects = "merge units: gone dropped; a refresh moving a message out of the window drops it; fetched wins; trim to keep; after_ms Some drops older messages and None keeps them; order matches compare_received", test_file = "test/screwtape/retain_test.gleam", keywords = ["retain.merge", "Rule(", "after_ms"], waived = false },
   { id = "VT-2", expects = "refresh replaces only the mutable fields and re-derives the flags", test_file = "test/screwtape/normalise_test.gleam", keywords = ["normalise.refresh", "Light("], waived = false },
   { id = "VT-3", expects = "retain is held to the purity rule", test_file = "test/check_imports.gleam", keywords = ["src/screwtape/retain.gleam"], waived = false },
-  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before PHASE-03." },
+  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before the next phase." },
 ]
 specs        = []
 requirements = []
@@ -72,7 +72,7 @@ requirements = []
 [[phase]]
 id        = "PHASE-03"
 name      = "JMAP changes and light get"
-objective = "Add the wire surface: request.Method.EmailChanges, request.email_changes and request.email_get_light; decode.ChangesPage/email_changes and decode.LightPage/light_emails; the jmap_fixture builders the sync tests will need; and the opening_entries length guard (CHR-004 item)."
+objective = "Add the wire surface: request.Method.EmailChanges, request.email_changes and request.email_get_light; decode.ChangesPage/email_changes and decode.LightPage/light_emails; the jmap_fixture builders the sync tests need; and the opening_entries length guard (CHR-004 item)."
 entrance_criteria = [
   { id = "EN-1", text = "PHASE-02 is complete and reviewed (decode.light_emails returns normalise.Light)." },
 ]
@@ -80,14 +80,14 @@ exit_criteria = [
   { id = "EX-1", text = "request.email_changes sends sinceState and maxChanges; request.email_get_light asks for properties [id, mailboxIds, keywords] and no body values; method names stay inside request (I6)." },
   { id = "EX-2", text = "decode.email_changes returns ChangesPage(new_state, has_more, created, updated, destroyed); a cannotCalculateChanges entry decodes as JmapMethod(\"Email/changes\", \"cannotCalculateChanges\")." },
   { id = "EX-3", text = "decode.light_emails returns LightPage(lights, state, not_found), with the same shape checks as the full Email/get decoder." },
-  { id = "EX-4", text = "jmap_fixture gains changes_response, a cannotCalculateChanges entry built on error_entry, and a light Email/get response; opening_entries fails loudly when request.opening's call count differs from its argument sets." },
-  { id = "EX-5", text = "gleam format --check and just check are clean; the phase diff has been reviewed before PHASE-04 starts." },
+  { id = "EX-4", text = "jmap_fixture gains changes_response, a cannotCalculateChanges entry built on error_entry, and a light Email/get response; opening_entries fails loudly, instead of truncating through list.zip, when request.opening's call count differs from its argument sets." },
+  { id = "EX-5", text = "gleam format --check and just check are clean." },
 ]
 verification = [
   { id = "VT-1", expects = "changes and light decoders: shapes, method error, malformed input", test_file = "test/screwtape/jmap/decode_test.gleam", keywords = ["email_changes", "light_emails", "cannotCalculateChanges"], waived = false },
   { id = "VT-2", expects = "the two new invocations carry their arguments", test_file = "test/screwtape/jmap/request_test.gleam", keywords = ["email_changes", "email_get_light", "maxChanges"], waived = false },
-  { id = "VT-3", expects = "fixture builders exist and the opening guard is in place", test_file = "test/support/jmap_fixture.gleam", keywords = ["changes_response", "cannotCalculateChanges"], waived = false },
-  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before PHASE-04." },
+  { id = "VT-3", expects = "behavioural: opening_entries over a call list of the wrong length fails instead of returning a truncated list", test_file = "test/screwtape/jmap_fixture_test.gleam", keywords = ["opening_entries"], waived = false },
+  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before the next phase." },
   { id = "VA-2", text = "CHR-004 records that its opening_entries item is done in SL-002 PHASE-03; its other items stay open." },
 ]
 specs        = []
@@ -96,42 +96,62 @@ requirements = []
 [[phase]]
 id        = "PHASE-04"
 name      = "The Prior"
-objective = "Add model.Prior and store/query.prior with its small query_state reader, so a committed store can be read back as a value (design § 5.2 The Prior; I-M5)."
+objective = "Add model.Prior and store/query.prior, with new readers for the sync row's api_url and window_json, the Email type_state and the query_state row, so a committed store can be read back as a value (design § 5.2 The Prior; I-M5)."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-03 is complete and reviewed." },
+  { id = "EN-1", text = "PHASE-03 is complete and reviewed (serial order; no data dependency)." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "model.Prior carries account_id, api_url, email_state, window_json, mailboxes, query and messages." },
-  { id = "EX-2", text = "query.prior reuses query.account_id, query.mailboxes and query.message; it returns Store(\"no_snapshot\") for a store with no snapshot." },
+  { id = "EX-2", text = "query.prior reuses query.account_id, query.mailboxes and query.message, adding only the readers named in the objective; it returns Store(\"no_snapshot\") for a store with no snapshot." },
   { id = "EX-3", text = "I-M5: the existing read_queries_round_trip_every_fixture_message_test is extended to read through query.prior; every message equals its canonical form, and the query record, mailboxes, Email state, window_json and api_url equal what was written. No new dump-based test." },
-  { id = "EX-4", text = "gleam format --check and just check are clean; the phase diff has been reviewed before PHASE-05 starts." },
+  { id = "EX-4", text = "gleam format --check and just check are clean." },
 ]
 verification = [
-  { id = "VT-1", expects = "query.prior round-trips the fixture store (I-M5) and refuses a store with no snapshot", test_file = "test/screwtape/store_test.gleam", keywords = ["query.prior", "read_queries_round_trip_every_fixture_message_test", "no_snapshot"], waived = false },
-  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before PHASE-05." },
+  { id = "VT-1", expects = "query.prior round-trips the fixture store (I-M5) and refuses a store with no snapshot", test_file = "test/screwtape/store_test.gleam", keywords = ["query.prior", "email_state", "window_json"], waived = false },
+  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before the next phase." },
 ]
 specs        = []
 requirements = []
 
 [[phase]]
 id        = "PHASE-05"
-name      = "Full path through the merge"
-objective = "Route the existing full sync through retain.merge with an optional Prior: sync.run takes prior, chooses full with no_state or window_changed, light-refreshes every stored id, fetches bodies only for query ids not stored, and reports mode and fallback_reason. get_emails and the light get share one get_chunked loop (POL-001)."
+name      = "sync.run signature and shared get loop"
+objective = "A behaviour-preserving step: sync.run takes prior: Option(model.Prior) (not yet used: every run is full, reported as mode Full with fallback_reason no_state), Summary gains mode and fallback_reason, and get_emails moves onto one get_chunked loop that the light get will share (POL-001)."
 entrance_criteria = [
   { id = "EN-1", text = "PHASE-04 is complete and reviewed." },
 ]
 exit_criteria = [
-  { id = "EX-1", text = "sync.run(client, writer, bounds, prior, now); Bounds carries window, max_pages and max_body_bytes; Summary gains mode: Mode and fallback_reason: Option(String). cli passes None until PHASE-07 wires the Prior." },
-  { id = "EX-2", text = "The Prior is unusable (no_state) when api_url, account_id or the stored bodies' max_body_value_bytes differ; window_changed when window_json or the resolved mailbox ids differ. Both run full, the latter keeping and light-refreshing every stored id. A store with no bodies has no body limit to differ, so it does not make the Prior unusable." },
-  { id = "EX-3", text = "get_chunked is the one chunked get loop over in_chunks, only_requested and all_answered; get_emails and the light get both use it." },
-  { id = "EX-4", text = "With no Prior, the run's ids, store and requests equal M1's apart from the summary fields: the existing sync tests pass with only the run signature changed." },
-  { id = "EX-5", text = "sync_fixture gains string_argument, a public type_state and run_twice; expect_unchanged accepts any seeded store, not a sibling helper." },
-  { id = "EX-6", text = "gleam format --check and just check are clean; the phase diff has been reviewed before PHASE-06 starts." },
+  { id = "EX-1", text = "sync.run(client, writer, bounds, prior, now); Bounds is unchanged; Summary gains mode: Mode and fallback_reason: Option(String). cli passes None until PHASE-07 wires the Prior." },
+  { id = "EX-2", text = "get_chunked is the one chunked get loop over in_chunks, only_requested and all_answered; get_emails uses it." },
+  { id = "EX-3", text = "Ids, store and requests equal M1's: the existing sync suite passes with only the run call and the summary fields changed." },
+  { id = "EX-4", text = "gleam format --check and just check are clean." },
 ]
 verification = [
-  { id = "VT-1", expects = "another server, another account and a body-limit change -> no_state with everything refetched; a window_json change and a mailbox rename -> window_changed with the stored tail kept", test_file = "test/screwtape/sync_test.gleam", keywords = ["no_state", "window_changed", "api_url"], waived = false },
-  { id = "VT-2", expects = "the fixture extensions exist", test_file = "test/support/sync_fixture.gleam", keywords = ["string_argument", "run_twice", "pub fn type_state"], waived = false },
-  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before PHASE-06." },
+  { id = "VT-1", expects = "a run with no Prior reports mode full and fallback_reason no_state", test_file = "test/screwtape/sync_test.gleam", keywords = ["no_state", "Full"], waived = false },
+  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before the next phase; the reviewer confirms the existing sync tests changed only in the run call and summary fields." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-08"
+name      = "Full path through the merge"
+objective = "Use the Prior on the full path: Prior validity (no_state, window_changed), a light refresh of every stored id, bodies only for query ids not stored, the Rule built from the window and retain_messages, retain.merge, and Thread/get over the merged set."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-05 is complete and reviewed." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "The Prior is unusable (no_state) when the session's apiUrl differs from its api_url, its account_id differs, or a stored body's max_body_value_bytes differs from max_body_bytes; a store with no bodies has no limit to differ. window_changed when window_json or the resolved mailbox ids differ: full run, every stored id light-refreshed and kept subject to the merge." },
+  { id = "EX-2", text = "The light get uses get_chunked; query ids not stored are fully fetched; notFound of either get is gone." },
+  { id = "EX-3", text = "The Rule: mailbox_ids = the resolved window mailboxes; keep = retain_messages, else max_messages; after_ms = the age bound only when retain_messages is None." },
+  { id = "EX-4", text = "get_threads runs over the distinct thread ids of retain.merge's output, so a retained message that was not refetched keeps its thread rows." },
+  { id = "EX-5", text = "sync_fixture gains a light Email/get step built on the PHASE-03 response, string_argument and a public type_state; expect_unchanged accepts any seeded store (no sibling helper)." },
+  { id = "EX-6", text = "gleam format --check and just check are clean." },
+]
+verification = [
+  { id = "VT-1", expects = "another server, another account and a body-limit change -> no_state with everything refetched; a window_json change and a mailbox rename -> window_changed", test_file = "test/screwtape/sync_test.gleam", keywords = ["no_state", "window_changed", "max_body_value_bytes"], waived = false },
+  { id = "VT-2", expects = "a stored message survives a window_changed full run with no body refetch and keeps its thread rows; with retain_messages set an aged message is kept, without it dropped", test_file = "test/screwtape/sync_test.gleam", keywords = ["thread", "retain_messages", "window_changed"], waived = false },
+  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before the next phase." },
 ]
 specs        = []
 requirements = []
@@ -139,23 +159,42 @@ requirements = []
 [[phase]]
 id        = "PHASE-06"
 name      = "Incremental path"
-objective = "Add the incremental path (DEC-026): Email/changes paging from the Prior's Email state with maxChanges = maxObjectsInGet, the cannot_calculate_changes and too_many_changes fallbacks, the skip of Email/query when nothing changed, and the stored Email state rule (I-M3). Pin I-M1..I-M4 with the § 9 tests."
+objective = "Add the incremental path (DEC-026) for the cases where Email/changes answers: paging from the Prior's Email state with maxChanges = maxObjectsInGet, the skip of Email/query when nothing changed, the refresh of changed stored ids only, and the stored Email state rule (I-M3). Pin I-M1..I-M4 with the § 9 tests."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-05 is complete and reviewed." },
+  { id = "EN-1", text = "PHASE-08 is complete and reviewed." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "Pages fold as changed = (created ∪ updated) − destroyed, destroyed accumulating; the last newState is kept; pages count against max_pages." },
-  { id = "EX-2", text = "cannotCalculateChanges (matched via request.method_name(EmailChanges)) and hasMoreChanges at the page cap fall back to full with the Prior, reported as cannot_calculate_changes and too_many_changes; every other error fails the run before the write." },
-  { id = "EX-3", text = "Nothing changed: no Email/query and no Email/get with ids; the Prior's query record is carried; only the age bound removes messages. Something changed: Email/query runs and only changed stored ids are light-refreshed; changed ids neither stored nor queried are ignored." },
-  { id = "EX-4", text = "Stored Email state: the last Email/changes newState on the incremental path, the opening state on the full path." },
-  { id = "EX-5", text = "Every § 9 invariant test passes: deletion_backfills_test, incremental_equals_full_test, age_out_without_changes_test, unchanged_account_fetches_no_email_test, outside_window_change_ignored_test, concurrent_move_converges_test, stored_email_state_test, failure_then_retry_test; plus paging, destroyed-wins and both fallbacks." },
-  { id = "EX-6", text = "TDD scaffolding that duplicates these tests is pruned; gleam format --check and just check are clean; the phase diff has been reviewed before PHASE-07 starts." },
-  { id = "EX-7", text = "sync_fixture gains a changes step built on jmap_fixture.changes_response, used by every test above; no sibling harness." },
+  { id = "EX-2", text = "Nothing changed: no Email/query and no Email/get with ids; the Prior's query record is carried; only the age bound removes messages. Something changed: Email/query runs and only changed stored ids are light-refreshed; changed ids neither stored nor queried are ignored." },
+  { id = "EX-3", text = "Stored Email state: the last Email/changes newState on the incremental path, the opening state on the full path." },
+  { id = "EX-4", text = "sync_fixture gains a changes step built on jmap_fixture.changes_response, and run_twice for the two-run tests; no sibling harness." },
+  { id = "EX-5", text = "TDD scaffolding that duplicates the tests below is pruned; gleam format --check and just check are clean." },
 ]
 verification = [
   { id = "VT-1", expects = "the § 9 invariant tests for I-M1..I-M4", test_file = "test/screwtape/sync_test.gleam", keywords = ["deletion_backfills_test", "incremental_equals_full_test", "age_out_without_changes_test", "unchanged_account_fetches_no_email_test", "outside_window_change_ignored_test", "concurrent_move_converges_test", "stored_email_state_test", "failure_then_retry_test"], waived = false },
-  { id = "VT-2", expects = "paging and fallbacks", test_file = "test/screwtape/sync_test.gleam", keywords = ["cannot_calculate_changes", "too_many_changes", "hasMoreChanges"], waived = false },
-  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before PHASE-07." },
+  { id = "VT-2", expects = "paging accumulates across pages and destroyed wins", test_file = "test/screwtape/sync_test.gleam", keywords = ["hasMoreChanges", "destroyed"], waived = false },
+  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before the next phase." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-09"
+name      = "Incremental fallbacks"
+objective = "Fall back from the incremental path to the full path with the Prior on the cannotCalculateChanges method error and on hasMoreChanges at the page cap (design § 5.4 Choosing the path; DEC-026)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-06 is complete and reviewed." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "cannotCalculateChanges, matched via request.method_name(EmailChanges), falls back to full with fallback_reason cannot_calculate_changes, continuing with the Client held before the Email/changes call (its error bytes are not charged)." },
+  { id = "EX-2", text = "hasMoreChanges still true after max_pages pages falls back to full with fallback_reason too_many_changes." },
+  { id = "EX-3", text = "Every other Email/changes error fails the run before the write and leaves the store unchanged." },
+  { id = "EX-4", text = "gleam format --check and just check are clean." },
+]
+verification = [
+  { id = "VT-1", expects = "both fallbacks report their reasons and produce the full path's ids", test_file = "test/screwtape/sync_test.gleam", keywords = ["cannot_calculate_changes", "too_many_changes"], waived = false },
+  { id = "VT-2", expects = "budget contract: with max_total_bytes just above the full path's cost but below it plus the error response, the cannotCalculateChanges fallback still completes", test_file = "test/screwtape/sync_test.gleam", keywords = ["cannot_calculate_changes", "max_total_bytes"], waived = false },
+  { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before the next phase." },
 ]
 specs        = []
 requirements = []
@@ -165,7 +204,7 @@ id        = "PHASE-07"
 name      = "CLI, docs and live acceptance"
 objective = "Wire the Prior into the CLI (short-lived reader, closed before the writer opens), render mode and fallback_reason in the summary, document the sync paths in the README, and accept M2 live against the real account."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-06 is complete and reviewed." },
+  { id = "EN-1", text = "PHASE-09 is complete and reviewed." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "cli.sync loads the Prior through query.prior on a reader it closes before opening the writer; no_snapshot means no Prior; any other read error fails the run." },
@@ -174,7 +213,7 @@ exit_criteria = [
   { id = "EX-4", text = "gleam format --check, just check and nix flake check are clean." },
 ]
 verification = [
-  { id = "VT-1", expects = "the summary carries mode and fallback_reason; a missing store means no Prior", test_file = "test/screwtape/cli_test.gleam", keywords = ["fallback_reason", "\"mode\"", "no_snapshot"], waived = false },
+  { id = "VT-1", expects = "the summary carries mode and fallback_reason; a second sync over the same store loads the Prior and reports incremental", test_file = "test/screwtape/cli_test.gleam", keywords = ["fallback_reason", "incremental"], waived = false },
   { id = "VT-2", expects = "the README documents M2", test_file = "README.md", keywords = ["incremental", "retain_messages", "cannotCalculateChanges"], waived = false },
   { id = "VH-1", text = "Live check by the operator: two consecutive syncs against the real account; the second reports mode incremental and sends no Email/get with ids. Result recorded in notes." },
   { id = "VA-1", text = "Phase review: the diff is reviewed (code-review) and findings disposed before audit." },
