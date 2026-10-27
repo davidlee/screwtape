@@ -26,7 +26,7 @@ fresh-as-of: 2026-10-27 · PHASE-09 (01-06, 08, 09 completed; 07 next) · 50ed11
 - sync fixture gotchas (expect_unchanged probe commit; spec bounds) — § PHASE-06 notes
 
 ### Open
-- PHASE-07 VH-1: operator's two live syncs (second `mode: incremental`) — pending
+- PHASE-07 done (VH-1 passed live); next `/audit`
 - Thread/get ids now sorted, not first-seen (M1 A8 superseded) — reconcile at audit (§ PHASE-08 decisions)
 - PHASE-02 phase delta tightened past foreign commit 0103779 (DEC-013) — check at audit
 - unpinned by design: method-name guard; cannotCalculateChanges on a later page — § PHASE-09 notes
@@ -320,7 +320,19 @@ PHASE-07 notes:
 - Negative controls killed: Prior dropped; every read error → None; mode
   names swapped; reason always null; credential read before the Prior.
 - Gates: `gleam format --check`, `just check` (430), `nix flake check`.
-- VH-1 pending: operator's two live syncs.
+- VH-1 (2026-10-27, operator ran the syncs; orchestrator read the journal,
+  `journalctl --user -u screwtape`): runs at 17:44:58, 17:45:04, 17:45:48,
+  17:45:52, 17:48:19 and 17:48:23 +11:00 each report `"mode":"incremental"`,
+  `"fallback_reason":null`, 432 messages, 410 threads, unchanged states
+  (`J365174`); about 4.1 s wall each, against about 8.1 s for the earlier
+  full runs (17:15, 17:30, a pre-PHASE-07 build with no `mode` field).
+  Observed: incremental on consecutive real syncs. Inferred, not observed
+  (no request logging): no `Email/get` with ids — it is the no-change path
+  (states unchanged), which sends none (design § 5.4; pinned by
+  `second_sync_is_incremental_test`). The first post-PHASE-07 run was already
+  incremental, not `window_changed`: the 17:30 build (post-PHASE-01, passing
+  no Prior) had already committed the four-key `window_json`. The README's
+  upgrade claim concerns an M1 store and stands.
 
 PHASE-07 review dispositions (RV-008, fresh Opus raiser, Opus responder):
 - F-1 read-error test did not pin Prior-before-credential (minor) — fix-now:
