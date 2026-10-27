@@ -1,0 +1,96 @@
+id    = 6
+slug  = "code-review-review-of-sl-002"
+title = "code-review review of SL-002"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "code-review"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "gpt-6.1-sol"
+responder = "opus"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Reviewed git diff fc0d1b3..3db888e for src/screwtape/sync.gleam, test/screwtape/sync_test.gleam and test/support/sync_fixture.gleam; verified the checkout versions of these files byte-match 3db888e. Read RV-006's Brief before the review. Examined SL-002 design §§ 5.2, 5.4, 5.5 (I-M1..I-M4), § 9; PHASE-06 EX-1..EX-5 and VT-1/VT-2; POL-001 via doctrine show; PHASE-06 notes as claims. Inspected adjacent request/decode/client, retain.merge and shared get/query/fixture seams to verify behavior and avoid mistaking distinct pagination protocols for duplicate implementations.
+
+Traced created-then-destroyed and updated-then-destroyed overlaps, accumulation and deduplication across pages, empty hasMoreChanges pages, sinceState chaining, final cursor storage, exact page-cap counting, destroyed-only backfill, no-change query carry and age pruning, changed-stored-only light refresh, and errors/budget propagation before the single snapshot write. Checked those semantics against RFC 8620 §§ 5.1-5.2 (https://www.rfc-editor.org/rfc/rfc8620.html#section-5.2), including intermediate-state ordering constraints. No production correctness or POL-001 violation established in the scoped diff. The interim LimitExceeded("max_pages") and PHASE-09 fallbacks, and PHASE-07 CLI wiring, were excluded as requested.
+
+Validation ran entirely in /tmp/rv006-review-jcjw9pc2: baseline just check passed format checking, warning-free build, import checks, shipment export and all 421 tests. Three separate production-fold mutations each passed all 421 gleam tests; evidence and commands/locations are recorded in RV-006 F-1 (minor). That demonstrates a test gap, not a failing production fold. Temporary source restored byte-for-byte. No live JMAP probe or Nix check was performed. Only RV-006 was written through Doctrine review verbs; no source/test/notes edits or commits. Pass concluded with one open finding for Opus to adjudicate; no findings disposed."""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Follow-up pass limited to RV-006 F-1's fix-now response and the uncommitted 38-line test/screwtape/sync_test.gleam diff. Examined both added tests against PHASE-06 EX-1/VT-2 and the original finding, then independently ran baseline just check (423 passing) and all three original mutations in /tmp/rv006-review-jcjw9pc2. Each mutant was killed by the intended new test (422 passing, 1 failing); no mutant survived. Verified F-1 as raiser. Temporary source restored exactly and workspace subject-file hashes unchanged. No additional scope, source/test/notes edits, dispositions or commits; only RV-006 review verbs written. Pass concluded again."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-002"
+phase = "PHASE-06"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "Delta-fold tests pass when created ids or earlier pages are discarded"
+detail = """
+Expected: PHASE-06 EX-1 and VT-2 (.doctrine/slice/002/plan.toml:167,175), backed by design § 5.4 (.doctrine/slice/002/design.md:430-440), require tests that distinguish accumulating created/updated/destroyed ids across pages from retaining only the last page, and that detect losing created ids altogether.
+
+Observed: test/screwtape/sync_test.gleam:1452-1469 does not distinguish those implementations. On its first page, e1 is updated but destroyed on the last page, so losing the earlier update has no observable effect; e3 is created but is independently returned by Email/query and fetched as query_ids minus stored (src/screwtape/sync.gleam:118-130), so losing that created id also has no effect. All destruction is on the final page, so the test cannot establish destruction accumulation. The other creation case at test/screwtape/sync_test.gleam:1555-1558 also has an update and a destruction to force the query; there is no created-only delta to establish that a new arrival triggers it.
+
+Verified by execution, not merely inferred survival: copied the source/tests/dependencies to /tmp/rv006-review-jcjw9pc2 (the three subject files byte-match commit 3db888e). Baseline just check passed all 421 tests. Independently changed src/screwtape/sync.gleam to (1) omit the page.created union at line 318, (2) replace delta.changed with set.new() at line 317, and (3) replace the cumulative destroyed union with set.from_list(page.destroyed) at line 320. Each mutant separately passed the entire gleam test suite: 421 passed, no failures, exit 0. Logs: ignore-created.log, forget-earlier-changed.log, forget-earlier-destroyed.log in that /tmp directory. The temporary source was restored byte-for-byte afterwards; repository source/tests were never edited.
+
+Inferred consequence of the undetected regressions: a created-only arrival can be skipped while its cursor is committed; an earlier-page flag/membership update can be skipped; or an earlier-page deletion can leave a stale stored message. Advancing to the final newState means a later run need not report those changes again. RFC 8620 § 5.2 permits created/updated/destroyed changes split over intermediate states (https://www.rfc-editor.org/rfc/rfc8620.html#section-5.2).
+
+Repair: extend the existing sync_fixture-based tests with a created-only arrival, an early-page update of a stored id that survives to a later empty page (assert its changed fields), and an early-page deletion followed by a page without that deletion (assert absence/backfill). A replayed created id already held from a prior fetch beyond its saved cursor is also a useful case. Demonstrate these cases kill the three mutants. This is a test-confidence defect; the current production fold at src/screwtape/sync.gleam:314-325 is correct."""
+disposition = "fix-now"
+response = """
+Accepted on evidence: changes_pages_accumulate_and_destroyed_wins_test put every decisive change on the last page, and e3 entered via the query anyway, so the fold's accumulation was unpinned.
+
+Fix (test/screwtape/sync_test.gleam, after the paging test):
+- changes_on_an_earlier_page_count_test: page 1 updates e1 and destroys e2 (hasMoreChanges), page 2 reports nothing; asserts the light refresh of e1 under es-2 and e2 gone.
+- created_only_runs_the_query_test: a created-only delta runs Email/query and fetches the arrival.
+
+Negative controls (each applied alone to src/screwtape/sync.gleam, then restored byte-for-byte):
+- ignore-created (drop the page.created union) -> created_only_runs_the_query_test fails;
+- forget-earlier-changed (changed starts from set.new()) -> changes_on_an_earlier_page_count_test fails;
+- forget-earlier-destroyed (destroyed = this page only) -> changes_on_an_earlier_page_count_test fails.
+Suite 423 green; gleam format --check and just check clean.
+Not taken: the "replayed created id already stored" case — it pins no distinct mutant of the fold (changed ∩ stored already covers it via the light refresh path).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted on evidence: changes_pages_accumulate_and_destroyed_wins_test put every decisive change on the last page, and e3 entered via the query anyway, so the fold's accumulation was unpinned.
+
+Fix (test/screwtape/sync_test.gleam, after the paging test):
+- changes_on_an_earlier_page_count_test: page 1 updates e1 and destroys e2 (hasMoreChanges), page 2 reports nothing; asserts the light refresh of e1 under es-2 and e2 gone.
+- created_only_runs_the_query_test: a created-only delta runs Email/query and fetches the arrival.
+
+Negative controls (each applied alone to src/screwtape/sync.gleam, then restored byte-for-byte):
+- ignore-created (drop the page.created union) -> created_only_runs_the_query_test fails;
+- forget-earlier-changed (changed starts from set.new()) -> changes_on_an_earlier_page_count_test fails;
+- forget-earlier-destroyed (destroyed = this page only) -> changes_on_an_earlier_page_count_test fails.
+Suite 423 green; gleam format --check and just check clean.
+Not taken: the "replayed created id already stored" case — it pins no distinct mutant of the fold (changed ∩ stored already covers it via the light refresh path).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """
+VERIFIED against the uncommitted fix. Read the responder's disposition and git diff: test/screwtape/sync_test.gleam:1475-1489 now makes an early-page update and deletion survive an empty final page, asserting e1's refreshed state and e2's absence; :1493-1507 makes a created-only arrival trigger query/fetch and appear in the store. These directly repair F-1's three demonstrated coverage gaps using the existing fixture. The replayed-created suggestion was additional coverage, not required to settle this finding.
+
+Independent execution: synced the three current subject files into /tmp/rv006-review-jcjw9pc2. Baseline just check passed (423 tests, no failures). Re-ran each original mutant separately: ignore-created failed only created_only_runs_the_query_test; forget-earlier-changed and forget-earlier-destroyed each failed only changes_on_an_earlier_page_count_test. Each mutant run returned exit 1 with 422 passed, 1 failure. Evidence: followup-baseline.log, followup-ignore-created.log, followup-forget-earlier-changed.log, followup-forget-earlier-destroyed.log and followup-results.json in that /tmp directory. Restored temporary sync source byte-for-byte; workspace hashes confirm source, tests and fixture untouched by this recheck. The former survival claim no longer holds for the updated tests; fix-now accepted."""
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

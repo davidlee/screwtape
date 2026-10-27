@@ -141,7 +141,8 @@ rg; **no nix, no curl, no perl**. `nix flake check` is always the orchestrator's
 | 05 | plan + implement + review | Opus | — | behaviour-preserving; sync_test diff is 3 lines (summary fields only, VA-1); `get_threads` deliberately not on `get_chunked` (no `notFound` contract; would add `all_answered`) |
 | 08 | plan + implement | Opus | — | code before tests (TDD order not kept); compensated by 7 negative controls, each killed |
 | 08 | review (VA-1) | Codex gpt-6.1-sol, high, read-only | — | 3 minor findings, all accepted and fixed red-first; Codex's 2 named surviving mutants now killed |
-| 06 | plan + implement | Opus | — | red-first (9 tests red for the right reason); green at 421; 7 negative controls each killed. **Review (VA-1, GPT strong) not yet run** |
+| 06 | plan + implement | Opus | — | red-first (9 tests red for the right reason); green at 421; 7 negative controls each killed |
+| 06 | review (VA-1) | Codex gpt-6.1-sol, high, ledger RV-006 | — | 1 minor (F-1), fix-now; 2 tests added, 3 fold mutants killed; green at 423; RV-006 done |
 
 PHASE-01 review dispositions:
 - F1 "out-of-scope edit to module-eval.nix" (major) — rejected: the reviewer
@@ -228,7 +229,7 @@ PHASE-08 review dispositions (Codex):
 - no test showed light results reaching the store — the same test now has a
   flag change under a new state, a `notFound` and a move out of the window.
 
-PHASE-06 notes (implementation committed as a checkpoint; review pending):
+PHASE-06 notes:
 - `sync.Start` gains `Changes(prior)`; a `Scope` (stored, refresh, gone,
   email_state, carried query record, mode) settles what a run refreshes;
   `changes` folds pages into a `Delta` (destroyed wins after the fold).
@@ -243,3 +244,13 @@ PHASE-06 notes (implementation committed as a checkpoint; review pending):
   the failure and the unchanged dump directly (`failure_then_retry_test`).
 - Gotcha: `spec(script)` bounds are `bounds(Some(100))`; seeding under other
   bounds makes the next run `window_changed`, not incremental.
+
+PHASE-06 review dispositions (RV-006, Codex raiser, Opus responder):
+- F-1 "delta-fold tests pass when created ids or earlier pages are discarded"
+  (minor) — fix-now. Codex showed by execution that dropping `page.created`,
+  restarting `changed` per page, or keeping only the last page's `destroyed`
+  all passed 421 tests. Added `changes_on_an_earlier_page_count_test` (page 1
+  updates e1 and destroys e2, page 2 empty) and
+  `created_only_runs_the_query_test`; each mutant now fails one of them
+  (both parties re-ran them). Lesson: a paging test needs the decisive
+  change on a non-final page, and an arrival that only `created` can reveal.

@@ -1469,6 +1469,44 @@ pub fn changes_pages_accumulate_and_destroyed_wins_test() {
   message_ids(store) |> should.equal(["e2", "e3"])
 }
 
+/// Paging: changes on an earlier page count though the last page reports
+/// none — e1, updated, is refreshed under the new state; e2, destroyed, is
+/// gone.
+pub fn changes_on_an_earlier_page_count_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let script = [
+    inbox_step(),
+    sync_fixture.changes("es-0", "es-1", True, [], ["e1"], ["e2"]),
+    sync_fixture.no_changes("es-1", "es-2"),
+    page(["e1"], "qs-1", 0, 1, None),
+    sync_fixture.lights(emails_of(["e1"]), "es-2", []),
+    threads(threads_of(emails_of(["e1"])), "ts-1"),
+  ]
+  let run = again(store, script)
+
+  expect_calls(run, methods(script))
+  message_states(store) |> should.equal([#("e1", "es-2")])
+}
+
+/// A created id alone is a change: the query runs and the arrival is fetched.
+pub fn created_only_runs_the_query_test() {
+  use store <- with_store(None)
+  seed_two(store)
+  let script = [
+    inbox_step(),
+    sync_fixture.changes("es-0", "es-1", False, ["e3"], [], []),
+    page(["e3", "e2", "e1"], "qs-1", 0, 3, None),
+    emails(emails_of(["e3"]), "es-1", []),
+    threads(threads_of(emails_of(["e1", "e2", "e3"])), "ts-1"),
+  ]
+  let run = again(store, script)
+
+  expect_calls(run, methods(script))
+  id_lists(run, EmailGet) |> should.equal([["e3"]])
+  message_ids(store) |> should.equal(["e1", "e2", "e3"])
+}
+
 /// I-M4: a get fails after `Email/changes`, so nothing is written and the
 /// stored Email state stays `es-0`; the next run asks for changes from it
 /// again.
