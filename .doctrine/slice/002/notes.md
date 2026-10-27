@@ -88,3 +88,21 @@ code. Eight findings, each verified against the code and adjudicated
   tests; generalise `expect_unchanged` (`sync_fixture.gleam:372`).
 - Codex's full output: the session scratchpad `codex-out.json` (not kept).
 - Next: sufficiency-accepted is again the operator's act, then drafting.
+
+## Further review passes (2026-10-27, reviewing, after RV-005)
+
+RV-005 (hostile pass, Codex as raiser on a fresh thread) is concluded and every
+finding is disposed on the ledger; dispositions and repairs live there
+(`doctrine review show RV-005`), not here. DEC-024/025/026 were amended to
+match.
+
+What a further pass would probe, if the operator wants one:
+
+- the raiser's verify/contest round on RV-005 (resume the same Codex thread),
+  chiefly the partly contested F-6 and the declined tests in F-2/F-3;
+- whether `api_url` is a stable enough server identity (Fastmail could change
+  its `apiUrl` without a server change; the cost would be one full refetch).
+
+Otherwise none is needed: the remaining uncertainty is runtime behaviour
+(concurrent changes, budget arithmetic), which the § 9 tests and the live check
+settle better than another reading.

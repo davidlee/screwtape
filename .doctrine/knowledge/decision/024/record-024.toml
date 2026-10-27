@@ -12,7 +12,7 @@ tags = []
 
 [facet]                         # every field typed; seeded empty (captured later)
 context = "Operator wants to retain more than the fetch limit (satan:RFC-020 OQ-10, in part)."
-choice = "config window.retain_messages: Option(Int), positive, >= max_messages when both set. Absent: retention equals the fetch window (count and age), as in M1. Inside window, so window_json changes and a change triggers a (harmless) full fallback. Home Manager option window.retainMessages, default null. No byte-budget validation (light refresh, DEC on fetch split)."
+choice = "config window.retain_messages: Option(Int), positive; requires max_messages and is >= it (retention extends a count window; an age-only window would fetch bodies retention discards). Absent: retention equals the fetch window (count and age), as in M1. Inside window, so window_json changes and a change triggers a (harmless) full fallback. Home Manager option window.retainMessages, default null. No byte-budget validation (light refresh, DEC on fetch split)."
 alternatives = ["top-level field outside window", "retention by age"]
 rationale = "Smallest change; reuses window_json mismatch detection."
 consequences = ["retention covers configured mailboxes only: archiving out of the window drops the message"]

@@ -27,8 +27,8 @@ is not reopened here.
    answers satan:RFC-020 OQ-10, which asks how much mail the store keeps).
    - The fetch window (`mailboxes`, `max_age_days`, `max_messages`) decides
      which ids a full sync asks `Email/query` for.
-   - A new optional `retain_messages`, at least `max_messages`, decides what
-     the store keeps. When it is absent, retention equals the fetch window,
+   - A new optional `retain_messages`, which requires `max_messages` and is
+     at least it, decides what the store keeps. When it is absent, retention equals the fetch window,
      as in M1.
    - Byte-budget validation isn't needed. A fallback refreshes stored ids
      with the light `Email/get` (about 1 MB for the retained tail), not their
@@ -46,8 +46,8 @@ is not reopened here.
    - **full**: the existing `Email/query`, and every stored id gets a light
      refresh. This refreshes the retained tail.
 
-   The `Prior` is discarded, and everything refetched, when the account or
-   `max_body_bytes` differs. After the id sources, the run:
+   The `Prior` is discarded, and everything refetched, when the server
+   (`api_url`), the account or `max_body_bytes` differs. After the id sources, the run:
    1. fetches the ids. Query ids not yet stored go through the existing full
       `Email/get` path, with bodies. Stored ids to refresh get a light
       `Email/get` of only `mailboxIds` and `keywords`, since JMAP content is
@@ -78,9 +78,9 @@ is not reopened here.
    next run retries. The bytes of a `cannotCalculateChanges` response are not
    charged to the budget, so a run may spend up to about twice
    `max_total_bytes`; still bounded, documented, client API unchanged.
-4. **No duplicate body fetches.** An unchanged account costs three small
-   requests (the opening request, `Email/changes` and `Thread/get`) and no
-   `Email/get`. A seen, flag or move change costs one ids-only `Email/query`
+4. **No duplicate body fetches.** An unchanged account costs the opening
+   request, one `Email/changes` and the chunked `Thread/get`, and no
+   `Email/get` with ids. A seen, flag or move change costs one ids-only `Email/query`
    and a light refresh. Bodies are fetched only for new messages in the top
    `max_messages`.
 5. **Test-suite survey (research and design input).** Before designing,
@@ -119,7 +119,7 @@ is not reopened here.
 - `src/screwtape/cli.gleam`: load the `Prior`; the summary gains `mode` and
   `fallback_reason`.
 - `src/screwtape/store/query.gleam`: load the `Prior` (account id,
-  messages, mailboxes, Email state, `window_json`, the query record, the
+  `api_url`, messages, mailboxes, Email state, `window_json`, the query record, the
   stored body limit), reusing `query.account_id`, `query.mailboxes` and
   `query.message`.
 - `src/screwtape/config.gleam`: `retain_messages` and its validation.
@@ -143,7 +143,9 @@ is not reopened here.
   against Fastmail must confirm it.
 - **Invariant (DEC-025):** after either path, the store's newest
   `max_messages` messages that pass the window filter (mailboxes and
-  `max_age_days`) equal what a full sync would fetch. Ties on `receivedAt`
+  `max_age_days`) equal what a full sync would fetch, for a run during
+  which the server's Emails did not change; under concurrent change, after
+  the next run. Ties on `receivedAt`
   at the boundary are ordered by the server, which is unspecified; locally
   `id` breaks them (accepted, documented).
 - **Retention covers configured mailboxes only.** Archiving a message out of
@@ -169,7 +171,7 @@ is not reopened here.
   - TDD scaffolding pruned at phase end if it adds no regression value.
 - Per-phase review kept.
 - Live check: two consecutive syncs against the real account. The second
-  takes the incremental path and fetches nothing new; the mailbox is
+  takes the incremental path and sends no `Email/get` with ids; the mailbox is
   unchanged.
 - `gleam format --check`, `just check`, and `nix flake check` are clean.
 

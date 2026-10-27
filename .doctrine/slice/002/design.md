@@ -148,7 +148,7 @@ One run, both paths. The paths differ only in the shaded decisions:
 ```mermaid
 flowchart TD
   open[opening request<br/>mailboxes + states] --> resolve[resolve_mailboxes]
-  resolve --> usable{Prior usable?<br/>same account,<br/>same body limit}
+  resolve --> usable{Prior usable?<br/>same api_url and account,<br/>same body limit}
   usable -- no --> full
   usable -- yes --> same{same window_json and<br/>resolved mailbox ids,<br/>Email state stored?}
   same -- no --> full
@@ -192,9 +192,11 @@ pub type Window {
 
 - **Decoding:** `retain_messages` is an optional, nullable field (absent
   means `None`).
-- **Validation:** it must be positive when set (`non_positive:retain_messages`).
-  When `max_messages` is also set it must be at least that value
-  (`retain_below_max_messages`).
+- **Validation:** when set, it must be positive
+  (`non_positive:retain_messages`), `max_messages` must be set
+  (`retain_without_max_messages`), and it must be at least `max_messages`
+  (`retain_below_max_messages`). Retention extends a count window; an
+  age-only window would fetch bodies that retention then discards.
 - **`window_json`** encodes it as a fourth key, so a change to it changes
   `window_json`. The first M2 run therefore sees a mismatch against M1's
   three-key string and takes one full run (`window_changed`). This is
@@ -209,6 +211,7 @@ pub type Window {
 pub type Prior {
   Prior(
     account_id: String,
+    api_url: String,              // the server the store was synced from
     email_state: String,          // type_state 'Email'
     window_json: String,
     mailboxes: List(Mailbox),
@@ -222,7 +225,7 @@ pub type Prior {
 reads:
 
 - `account_id`;
-- the `type_state` and `sync` rows;
+- the `type_state` and `sync` rows (`api_url`, `window_json`);
 - a `query_state` row reader (new, small);
 - `mailboxes`;
 - every message id, each rebuilt with `message`.
@@ -254,7 +257,7 @@ reports `no_state`.
 
 | fallback_reason | when |
 |---|---|
-| `no_state` | no `Prior`, or it is unusable: another account, or a stored body fetched under another `max_body_bytes` |
+| `no_state` | no `Prior`, or it is unusable: another server (the session's `apiUrl` differs from the `Prior`'s `api_url`), another account, or a stored body fetched under another `max_body_bytes` |
 | `window_changed` | `window_json` differs, or the configured entries resolve to other mailbox ids than they do against the `Prior`'s mailboxes |
 | `cannot_calculate_changes` | `Email/changes` answers the method error `cannotCalculateChanges` |
 | `too_many_changes` | `hasMoreChanges` is still true after `max_pages` pages |
@@ -395,7 +398,10 @@ sequenceDiagram
 ```
 
 **When nothing changed,** the run sends only the opening request,
-`Email/changes` (one page) and `Thread/get`. It merges with no new input, so
+`Email/changes` (one page) and `Thread/get` in
+`ceil(distinct retained threads / maxObjectsInGet)` chunks (none when
+nothing is retained). No `Email/get` carries ids; the opening's empty
+`Email/get` is only the state probe. It merges with no new input, so
 only the age bound can remove messages, writes a fresh `synced_at`, and
 carries the `Prior`'s query record.
 
@@ -403,8 +409,10 @@ carries the `Prior`'s query record.
 
 Pure, in `sync`, before any call past the opening request:
 
-1. **No `Prior`,** or another account, or a stored body fetched under
-   another `max_body_bytes`: full run without a `Prior` (`no_state`). Stored
+1. **No `Prior`,** or another server (`api_url`), or another account, or a
+   stored body fetched under another `max_body_bytes`: full run without a
+   `Prior` (`no_state`). JMAP ids are unique only within one account on one
+   server, so a stored body is reused only from the same server and account. Stored
    messages are neither refreshed nor kept, and everything in the window is
    fetched again.
 2. **A different `window_json`, or different resolved mailbox ids:** full run
@@ -437,6 +445,15 @@ Any error other than the two fallbacks fails the run before the write, as
 in M1. The store and its Email state are untouched, and the next run starts
 from the same committed state.
 
+**Budget.** The page cap does not reserve budget for the fallback; it bounds
+what the changes can spend. A changes page carries ids only, so all pages
+cost at most `max_pages × maxObjectsInGet` ids. At 500 ids a page and about
+30 bytes an id (an estimate, not measured), the default 20 pages cost about
+300 KB against the 256 MiB default `max_total_bytes`. The fallback's full path fetches no stored
+bodies. A budget too small for this fails the run with
+`LimitExceeded("max_total_bytes")`, and every later run fails the same way
+until `max_total_bytes` is raised, as in M1.
+
 #### Operations
 
 - The summary line on stdout (the journal) carries `mode` and
@@ -452,14 +469,20 @@ from the same committed state.
 
 **Invariants**
 
-- **I-M1 (window agreement, DEC-025).** After any committed run, the newest
-  `max_messages` of the stored messages that pass the window filter (in a
+- **I-M1 (window agreement, DEC-025).** After a committed run during which
+  the server's Emails did not change, the newest `max_messages` (all, when
+  it is unset) of the stored messages that pass the window filter (in a
   configured mailbox, and received within `max_age_days` when it is set)
-  are the ids a full sync would select at the same server state. The one
+  are the ids a full sync would select at that server state. The one
   exception is ties on `receivedAt` at the boundary: the server's order
   there is unspecified, and locally the id breaks them.
   - It holds because every run that sees a change runs `Email/query`, and
     every run that sees none had nothing to change.
+  - **Under concurrent change** it holds after the next run. The run's
+    calls are separate exchanges, so a change landing after the last
+    `Email/changes` page is missed by this run's refresh. I-M3 stores a
+    state from before that change, so the next run's `Email/changes`
+    reports it.
 - **I-M2 (bodies once).** A body is fetched only for a query id the store
   does not hold, or for every query id when there is no usable `Prior`.
 - **I-M3 (replay-safe state).** The stored Email state predates every
@@ -472,9 +495,13 @@ from the same committed state.
 - **I-M4 (atomicity, DEC-008).** One `write_snapshot` per run. A run that
   fails, falls back and fails again, or exceeds its budget leaves the store
   byte-identical.
-- **I-M5 (round trip).** For a committed store, `write_snapshot` of a
-  snapshot rebuilt from `query.prior` leaves `store_dump` unchanged. This is
-  what makes "rewrite every run" safe.
+- **I-M5 (lossless reuse).** For a committed store, `query.prior` returns
+  every stored message equal to the message written, in canonical form
+  (unordered relations sorted, as `query.message` returns them), with the
+  stored query record, mailboxes, Email state, `window_json` and `api_url`.
+  This is what makes "rewrite every run" safe. The rest of the snapshot
+  (account limits, other type states, threads) is refreshed by every run,
+  so the `Prior` does not carry it.
 
 **Edge cases**
 
@@ -490,8 +517,13 @@ from the same committed state.
 - **A changed id outside the window** (an Archive message marked seen) is
   neither stored nor in the query, so it is ignored and costs nothing.
 - **A deletion inside the top `max_messages`:** the run sees a change, so
-  `Email/query` runs and the next-oldest message comes in. This is the
-  backfill the GPT review showed was missing from DEC-022.
+  `Email/query` runs and the next-oldest message comes in.
+- **A move between `Email/changes` and `Email/query`:** the moved message
+  is not refreshed this run and may hold a place a newly queried message
+  should have. The next run reports the move and converges (I-M1, under
+  concurrent change).
+- **A different server with the same account id:** the `Prior` is
+  unusable (`no_state`), so no body from the old server is kept.
 - **Clock advance with no changes:** only the age bound removes messages.
   The count cannot fall short of a full sync's, because a full sync would
   lose the same messages.
@@ -530,6 +562,7 @@ and a fixture test covers it.
 Smaller choices made in drafting (operator-reviewed 2026-10-27):
 
 - the `Prior` is loaded by `cli` through a short-lived reader;
+- the `Prior` is bound to the stored `api_url`;
 - a body-limit change is detected from the stored bodies'
   `max_body_value_bytes`;
 - `maxChanges` = `maxObjectsInGet`;
@@ -544,7 +577,8 @@ Smaller choices made in drafting (operator-reviewed 2026-10-27):
 |---|---|
 | The invariant breaks in a case nobody thought of | I-M1 is tested both against fixed expected ids and by an incremental-equals-full comparison over scripted server states (§ 9) |
 | Rewriting the whole retained set every run grows costly | Bounded by `retain_messages` and all local; I-M5 pins correctness. Revisit only if measured |
-| A large delta (a bulk mark-read) wedges the run on budget | A finite `maxChanges` and the page cap turn it into a `too_many_changes` fallback. A full run costs the query plus light gets, not bodies |
+| A large delta (a bulk mark-read) wedges the run on budget | A finite `maxChanges` and the page cap turn it into a `too_many_changes` fallback. The pages are ids only, and the full run costs the query plus light gets, not bodies. A budget too small even for that fails every run until raised, as in M1 (§ 5.4 Budget) |
+| A concurrent change mid-run leaves a stale message in the window | Accepted: the next run reports and repairs it (I-M1, under concurrent change) |
 | `cannotCalculateChanges` undercounts the budget | Bounded at about twice `max_total_bytes`; documented (DEC-026) |
 | `receivedAt` ties at the boundary order differently from the server | Accepted and documented; the tests avoid boundary ties except one that pins the local order |
 
@@ -572,11 +606,12 @@ No new harness and no mock library.
 | I-M1 | `deletion_backfills_test`: store `[A,B]`, server `[A,B,C]`, `max_messages` 2, A destroyed → `[B,C]` |
 | I-M1 | `incremental_equals_full_test`: one scripted server history; ids and mutable fields after incremental runs equal a fresh full run's, alongside explicit expected ids |
 | I-M1 | `age_out_without_changes_test`: no Email changes and a clock past `max_age_days` → the old message is dropped |
-| I-M2 | `unchanged_account_three_requests_test`: `expect_calls` = opening, `Email/changes`, `Thread/get` |
+| I-M1 | `concurrent_move_converges_test`: a move scripted between `Email/changes` and `Email/query` → the stored Email state is the pre-move `newState`; the next run's ids equal a full sync's |
+| I-M2 | `unchanged_account_fetches_no_email_test`: `expect_calls` = opening, `Email/changes`, `Thread/get`, and `run.requests` pins the opening's `Email/get` to `ids: []` |
 | I-M2 | `outside_window_change_ignored_test`: an updated id neither stored nor in the query → no `Email/get` |
 | I-M3 | `stored_email_state_test`: incremental stores the last `newState`; full stores the opening state |
 | I-M4 | `failure_then_retry_test`: a get fails after changes → store unchanged; the next run starts from the old state |
-| I-M5 | `store_test`: `write_snapshot` → `query.prior` → rebuilt snapshot → `write_snapshot` → identical dump |
+| I-M5 | `store_test`: the existing `read_queries_round_trip_every_fixture_message_test` extended to read through `query.prior` (its fixture already scrambles relation order) |
 
 ### Further cases by module
 
@@ -592,10 +627,11 @@ No new harness and no mock library.
   - `cannotCalculateChanges` → full with the reason;
   - `hasMoreChanges` at the cap → `too_many_changes`;
   - a `window_json` change and a mailbox rename → `window_changed`;
-  - another account and a body-limit change → `no_state`, everything
-    refetched.
+  - another server, another account and a body-limit change → `no_state`,
+    everything refetched.
 - **`config`:**
-  - `retain_messages` is decoded, positive, and at least `max_messages`;
+  - `retain_messages` is decoded, positive, requires `max_messages`, and is
+    at least `max_messages`;
   - `window_json` carries it.
 - **`jmap/decode`:** `email_changes` and `light_emails` shapes and errors.
 - **`cli`:**
@@ -611,7 +647,7 @@ No new harness and no mock library.
 ### Outside this repo
 
 Live check: two consecutive syncs against the real account. The second
-reports `mode: incremental` and fetches no `Email/get`. `gleam format
+reports `mode: incremental` and sends no `Email/get` with ids. `gleam format
 --check`, `just check` and `nix flake check` must be clean.
 
 <!-- doctrine:section sec-10 -->
