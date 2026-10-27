@@ -207,8 +207,8 @@ of this output.
 | `total` | int | Entries in the thread. |
 | `truncated` | bool | True when `--limit` dropped entries. |
 | `items` | [item] | The last entries, in thread order. |
-| `items[].in_store` | bool | Whether the store holds this message. |
 | `items[].id` | string | Message id. |
+| `items[].in_store` | bool | Whether the store holds this message. |
 
 An in-store item is the summary table's fields in the order above followed by
 `in_store: true`. An item the store does not hold carries only `id` and

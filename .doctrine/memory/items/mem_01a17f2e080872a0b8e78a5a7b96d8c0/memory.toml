@@ -1,0 +1,46 @@
+memory_uid = "mem_01a17f2e080872a0b8e78a5a7b96d8c0"
+memory_key = "mem.fact.doctrine.boundary-after-completed"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "A commit landed after a phase is flipped completed falls outside the boundary registry"
+summary = "solo phase-binding records code_end at completion; a later fix commit (e.g. a review verdict test) is unattributed until doctrine slice record-delta extends the range"
+created = "2026-10-27"
+updated = "2026-10-27"
+
+[scope]
+paths = []
+globs = []
+commands = ["doctrine slice record-delta", "doctrine slice conformance"]
+tags = ["doctrine", "audit"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "b17b1b6eedb9d8e56c554f7779e6cdd6fc16b27c"
+ref_name = "refs/heads/main"
+checkout_state_id = "7bd924c5772e31665df58ed195762115530033b54f47483507393fb403a25a37"
+base_commit = "12a0202769607c080e284dc87a60ad30e54705b5"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "low"
+weight = 0
+
+[[source]]
+kind = "review"
+ref = "RV-015"
+

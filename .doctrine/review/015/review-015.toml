@@ -1,0 +1,302 @@
+id    = 15
+slug  = "sl-003-audit-conformance-whole-slice"
+title = "SL-003 audit: conformance (whole slice)"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "reconciliation"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "auditor"
+responder = "author"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Whole-slice conformance audit of SL-003, 23ea700..12a0202, primary checkout. Examined:
+- conformance algebra and the boundary registry against git log;
+- verify-vt 3, check gate, and a serial just check (477 pass);
+- the implementation against design § 3, § 4, § 5.2 (incl. Published shape v1), § 5.5 C1–C6, § 9 and § 10, and DEC-027..DEC-032 as recorded;
+- C6, by every removed line in test/;
+- README § Contract against render/argv/cursor (a pi review pass, verified by hand);
+- the plan.toml in-place amendments and the charters' recorded decisions;
+- VH-1, on the operator's in-session statement and satan commit 79c6b7b (read only).
+11 findings, all terminal. Reconciliation brief written in review-015.md."""
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "Expected every edited source/test path under a design-target selector; observed six undeclared"
+detail = """
+Evidence: `doctrine slice conformance 3` lists as undeclared: src/screwtape.gleam (M; RV-014 F-3 stdout prose), test/check_imports.gleam (M; PHASE-01 cursor purity rule, plan PHASE-01 EX-4), test/screwtape/check_imports_test.gleam (M; PHASE-01 fixture + violation test), test/screwtape/store_test.gleam (M; PHASE-02/03 query tests, VT files of PHASE-02/03), test/support/cli_fixture.gleam (M; PHASE-04 item_strings), test/support/paging.gleam (A; PHASE-04 shared walk). None is in a design-target selector in slice-003.toml, and design § 10 Code Impact does not list them (its test row names cursor/cli/render/read_snapshot tests and snapshot_fixture only). `test/**` is scope-relevant only, which conformance does not count.
+Inference: every one is in-scope, planned or review-driven work (plan EX/VT criteria name store_test and check_imports), not scope creep. The defect is the registry and its § 10 mirror."""
+disposition = "design-wrong"
+response = "Agreed: all six are planned or review-driven, in scope; the selector registry and its § 10 mirror are incomplete. Brief (Per-slice): `doctrine slice selector add 3 --intent design-target` for the six paths; mirror in design § 10 Code Impact. See review-015.md § Reconciliation Brief, F-1."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Agreed: all six are planned or review-driven, in scope; the selector registry and its § 10 mirror are incomplete. Brief (Per-slice): `doctrine slice selector add 3 --intent design-target` for the six paths; mirror in design § 10 Code Impact. See review-015.md § Reconciliation Brief, F-1."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "nit"
+title = "Expected conformance to show only source paths; observed .doctrine lifecycle artefacts undeclared"
+detail = """
+Evidence: conformance lists .doctrine/review/011..013/* (incl. slug symlinks), .doctrine/slice/003/notes.md and .doctrine/slice/003/plan.toml as undeclared. These are the code-review ledgers, execution notes and plan, written by the lifecycle itself, not design targets. Precedent: RV-009 F-2 (SL-002) left `.doctrine/**` undeclared deliberately.
+Question for disposition: selector gap, or tolerated non-source class."""
+disposition = "tolerated"
+response = 'Tolerated non-source class, not a selector gap. Rationale: review ledgers, notes.md and plan.toml are lifecycle bookkeeping that every slice writes; declaring them design-target would make "design-target" mean "anything the process touched" and dilute the undeclared signal for source. Same call as RV-009 F-2 for SL-002, so the two slices read alike. Conformance will keep listing `.doctrine/**` as undeclared; the synthesis records it.'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = 'Tolerated non-source class, not a selector gap. Rationale: review ledgers, notes.md and plan.toml are lifecycle bookkeeping that every slice writes; declaring them design-target would make "design-target" mean "anything the process touched" and dilute the undeclared signal for source. Same call as RV-009 F-2 for SL-002, so the two slices read alike. Conformance will keep listing `.doctrine/**` as undeclared; the synthesis records it.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "minor"
+title = "Expected the boundary registry to cover every slice commit; observed 25f96fa and the docs-only commits outside every phase range"
+detail = """
+Evidence: .doctrine/state/slice/003/boundaries.toml records PHASE-04 as 3bd4f40..1c2af41 and PHASE-05 as 25f96fa..01e622a. Commit 25f96fa ("test(SL-003): PHASE-04 pin --limit range under --after; RV-013 verdict") is PHASE-05's start, so its own patch (test/screwtape/cli_test.gleam +5, review-013.md, notes.md) is in no range. Likewise the docs-only commits 839cc09, 529f5dd, 1a53b97, 9b64ccc, 28dd596, 12a0202 fall between ranges. Consequence: conformance omits .doctrine/review/014/* and the 013/014 slug symlinks (git diff 23ea700..HEAD shows them added), so its undeclared list under-reports.
+Inference: no source path is hidden, since cli_test.gleam is conformant via PHASE-04's own commit and the rest are lifecycle artefacts. But the registry misattributes 25f96fa, a PHASE-04 code commit, and a later reader of the registry would think PHASE-04 ended at 1c2af41."""
+disposition = "design-wrong"
+response = "Agreed: the per-slice delta registry misattributes 25f96fa (a PHASE-04 test commit landed after PHASE-04 was flipped completed). Brief (Per-slice): `doctrine slice record-delta 3 PHASE-04 --start 3bd4f40 --end 25f96fa` (the range adds only 1a53b97 docs and 25f96fa). The docs-only gaps need no row; they are F-2's class. See review-015.md § Reconciliation Brief, F-3."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Agreed: the per-slice delta registry misattributes 25f96fa (a PHASE-04 test commit landed after PHASE-04 was flipped completed). Brief (Per-slice): `doctrine slice record-delta 3 PHASE-04 --start 3bd4f40 --end 25f96fa` (the range adds only 1a53b97 docs and 25f96fa). The docs-only gaps need no row; they are F-2's class. See review-015.md § Reconciliation Brief, F-3."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "Expected design § 9 C6 to list every changed existing expectation; observed the thread key changes and store_test adaptation missing"
+detail = """
+Evidence: design § 9 C6 says "Expectations that change, and only these:" render_test field-order tests, render_test thread, cli_test summary_keys/read_keys, cli_test.gleam:646. The diff 23ea700..HEAD over test/ also changes: cli_test `thread_marks_in_store_entries_test` data keys from ["id","items"] to include total and truncated (RV-011 F-1, design-wrong), and its in-store items now expect `cursor` via summary_keys (PHASE-04, notes § Execution); store_test's thread tests adapt to `query.thread(tx, id, limit)` and `ThreadPage`. I checked every other removed line in test/: render_test's list test restructured onto shared fixtures with byte-identical expectations; read_snapshot_test's I8 helper takes a rewrite fn (callers pass `rewritten`, same expectation); store_test's `messages_of` helper renamed `listed` and ListQuery construction moved to `page: query.Newest(..)` with identical values. No other existing expectation changed.
+Inference: C6 holds semantically ("same JSON plus the added fields"); the § 9 enumeration is incomplete."""
+disposition = "design-wrong"
+response = "Agreed; code and tests satisfy C6, the § 9 list is short. Brief (Per-slice): design § 9 C6 row adds `cli_test` `thread_marks_in_store_entries_test` (data keys gain `total`, `truncated`; in-store items gain `cursor` through `summary_keys`) and store_test's thread tests (adapted to `query.thread(tx, id, limit)` / `ThreadPage`). See review-015.md § Reconciliation Brief, F-4."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Agreed; code and tests satisfy C6, the § 9 list is short. Brief (Per-slice): design § 9 C6 row adds `cli_test` `thread_marks_in_store_entries_test` (data keys gain `total`, `truncated`; in-store items gain `cursor` through `summary_keys`) and store_test's thread tests (adapted to `query.thread(tx, id, limit)` / `ThreadPage`). See review-015.md § Reconciliation Brief, F-4."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "Expected design § 9 C2 to name the fixture's real tie; observed m5/m6 where the fixture ties m4/m5"
+detail = """Evidence: design § 9 C2 row: "already has `m5`/`m6` sharing a millisecond, `snapshot_fixture.gleam:421`". snapshot_fixture.gleam:421 reads "The same receipt millisecond as `m5`: the id tie-break decides." on message m4 (line 425); listing_ascending_ids' doc (line 483) says "-m4 before -m5 on their shared receipt". PHASE-03 notes record the slip; plan VT-1 texts were corrected in place. The gitignored handover.md:61 repeats "m5/m6 tie"; it is a disposable packet, not a reconcile surface."""
+disposition = "design-wrong"
+response = 'Agreed. Brief (Per-slice): design § 9 C2 row reads "`m4`/`m5` sharing a millisecond, `snapshot_fixture.gleam:421`". handover.md is gitignored and disposable; no write. See review-015.md § Reconciliation Brief, F-5.'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = 'Agreed. Brief (Per-slice): design § 9 C2 row reads "`m4`/`m5` sharing a millisecond, `snapshot_fixture.gleam:421`". handover.md is gitignored and disposable; no write. See review-015.md § Reconciliation Brief, F-5.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = """Expected the design's "opaque cursor" to admit the future-date check it requires; observed § 4 and § 5.2 say never parse"""
+detail = """Evidence: design § 4: "The cursor is opaque to consumers: they store and return it, never parse it." § 5.2 Published shape: `"cursor": str /* opaque */`. But § 5.2's README contract, Known limits, requires: "consumers must not store a cursor whose millisecond part is later than now plus a skew allowance" — which needs the consumer to read the millisecond part. README § Cursor (PHASE-06 D1) resolves it: opaque, "The one sanctioned look inside is the future-date check under Known limits." The design text contradicts itself and the README."""
+disposition = "design-wrong"
+response = "Agreed; README's wording is the right resolution and the design should say the same. Brief (Per-slice): design § 4 first bullet and the § 5.2 `cursor` comment / Cursor bullet state the one exception: a consumer may read the integer before the first `:` for DEC-028's future-date guard, and nothing else. See review-015.md § Reconciliation Brief, F-6."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Agreed; README's wording is the right resolution and the design should say the same. Brief (Per-slice): design § 4 first bullet and the § 5.2 `cursor` comment / Cursor bullet state the one exception: a consumer may read the integer before the first `:` for DEC-028's future-date guard, and nothing else. See review-015.md § Reconciliation Brief, F-6."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "Expected design § 3 to match § 5.2 on the int64 bound; observed § 3 says the bound is shared with argv's --offset"
+detail = """Evidence: design § 3 Forces, sqlight badarg bullet: "`cursor.parse` range-checks the millisecond part, using the one int64 bound constant that argv's `--offset` check shares." § 5.2 (after RV-010 N-3): "`cursor` holds the int64 bounds it checks. argv's `--offset` keeps its own `max_offset`". Code: src/screwtape/cursor.gleam has private `min_ms`/`max_ms`; argv keeps `max_offset` (notes PHASE-01: "argv's max_offset untouched (EX-3)"). § 3 is the stale pre-RV-010 text; code follows § 5.2."""
+disposition = "design-wrong"
+response = """Agreed; § 3 predates RV-010 N-3. Brief (Per-slice): design § 3 sqlight badarg bullet reads "`cursor.parse` range-checks the millisecond part against int64 bounds the cursor module owns; argv's `--offset` keeps its own `max_offset` (RV-010 N-3)." See review-015.md § Reconciliation Brief, F-7."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """Agreed; § 3 predates RV-010 N-3. Brief (Per-slice): design § 3 sqlight badarg bullet reads "`cursor.parse` range-checks the millisecond part against int64 bounds the cursor module owns; argv's `--offset` keeps its own `max_offset` (RV-010 N-3)." See review-015.md § Reconciliation Brief, F-7."""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "nit"
+title = "Expected design § 5.2 argv and § 9 rows to name what was built; observed a deleted parser named and new tests unnamed"
+detail = """
+Evidence: design § 5.2 argv "One limit parser": "`list`'s and the selection's `--limit` (through `parse_int_flag`, which already takes a validator)". PHASE-04 deleted `parse_int_flag` (notes § Execution PHASE-04); every list/selection value flag now goes through `parse_value_flag` → `flag_value`, and `parse_sole_int_flag` (read --max-bytes, thread --limit) also calls `flag_value` (PHASE-05). The invariant the bullet states (one `limit_value`, 1..500 named once in `in_limit_range`) holds: argv.gleam:368-373.
+§ 9 C1/C4 rows describe the evidence but do not name the tests that carry it: C1 is pinned by line-for-line equality of `read --after` with `read <id> --max-bytes 7` in cli_test; C4 by `cli_read_after_stream_serves_one_snapshot_when_a_message_is_deleted_test` and `..._redated_test` in read_snapshot_test.gleam."""
+disposition = "design-wrong"
+response = 'Agreed (nit). Brief (Per-slice): design § 5.2 "One limit parser" bullet names `flag_value` (via `parse_value_flag` for list/selection flags and `parse_sole_int_flag` for thread) instead of `parse_int_flag`; § 9 C1/C4 rows may name the tests that carry them. See review-015.md § Reconciliation Brief, F-8.'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = 'Agreed (nit). Brief (Per-slice): design § 5.2 "One limit parser" bullet names `flag_value` (via `parse_value_flag` for list/selection flags and `parse_sole_int_flag` for thread) instead of `parse_int_flag`; § 9 C1/C4 rows may name the tests that carry them. See review-015.md § Reconciliation Brief, F-8.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "minor"
+title = "Expected DEC-028 to record the limits the design and README attribute to it; observed only the late-arrival limit"
+detail = """
+Evidence: design § 5.2 "Known limits (DEC-028)" lists four: older received_at entering the window; filters do not reopen passed positions; a future-dated received_at moves a cursor past later arrivals, with the consumer guard (do not store a cursor later than now + skew); the cursor is not scoped to an account. README § Contract Known limits states the same four. `doctrine show DEC-028` consequences hold only the first ("Misses mail that enters the window with an older received_at ... a consumer may re-scan a short overlap") and "A change cursor can be added later". The other three came from RV-010 after DEC-028 was accepted and were written into the design and README, not into the decision record. DEC-032 calls the cursor opaque and does not mention the guard either.
+Inference: the accepted decision (tier-2 authority) is narrower than the contract that cites it, so a reader of DEC-028 alone misses the consumer obligation."""
+disposition = "design-wrong"
+response = "Agreed; the accepted decision should carry the consumer obligation the contract cites it for. Brief (Governance): DEC-028's consequences gain the three RV-010 limits (filters do not reopen passed positions; future-dated received_at, with the consumer guard as the one sanctioned read of the cursor; not scoped to an account). No choice changes, so this is an elaboration of the decision, not a new one. See review-015.md § Reconciliation Brief, F-9."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Agreed; the accepted decision should carry the consumer obligation the contract cites it for. Brief (Governance): DEC-028's consequences gain the three RV-010 limits (filters do not reopen passed positions; future-dated received_at, with the consumer guard as the one sanctioned read of the cursor; not scoped to an account). No choice changes, so this is an elaboration of the decision, not a new one. See review-015.md § Reconciliation Brief, F-9."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "minor"
+title = "Expected plan criteria to change only by append; observed three criterion texts edited in place"
+detail = """
+Evidence: git diff 23ea700..HEAD -- .doctrine/slice/003/plan.toml: PHASE-02 EX-5 widened to also list `thread_marks_in_store_entries_test`'s keys gaining total/truncated and store_test's thread tests adapting (RV-011 F-1); PHASE-03 VT-1 and PHASE-04 VT-1 changed "m5/m6 tie" to "m4/m5 tie". Ids are unchanged. Boot guardrail: "Phase ids (PHASE-NN) and criteria ids (EN-/EX-/VT-) are immutable — edits append, never renumber."
+Questions: (a) is an in-place text edit with the id kept within "never renumber"; (b) did any edit weaken a criterion to fit the implementation."""
+disposition = "tolerated"
+response = "Tolerated with rationale. (a) The guardrail protects references: ids are kept, so no citation breaks. (b) No criterion was weakened to fit the code. The VT-1 edits fix a fact the design got wrong (F-5): the fixture's tie is m4/m5, and the tests already walked across it. The EX-5 edit lists two changes that C6 already permits: added fields on an existing thread test, and test-call signatures following the new `query.thread` API, with values unchanged. RV-011 F-1 found it, and notes.md § Execution PHASE-02 records it. Appending EX-7/VT-3 rows that duplicate the corrected text would add noise without adding any constraint. Next time, append a corrected criterion rather than edit in place; this is noted in the harvest. Plan criteria are off the reconcile surface, so there is no brief entry."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = "Tolerated with rationale. (a) The guardrail protects references: ids are kept, so no citation breaks. (b) No criterion was weakened to fit the code. The VT-1 edits fix a fact the design got wrong (F-5): the fixture's tie is m4/m5, and the tests already walked across it. The EX-5 edit lists two changes that C6 already permits: added fields on an existing thread test, and test-call signatures following the new `query.thread` API, with values unchanged. RV-011 F-1 found it, and notes.md § Execution PHASE-02 records it. Appending EX-7/VT-3 rows that duplicate the corrected text would add noise without adding any constraint. Next time, append a corrected criterion rather than edit in place; this is noted in the harvest. Plan criteria are off the reconcile surface, so there is no brief entry."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "nit"
+title = "Expected README thread table in print order; observed items[].in_store listed before items[].id"
+detail = """
+Evidence: README § Contract: "The tables below follow print order." The thread table lists `items[].in_store` then `items[].id`. render.gleam prints an out-of-store item as id then in_store (cli_test expects ["id","in_store"]), and an in-store item as the summary fields (id first) then in_store. Every other README table matches render's order and types (checked field by field against render.gleam: mailboxes, summary, list both forms, read, bodies, attachments, provenance, address; bounds, cursor and paging claims also hold).
+Not raised: README names only the four new usage reasons, not the full code list; the published contract (DEC-027, design § 5.2) is stdout JSON, and the pre-slice README listed no codes either."""
+disposition = "fix-now"
+response = "Fixed in this audit commit: README thread table now lists `items[].id` before `items[].in_store`, matching render's print order. Docs only; no test pins README."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in this audit commit: README thread table now lists `items[].id` before `items[].in_store`, matching render's print order. Docs only; no test pins README."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

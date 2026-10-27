@@ -6,25 +6,27 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c758
+fresh-as-of: 2026-10-28 · audit (RV-015 concluded) · 12a0202
 
 ### Produced
-- slice-003.md · research/research.md · design.md (sec-1..sec-10, incl. § 5.2 Published shape v1)
-- DEC-027 · DEC-028 · DEC-029 · DEC-030 · DEC-031 · DEC-032 (accepted)
-- RV-010 (design review, Opus adversarial): F-1..F-14 verified, concluded
-- plan.toml / plan.md: PHASE-01..06; phase sheets materialised
+- slice-003.md · research/research.md · design.md · plan.toml / plan.md
+- DEC-027 · DEC-028 · DEC-029 · DEC-030 · DEC-031 · DEC-032
+- PHASE-01..06 (b031ad8..90e9808); code reviews RV-011 · RV-012 · RV-013 · RV-014
+- RV-010 (design review) · RV-015 (audit; brief → /reconcile)
+- satan:RFC-020 amendment — satan commit 79c6b7b (operator, VH-1)
 - IDE-001 (classifier, separate, pipe-composed)
 
 ### Learned
-- store has no change marker (design § 2; research F1/F2) → arrival cursor
-- `query.prior` already owns the ids→messages loop (RV-010 F-1)
-- Erlang `binary_to_integer` accepts `+05`/`007` (RV-010 F-5)
-- render's check_imports allowlist must admit `screwtape/cursor` (plan PHASE-01 EX-4)
-- `--max-bytes` caps body text only, per message; headers uncapped (PHASE-06 EX-1)
+- mem.fact.build.gleam-build-lock — `doctrine check gate` and `just check` must run serially
+- mem.fact.doctrine.boundary-after-completed — a commit after the completed flip is unattributed (RV-015 F-3)
+- store has no change marker (design § 2) → arrival cursor
+- Erlang `binary_to_integer` accepts `+05`/`007` (RV-010 F-5) → canonical-only parse
+- SQLite breaks ORDER BY ties by scan order: tie tests insert both orders (RV-012 F-1)
+- plan criterion corrections: append, don't edit in place (RV-015 F-10)
 
 ### Open
-- satan:RFC-020 amendment draft — PHASE-06 EX-2; operator commits in satan (VH-1)
-- no open QUE/ASM; IMP-001 declined for now (operator)
+- RV-015 reconciliation brief: design § 3/4/5.2/9/10, selector + boundary registry, DEC-028
+- IMP-001 declined for now (operator); no open QUE/ASM
 
 ## Design
 
@@ -261,7 +263,7 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
 - Gotcha (orchestrator cost): calling `pi_agent_wait` several times in one
   turn returns the full result each time once the run settles — wait once.
 
-### PHASE-06 (charter 4) — completed (90e9808); VH-1 pending
+### PHASE-06 (charter 4) — completed (90e9808); VH-1 satisfied
 
 - README: CLI table (`list --after`, `read --after … --max-bytes`, `thread
   --limit`), stdout wording (one document, or `read --after`'s lines), the
@@ -282,10 +284,27 @@ fresh-as-of: 2026-10-28 · ready (plan committed, phases materialised) · f03c75
   `rfc-020.toml`): D1 consumer cursor (DEC-028) with known limits; D2 OQ-11
   answered (CLI JSON, reasons, DEC-029/030/032 bounds, DEC-031 reader needs,
   IDE-001 composing by pipe); D8 M3 names SL-003; Outcome: OQ-11 settled,
-  open OQ-11 entry removed; toml `updated`. **VH-1 owed by the operator.**
+  open OQ-11 entry removed; toml `updated`. **VH-1 satisfied:** the operator
+  committed it in satan as 79c6b7b and stated "VH-1 done" in session
+  (2026-10-28, relayed by the team lead); the audit read satan only.
 - Decision: README calls the cursor opaque except the DEC-028 future-date
   check (the ms before the first `:`) — "do not parse" would contradict it.
   **For /reconcile:** design § 5.2's "opaque" and DEC-028's consumer check
   pull the same way; say so in the design.
 - Passes: pi `implement` README draft (19 req, $0.032; fields all correct;
   four prose corrections by the orchestrator).
+
+## Audit (RV-015)
+
+- 2026-10-28, conformance self-audit (`auditor`/`author`), primary checkout
+  at 12a0202. Evidence: `just check` serial (477 pass), `doctrine check gate`
+  exit 0, `verify-vt 3` all pass, conformance 0 undelivered. 11 findings, no
+  blocker or major; all verified. Brief in review-015.md.
+- F-11 fixed in the audit commit (README thread table row order).
+- Gotcha: running `doctrine check gate` while `just check` ran in the
+  background broke the build (argv_ffi.erl missing); a serial rerun was green.
+- Phase-sheet harvest: the durable decisions and assumptions in
+  `.doctrine/state/slice/003/phases/phase-0{1..6}.md` are already lifted into
+  § Execution above: PHASE-02's parser shape, PHASE-03 D1, PHASE-04 D-a,
+  PHASE-05 A1/D1 (superseded by RV-014 F-1) and PHASE-06 D1. Nothing further
+  needs to survive the sheets.
