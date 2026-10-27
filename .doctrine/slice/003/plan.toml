@@ -84,6 +84,7 @@ exit_criteria = [
   { id = "EX-3", text = "One statement builder serves messages and message_ids(tx, ListQuery), which selects only id; no second WHERE/ORDER builder exists (POL-001)." },
   { id = "EX-4", text = "pub messages_of(tx, ids) reads each id with message, a missing one being Store(read_failed); prior uses message_ids with no filters and Oldest(Start, None) plus messages_of, and its existing tests pass unchanged." },
   { id = "EX-5", text = "gleam format --check and just check are clean." },
+  { id = "EX-6", text = "store_test's local helper messages_of(path, query) is renamed (e.g. listed), so it no longer reads as query.messages_of." },
 ]
 verification = [
   { id = "VT-1", expects = "query: Oldest pages from Start over snapshot_fixture.listing() with limits 1, 2 and none return every id once in (received_at_ms, id) order across the m5/m6 tie; --since with a cursor combines by AND; Newest unchanged", test_file = "test/screwtape/store_test.gleam", keywords = ["query.Oldest", "query.Newest", "cursor.Start", "cursor.of"], waived = false },
@@ -131,7 +132,7 @@ exit_criteria = [
 ]
 verification = [
   { id = "VT-1", expects = "C1: stdout splits into lines that each decode as a read envelope carrying cursor; empty selection → stdout None; argv usage codes and their precedence", test_file = "test/screwtape/cli_test.gleam", keywords = ["missing_after", "missing_max_bytes", "\"read\", \"--after\""], waived = false },
-  { id = "VT-2", expects = "C4: extend the I8 tests so snapshot B deletes or re-dates a selected message; stdout equals snapshot A's, so a two-transaction implementation fails", test_file = "test/screwtape/read_snapshot_test.gleam", keywords = ["--after", "--max-bytes"], waived = false },
+  { id = "VT-2", expects = "C4: a read --after caller of cli_read_verb_serves_one_snapshot whose snapshot B deletes or re-dates a selected message (RV-010 F-7); stdout equals snapshot A's, so a two-transaction implementation fails", test_file = "test/screwtape/read_snapshot_test.gleam", keywords = ["--after", "--max-bytes"], waived = false },
   { id = "VA-1", text = "Phase review (code-review, Opus subagent), probing the one-transaction stream and argv precedence, with C1/C4 as the oracle; findings disposed before the next phase." },
 ]
 specs        = []
@@ -151,6 +152,7 @@ exit_criteria = [
 verification = [
   { id = "VT-1", expects = "README states the contract", test_file = "README.md", keywords = ["Contract", "--after", "cursor", "truncated", "output_truncated", "thread --limit"], waived = false },
   { id = "VA-1", text = "README field tables match render's output: checked against the C6 key lists in cli_test and render_test." },
+  { id = "VA-2", text = "Live check, when this host has a synced store: list --after '' --limit 5, its continuation from the last cursor, read --after with --max-bytes, and thread --limit 1 run over it and print the documented shapes. Read verbs only; no sync is run for the check." },
   { id = "VH-1", text = "Operator reviews and commits the satan:RFC-020 amendment in ~/dev/satan." },
 ]
 specs        = []
