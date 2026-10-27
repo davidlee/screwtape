@@ -38,32 +38,46 @@ screwtape --config <path> <verb>
 |---|---|
 | `sync` | none |
 | `mailboxes` | none |
-| `list` | `[--mailbox <id\|role\|name>] [--since <YYYY-MM-DD>] [--from <substring>] [--unread] [--limit <1..500>] [--offset <n>]` |
+| `list` | `[--mailbox <id\|role\|name>] [--since <YYYY-MM-DD>] [--from <substring>] [--unread] [--limit <1..500>] [--offset <n>] [--after <cursor>]` |
 | `read <id>` | `[--max-bytes <n>]` |
-| `thread <id>` | none |
+| `read --after <cursor> --max-bytes <n>` | `[list's filters] [--limit <1..500>]` |
+| `thread <id>` | `[--limit <1..500>]` |
 
-`list` flags may come in any order, each at most once. `--limit` defaults to
-50 and accepts 1 to 500; `--offset` defaults to 0. `--since` selects from
-midnight UTC of that day. `--max-bytes` caps the bytes shared by the
-message's body texts together; bodies are cut on codepoint boundaries and
-`output_truncated` says whether anything was shortened.
+`list`, and the `read` selection, take their flags in any order, each at most
+once. `--limit` defaults to 50 and accepts 1 to 500; `--offset` defaults to
+0. `--since` selects from midnight UTC of that day. `--after` starts strictly
+after a cursor instead of at an offset, and may not be combined with
+`--offset`. In the `read --after` row both `--after` and `--max-bytes` are
+required: a `read` whose first argument is a flag is a selection, not a
+message id. `thread --limit` keeps the last that many entries.
+
+`--max-bytes` caps the bytes shared by the message's body texts together;
+bodies are cut on codepoint boundaries and `output_truncated` says whether
+anything was shortened.
 
 `--config` must come first. The `screwtape` that the Home Manager module
 installs is a wrapper that supplies it, so you type `screwtape list ...`.
-A verb that succeeds writes exactly one JSON document to stdout, in a
-versioned envelope:
+`mailboxes`, `list`, `read <id>` and `thread` write exactly one JSON document
+to stdout, in a versioned envelope. `read --after` writes zero or more lines,
+one `read` envelope each, oldest first; a selection that matches nothing
+writes nothing and exits 0.
 
 ```json
 {"version":1,"kind":"list","data":{"offset":0,"limit":50,"items":[]}}
 ```
 
-`kind` is the verb name. Optional values print as `null`, never omitted.
+`kind` is the verb name. Optional values print as `null`, never omitted. The
+envelope and every kind's fields are specified in [Contract](#contract).
 A failure writes nothing to stdout. Diagnostics go to stderr as one JSON
 line each:
 
 ```json
 {"level":"error","error":"usage","reason":"unknown_verb"}
 ```
+
+`reason` is a fixed code and never one of the arguments. The read verbs add
+`invalid_cursor`, `offset_with_after`, `missing_after` and
+`missing_max_bytes`.
 
 There is one warning: an account the session does not report as read-only
 adds `{"level":"warning","warning":"account_not_read_only"}` to stderr and
@@ -76,6 +90,206 @@ Exit codes:
 | 0 | success |
 | 1 | runtime failure: credential, transport, JMAP, store, or a ceiling exceeded |
 | 2 | usage or configuration error: bad argv, unknown mailbox, unknown message or thread, unreadable config |
+
+## Contract
+
+The contract is what the read verbs print to stdout: `mailboxes`, `list`,
+`read` and `thread`. The store's tables are private (screwtape DEC-027): a
+consumer reads this JSON, never the SQLite file.
+
+Every document is one envelope:
+
+```json
+{"version":1,"kind":"read","data":{}}
+```
+
+**Compatibility.** One version number covers the whole contract, and it is 1.
+Within a version, new fields, new verbs and new optional flags may appear;
+consumers must ignore fields they do not know. Raising the version is
+reserved for removing, renaming or retyping a field, for changing a field's
+meaning or an ordering, and for adding a value to an existing enumerated
+field (`source_type`, `truncated_by`). Consumers check `version` and refuse
+one they do not know. Values are never omitted: an absent value is `null`.
+
+The tables below follow print order. `[t]` means an array of `t`.
+
+### mailboxes
+
+`data` is `{"items": [mailbox]}`, ordered by `sort_order`, then name, then
+id.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | string | JMAP mailbox id. |
+| `name` | string | Name, as the server spells it. |
+| `parent_id` | string \| null | Parent mailbox's id. |
+| `role` | string \| null | JMAP role, for example `inbox`. |
+| `sort_order` | int | Server sort position. |
+| `total_emails` | int | The server's total for this mailbox. |
+| `unread_emails` | int | The server's unread total. |
+
+### summary
+
+The item shape shared by `list`, in-store `thread` items and `read`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | string | JMAP message id. |
+| `thread_id` | string | Its thread's id. |
+| `received_at` | string | Arrival instant, the raw JMAP `UTCDate` text, not normalised. |
+| `subject` | string \| null | Subject as received. |
+| `from` | [address] | `From` addresses, in position order. |
+| `preview` | string | The server's preview text. |
+| `is_seen` | bool | The `$seen` keyword. |
+| `is_flagged` | bool | The `$flagged` keyword. |
+| `mailbox_ids` | [string] | Mailboxes holding it, sorted. |
+| `has_attachment` | bool | The server's flag. |
+| `cursor` | string | Opaque arrival position; see Cursor below. |
+
+### list
+
+| Field | Type | Meaning |
+|---|---|---|
+| `offset` | int | Position of the first item, counted from the newest; printed without `--after`. |
+| `after` | string | The cursor the page starts strictly after; printed with `--after`. |
+| `limit` | int | Page size in effect. |
+| `items` | [summary] | Newest first without `--after`, oldest first with it. |
+
+A `list` document carries exactly one of `offset` and `after`; the other key
+is not printed at all.
+
+### read
+
+The summary table's fields in the order above, then:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `sent_at` | string \| null | Raw `UTCDate`. |
+| `size` | int | Message size in bytes, as the server reports it. |
+| `keywords` | [string] | JMAP keywords. |
+| `sender` | [address] | `Sender` header. |
+| `to` | [address] | `To`. |
+| `cc` | [address] | `Cc`. |
+| `bcc` | [address] | `Bcc`. |
+| `reply_to` | [address] | `Reply-To`. |
+| `message_id` | [string] | `Message-Id`. |
+| `in_reply_to` | [string] | `In-Reply-To`. |
+| `references` | [string] | `References`. |
+| `bodies` | [body] | Text parts, in body order. |
+| `bodies[].part_id` | string | JMAP part id. |
+| `bodies[].source_type` | `"text"` \| `"html"` | `"text"` is as received; `"html"` was converted at sync time, so no consumer sees HTML. |
+| `bodies[].text` | string | The text, after sync-time and read-time cuts. |
+| `bodies[].is_truncated` | bool | Cut at sync time. |
+| `bodies[].truncated_by` | `"server"` \| `"message_limit"` \| null | Which bound cut it: JMAP `maxBodyValueBytes`, or the configured per-message `max_body_bytes`. Set exactly when `is_truncated` is. |
+| `bodies[].is_encoding_problem` | bool | The server reported a charset or encoding problem with the part. |
+| `bodies[].conversion_failed` | bool | HTML conversion failed, so `text` is `""`. |
+| `attachments` | [attachment] | Metadata only, never the bytes. |
+| `attachments[].part_id` | string | JMAP part id. |
+| `attachments[].blob_id` | string | JMAP blob id. |
+| `attachments[].name` | string \| null | Filename. |
+| `attachments[].type` | string | Media type. |
+| `attachments[].size` | int | Size in bytes. |
+| `attachments[].disposition` | string \| null | `Content-Disposition`, for example `attachment` or `inline`. |
+| `attachments[].cid` | string \| null | Content id. |
+| `provenance.account_id` | string | The account the store mirrors. |
+| `provenance.email_state` | string | JMAP Email state at the last fetch. Not a change marker: sync restamps it. |
+| `output_truncated` | bool | Whether this read's `--max-bytes` cut any text. |
+
+Truncation has two levels: per body, `is_truncated` and `truncated_by` record
+a cut at sync time; per read, `output_truncated` records a `--max-bytes` cut
+of this output.
+
+### thread
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | string | Thread id, as asked for. |
+| `total` | int | Entries in the thread. |
+| `truncated` | bool | True when `--limit` dropped entries. |
+| `items` | [item] | The last entries, in thread order. |
+| `items[].in_store` | bool | Whether the store holds this message. |
+| `items[].id` | string | Message id. |
+
+An in-store item is the summary table's fields in the order above followed by
+`in_store: true`. An item the store does not hold carries only `id` and
+`in_store: false`, for example a message outside the window.
+
+### address
+
+| Field | Type | Meaning |
+|---|---|---|
+| `name` | string \| null | Display name. |
+| `email` | string | Address. |
+
+### Cursor
+
+A `cursor` is an opaque string: store it and hand it back. Do not construct
+cursors or compare them; their order is the store's, not a string order. The
+one sanctioned look inside is the future-date check under Known limits.
+
+`""` starts from the beginning. `list --after c` and `read --after c` return
+messages strictly after `c`, oldest first by arrival (`received_at`, then
+id), ties included.
+
+Paging: pass the last returned item's `cursor` as the next `--after`. You are
+caught up when fewer than `--limit` items came back. A consumer that drops
+items after reading, for example ids it has already seen on a deliberate
+re-read of an overlap, still continues from the last *returned* item's
+cursor and is caught up when fewer than `--limit` were *returned*: both
+counted before its own filtering.
+
+### `read --after`
+
+`read --after` is line-delimited JSON: zero or more `read` envelopes, one per
+line, oldest first, and nothing else. It selects and reads in one read
+transaction, so a page is one snapshot and a concurrent sync cannot
+interleave. No messages match: empty stdout, exit 0.
+
+```sh
+cursor=""
+while :; do
+  screwtape read --after "$cursor" --max-bytes 8192 --limit 100 > page.jsonl \
+    || exit
+  if [ ! -s page.jsonl ]; then break; fi             # empty page: caught up
+  jq -c . page.jsonl                                 # your reader here
+  cursor=$(tail -n 1 page.jsonl | jq -r '.data.cursor')
+  if [ "$(wc -l < page.jsonl)" -lt 100 ]; then break; fi  # short page
+done
+```
+
+### Bounds
+
+- `--limit` is 1 to 500 and defaults to 50.
+- `--max-bytes` caps body text only, per message, shared across that
+  message's bodies in body order. A `read --after` page's body text is
+  therefore at most `--limit` × `--max-bytes`. Headers, addresses and
+  attachment metadata are uncapped. `output_truncated` says whether that
+  read cut anything.
+- `thread --limit` keeps the last entries in thread order, 50 by default;
+  `total` is the thread's entry count and `truncated` is true when entries
+  were dropped.
+
+### Known limits
+
+The cursor is an arrival position, not a change marker (screwtape DEC-028),
+so:
+
+- Mail that enters the window with a `received_at` older than a passed
+  position is not returned; re-read from an earlier cursor if that matters.
+- Filters do not reopen passed positions: a message that starts matching
+  `--mailbox`, `--unread` or `--from` after the cursor passed it is not
+  returned.
+- A future-dated `received_at`, which `Email/import` can set, moves a cursor
+  past later real arrivals. Do not store a cursor whose millisecond part (the
+  integer before the first `:`) is later than now plus a skew allowance.
+- The cursor is not scoped to an account: after the store is re-synced to a
+  different account, an old cursor is still accepted.
+
+### What a reader needs
+
+The `screwtape` binary, a `--config` naming the store, and a writable store
+directory: a read-only WAL connection still creates `-wal` and `-shm` beside
+the store. Nothing else (screwtape DEC-031).
 
 ## `sync` is service-only
 
