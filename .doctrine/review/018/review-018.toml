@@ -1,0 +1,577 @@
+id    = 18
+slug  = "sl-004-audit-conformance-whole-slice"
+title = "SL-004 audit: conformance (whole slice)"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "reconciliation"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Conformance audit of SL-004 at d4d1c2f (primary tree): host gates (just check 615 passed, nix flake check rc 0); slice conformance after bootstrapping three zero-width delta ranges; verify-vt; design § 5.1-§ 5.5, § 9, § 10 against the code by a pi sweep with my probes; every audit-deferred line in notes (autonomy log, phase passes, Harvest Open); governance items POL-002, DEC-016/inq-9, DEC-035, DEC-039. 18 findings terminal; reconciliation brief written.
+"""
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-004"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "Expected a source-delta row per phase; observed empty ranges for PHASE-01, -12, -13"
+detail = """
+Expected: `.doctrine/state/slice/004/boundaries.toml` holds each completed phase's code range, so `slice conformance` reads the whole slice.
+Observed (audit start): PHASE-01 e319727..e319727, PHASE-12 9c16862..9c16862, PHASE-13 ee93f74..ee93f74 (start = end, zero-width; provenance "solo"). Conformance then listed 15 design-target selectors as undelivered although the code landed.
+Bootstrapped during this audit with `doctrine slice record-delta 4 PHASE-NN --start --end`: PHASE-01 e319727..9c16862, PHASE-12 9c16862..ee93f74, PHASE-13 ee93f74..b07973c (PHASE-14 b07973c..d4d1c2f was right). Re-run: undelivered 0, conformant 63.
+Inference: the solo auto-binding recorded the phase's commit as both ends.
+"""
+disposition = "fix-now"
+response = """
+Fixed inside the audit: the three ranges were re-recorded with `doctrine slice record-delta` (state, not committed); conformance now reads all four phases. Tooling cause logged as a friction observation. No code or design change.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed inside the audit: the three ranges were re-recorded with `doctrine slice record-delta` (state, not committed); conformance now reads all four phases. Tooling cause logged as a friction observation. No code or design change.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "Expected every touched source path under a design-target selector and in design § 10; observed error.gleam, nix/package.nix and test/fixtures/jev/** undeclared"
+detail = """
+`doctrine slice conformance 4` (after the delta bootstrap) undeclared cell, non-doctrine paths:
+- `src/screwtape/error.gleam` (PHASE-12 `error.decode_failure`, PHASE-13 `error.to_json_line_at`; autonomy log: POL-001 reuse).
+- `nix/package.nix` (PHASE-14: check ships `.gitignore` and README.md, gitMinimal, isolated `git init`, so pol002_test and docs_test run in checks.gleam-test; autonomy log "outside § 10's path list").
+- `test/fixtures/jev/**` (PROVENANCE.md, mail-1-reply.json, max-tokens-exceeded-400.{direct,gateway}.json; the old spec-derived file deleted). Plan PHASE-12 EX-16 and PHASE-14 EX-9 name this folder; § 10 only says "a Jev reply fixture" under test/support.
+The remaining undeclared entries are doctrine artefacts (IMP-004, RSK-001, DEC-039, an observation, slice notes/plan): expected, no selector wanted.
+"""
+disposition = "design-wrong"
+response = """
+The touches are legitimate (POL-001 reuse in error.gleam; test inputs for the nix check; fixtures the plan names). The selector registry and § 10 are incomplete. Brief: `doctrine slice selector add` for the three paths (design-target), with § 10 rows as the mirror.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+The touches are legitimate (POL-001 reuse in error.gleam; test inputs for the nix check; fixtures the plan names). The selector registry and § 10 are incomplete. Brief: `doctrine slice selector add` for the three paths (design-target), with § 10 rows as the mirror.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "minor"
+title = "Expected I2 to match § 5.2's model rule; observed I2 omits the last-'/' form the code prints"
+detail = """
+Design § 5.5 I2: "`model` is printed only if it equals the configured model."
+Design § 5.2 jev reply: `model` equals the configured model, or the configured model after its last `/` (a gateway's provider prefix).
+Code and the live check follow § 5.2: through the gateway, request `typesafe/jev-1.14.0` → printed `jev-1.14.0` (notes, PHASE-14 live check, 30/30). PHASE-13 VA-1 F4 and the seat's autonomy-log line deferred this to audit.
+"""
+disposition = "design-wrong"
+response = """
+§ 5.2 is the deliberate rule (RV-016 F-1) and the live check confirms the gateway's prefix-stripped form. Brief: amend I2 to say "equals the configured model or its text after the last `/`".
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+§ 5.2 is the deliberate rule (RV-016 F-1) and the live check confirms the gateway's prefix-stripped form. Brief: amend I2 to say "equals the configured model or its text after the last `/`".
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "nit"
+title = "Expected § 5.1 to name the shipped signatures; observed failure/1 and a 4-argument render.classify"
+detail = """
+§ 5.1 module table: `screwtape/http` exports `failure/1`. § 5.2 and PHASE-01 EX-1 say `failure(failure, too_large)`, i.e. failure/2; the code is failure/2 (PHASE-01 review F5).
+§ 5.1 diagram: `render.classify(id, cursor, schema, reply)`; `src/screwtape/render.gleam:36-40` takes three arguments and prints `schema.id` itself (pi sweep, confirmed by read).
+"""
+disposition = "design-wrong"
+response = """
+Code and § 5.2 agree; § 5.1 is stale. Brief: § 5.1 table `failure/2`; diagram `render.classify(id, cursor, reply)`.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Code and § 5.2 agree; § 5.1 is stale. Brief: § 5.1 table `failure/2`; diagram `render.classify(id, cursor, reply)`.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "Expected § 5.2's state bullets to say what is stripped and dropped; observed code strips attachment types and sender domains and drops empty domains (I3)"
+detail = """
+§ 5.2 classify/state: "pii.strip is applied next, to the subject, each text and each attachment name." I3: "Every text in `state` has passed `pii.strip`."
+Code (PHASE-12 VA-1 F1/F2): attachment `type` and each sender domain also pass `pii.strip`, following I3. A sender whose domain is empty after the last `@` (`a@`) is dropped and counted in `sender_domains_omitted` (`src/screwtape/classify/state.gleam:216-218`; README states it), a third drop reason beside "no `@`" and "over 253 bytes".
+Code follows the invariant; the bullet is narrower than I3.
+"""
+disposition = "design-wrong"
+response = """
+Code follows I3 (stricter). Brief: § 5.2 state bullet names subject, texts, attachment types and names, and sender domains; sender_domains bullet adds the empty-domain drop.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Code follows I3 (stricter). Brief: § 5.2 state bullet names subject, texts, attachment types and names, and sender domains; sender_domains bullet adds the empty-domain drop.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "Expected § 5.2's reply decoder rule to hold; observed decode.dict used count-only for probabilities (operator ruling)"
+detail = """
+§ 5.2 jev reply: "decodes the body with `decode.at`, one path per known question, never with `decode.dict`" and "`probabilities` has exactly our labels, or keys "0"…"n-1"". Plan PHASE-12 EX-12 repeats both.
+The two cannot both hold: with `decode.at` only, an extra key is invisible (Codex VA-2 F3 disproved the sum argument: `{"a":0.8,"b":0.2,"c":0.2}` passed). Operator ruling 2026-10-29 (autonomy log, seat): count-only `decode.dict`. Code `src/screwtape/jev.gleam:307-317` reads the object as a dict only for its size; values are still read per known key by path, so no server key reaches an Error.
+Also (pi sweep, ambiguity): "our labels, or keys 0…n-1" reads as either form for any type; code fixes labels for a choice and indices for a score (jev.gleam:180,219), as the README says.
+"""
+disposition = "design-wrong"
+response = """
+Operator ruling 2026-10-29 settled it: count-only decode.dict, values by path. Brief: § 5.2 reply bullet restated (values by decode.at per known key; the probabilities object's key count read with decode.dict, size only; labels for a choice, "0"…"n-1" for a score). Plan EX-12's wording stays (immutable); this RV records the drift.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Operator ruling 2026-10-29 settled it: count-only decode.dict, values by path. Brief: § 5.2 reply bullet restated (values by decode.at per known key; the probabilities object's key count read with decode.dict, size only; labels for a choice, "0"…"n-1" for a score). Plan EX-12's wording stays (immutable); this RV records the drift.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "Expected the edge to read stdin with {encoding, unicode}; observed raw bytes, UTF-8 validated, device encoding restored"
+detail = '''
+§ 5.2 the edge: `io:setopts(standard_io, [binary, {encoding, unicode}])` and a `file:read/2` loop.
+Observed (PHASE-13 W3, autonomy log): with `{encoding, unicode}`, `file:read` fails `no_translation` on valid UTF-8 and lets `\xff` through. Code (`src/screwtape_ffi.erl:71-88`) sets `{encoding, latin1}` (raw bytes), validates with `unicode:characters_to_binary/1`, then restores the device's encoding (left at latin1, stdout escaped codepoints >255). The contract (`{ok, Binary}` / too_large / bad_utf8 / read_failed) is unchanged; VT-3 (16 MiB + 1 → stdin_bytes) passes.
+'''
+disposition = "design-wrong"
+response = """
+The designed mechanism does not work on OTP (observed). Brief: § 5.2 the edge describes raw-byte read, UTF-8 validation with unicode:characters_to_binary/1, and the device encoding restored.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+The designed mechanism does not work on OTP (observed). Brief: § 5.2 the edge describes raw-byte read, UTF-8 validation with unicode:characters_to_binary/1, and the device encoding restored.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "nit"
+title = "Expected § 5.2's dispatch success form to cover empty stdin; observed empty stdin gives stdout None"
+detail = """
+§ 5.2 dispatch: "success: Outcome(Some(lines), [], 0)"; plan PHASE-13 EX-7 repeats it. § 5.5 edge case: "Empty stdin gives empty stdout and exit 0."
+Code: empty stdin is `Outcome(None, [], 0)` through the `joined` rule shared with `read --after` (PHASE-13 VA-1 F5). Observable behaviour (no stdout, exit 0) matches § 5.5; only the internal form differs from the § 5.2 bullet.
+"""
+disposition = "design-wrong"
+response = """
+Behaviour matches § 5.5. Brief: § 5.2 dispatch bullet adds "empty stdin: stdout None, exit 0". Plan EX-7 wording stays (immutable).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Behaviour matches § 5.5. Brief: § 5.2 dispatch bullet adds "empty stdin: stdout None, exit 0". Plan EX-7 wording stays (immutable).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "major"
+title = "Expected § 5.2 and § 5.5 to state the max_tokens_exceeded mapping that ships; observed DEC-039's two locations"
+detail = """
+§ 5.2 jev/client: "a 400 whose error code equals `max_tokens_exceeded`, and any 413, become LimitExceeded("jev_context") … The error code's location in the body is confirmed with A1." § 5.5: "A gateway refusal (non-200) is handled the same way as an upstream one."
+Observed live (PHASE-14): upstream Jev puts the code at `detail.error_type`; the LiteLLM gateway wraps it as free text inside `error.message`. That changed the § 5.2 contract, so EX-11 stopped and went to /consult; the operator chose DEC-039 (accepted): on a 400 only, match `detail.error_type == "max_tokens_exceeded"` or the literal `"error_type":"max_tokens_exceeded"` inside the decoded `error.message`, OR-ed, compare-only. Code `src/screwtape/jev/client.gleam:33-37,66,87-93`; IMP-004 (needs SL-004) later removes the message match. The design still states the pre-A1 contract. Major because it is a published-behaviour contract, not because the code is wrong.
+"""
+disposition = "design-wrong"
+response = """
+DEC-039 (accepted, operator) is the contract now. Brief: § 5.2 jev/client exception bullet restated per DEC-039, citing IMP-004 as the planned removal of the message match; § 5.5 edge case and § 7 table gain DEC-039.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+DEC-039 (accepted, operator) is the contract now. Brief: § 5.2 jev/client exception bullet restated per DEC-039, citing IMP-004 as the planned removal of the message match; § 5.5 edge case and § 7 table gain DEC-039.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "minor"
+title = "Expected § 5.4's provisioning to be 'staging unchanged'; observed private per-run staging, refused sources, jev provisionable only when configured"
+detail = """
+§ 5.4 and plan PHASE-14 EX-3: "The staging and the atomic move are unchanged."
+Code (`nix/module.nix`; Codex VA-3 F1-F5, accepted): per-run `mktemp -d` staging beside the store, `mv -fT`; `--from-file` refuses a symlink source and the stored path (realpath compare), resolves to an absolute path. Still staged and atomic; the contract is kept and hardened.
+Also (pi sweep): `jev` is a valid provision name only when `services.screwtape.jev` is set (`nix/module.nix:99-109`, asserted by module-eval.nix:323-324); otherwise usage error exit 2. § 5.4 is silent on it.
+"""
+disposition = "design-wrong"
+response = """
+Hardening accepted at Codex VA-3 keeps the staged, atomic contract. Brief: § 5.4 provisioning bullets: private per-run staging, mv -fT, refused symlink and stored-path sources, and jev offered only when services.screwtape.jev is set. Plan EX-3 wording stays.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Hardening accepted at Codex VA-3 keeps the staged, atomic contract. Brief: § 5.4 provisioning bullets: private per-run staging, mv -fT, refused symlink and stored-path sources, and jev offered only when services.screwtape.jev is set. Plan EX-3 wording stays.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "nit"
+title = "Expected plan VT test_files and keywords to locate the evidence; observed three mismatches with the behaviour covered"
+detail = """
+`doctrine slice verify-vt 4`: PHASE-12 VT-2 fails on keyword `re:replace/4` (test/check_imports.gleam holds it as the tuple `#("re", "replace", 4)`, line 83); PHASE-13 VT-5 fails on `"kind":"classify"` (render_test.gleam:934 holds it JSON-escaped). Both behaviours are tested; the keywords are literal-form artefacts.
+PHASE-14 VT-4 names test_file jev_test.gleam; its 400 half ("maps the recorded 400 to jev_context") lives in jev_client_test.gleam, where status mapping lives (autonomy log). verify-vt passes on the reply half's keywords.
+Plan criteria are immutable (boot rule), so nothing is edited.
+"""
+disposition = "tolerated"
+response = """
+Plan criteria are immutable (boot rule) and not a reconcile surface. The behaviour each VT names is tested (cited lines); 615 tests green. Accepted: verify-vt will keep reporting the two keyword misses for this slice; this finding is the record.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = """
+Plan criteria are immutable (boot rule) and not a reconcile surface. The behaviour each VT names is tested (cited lines); 615 tests green. Accepted: verify-vt will keep reporting the two keyword misses for this slice; this finding is the record.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "minor"
+title = "Expected mail-1's text 'fixed in DEC-035' (§ 5.2, EX-14 'verbatim'); observed per-question instructions and label descriptions authored at PHASE-12"
+detail = """
+§ 5.2 classify/schema: "The text is fixed in DEC-035." Plan PHASE-12 EX-14: "text verbatim from DEC-035."
+DEC-035 fixes the preamble, the question names and types, the choice labels and the score level texts. It holds no per-question instruction sentence and no choice-label description. Those (8 sentences, 7 descriptions) were authored by the orchestrator in `src/screwtape/classify/schema.gleam` (autonomy log PHASE-12, "flag for audit"). DEC-035's consequence: any change to instructions or criteria bumps the schema id, so this text is now mail-1.
+Read of the text: it stays within each question's DEC-035 meaning. One observation for the operator and IMP-003: `deception_cues` lists "requests for credentials or payment details" as a cue, so an ordinary invoice that asks for payment details may raise it; whether that matters is IMP-003's eval question.
+"""
+disposition = "design-wrong"
+response = """
+The authored text is now mail-1 by DEC-035's own consequence, but no governance record holds or accepts it. Brief (governance): amend DEC-035 to say the per-question instructions and label descriptions are fixed in `classify/schema.gleam` under mail-1 — only after the operator accepts the text (operator decision; see hand-back). Per-slice: § 5.2 classify/schema sentence matches. If the operator wants text changes, that is a code change plus no id bump (mail-1 is unreleased).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+The authored text is now mail-1 by DEC-035's own consequence, but no governance record holds or accepts it. Brief (governance): amend DEC-035 to say the per-question instructions and label descriptions are fixed in `classify/schema.gleam` under mail-1 — only after the operator accepts the text (operator decision; see hand-back). Per-slice: § 5.2 classify/schema sentence matches. If the operator wants text changes, that is a code change plus no id bump (mail-1 is unreleased).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "nit"
+title = "Expected the design to name the gateway key for the live check; observed § 5.3, § 5.4 and § 9 still say the interim key"
+detail = """
+Operator ruling 2026-10-28: the live check uses the gateway, not the interim TypeSafe key. Plan PHASE-14 EN-3 (appended) supersedes EN-2.
+Design § 5.3 ("now a TypeSafe key and later a gateway client key"), § 5.4 Live check ("with the interim key") and § 9 Manual ("with the interim key") still describe the interim key. The live check ran through `http://127.0.0.1:4000` with a key from `llm-gateway issue screwtape`.
+"""
+disposition = "design-wrong"
+response = """
+The ruling is recorded (plan EN-3, notes); the design prose lags. Brief: § 5.3 credential sentence, § 5.4 Live check and § 9 Manual name the gateway key.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+The ruling is recorded (plan EN-3, notes); the design prose lags. Brief: § 5.3 credential sentence, § 5.4 Live check and § 9 Manual name the gateway key.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "minor"
+title = "Expected pii rule 1 to strip every email address (§ 5.2 example a@b.c → [email]); observed addresses without a dotted 2+ letter TLD survive"
+detail = """
+§ 5.2 pii rule 1: "Email addresses become `[email]`." § 5.2 state: "stripping can lengthen text (`a@b.c` becomes `[email]`)."
+Probe (audit, compiled beams): `pii:strip("a@b.c")` = `a@b.c`; `strip("user@localhost")` = `user@localhost`; `strip("bob@mail.example.com")` = `[email]`. The pattern (`src/screwtape/pii.gleam:50`) needs a dotted domain ending in 2+ letters.
+Exposure: local parts of dotless or one-letter-TLD addresses reach Jev. Such addresses are not deliverable on the public internet and are rare in mail text (inference). The design's own example does not hold.
+Related (pi sweep): rule 1 runs before rule 2, so `https://user:pw@host.example:8080/p?q=1` → `https://[email]/[…]`: the host is dropped too. That strips more, never less.
+"""
+disposition = "design-wrong"
+response = """
+The pattern was shaped deliberately at PHASE-12 (Codex VA-2: RFC 5322 atext, quoted local parts) and requires a public-style domain; dotless addresses are rare in mail and widening it risks over-stripping non-address `@` tokens. Brief: § 5.2 rule 1 states the recognised shape (dotted domain, last label 2+ letters) and names the residual; the state example becomes `a@b.co`; note that rule 1 before rule 2 drops the host of a URL with userinfo.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+The pattern was shaped deliberately at PHASE-12 (Codex VA-2: RFC 5322 atext, quoted local parts) and requires a public-style domain; dotless addresses are rare in mail and widening it risks over-stripping non-address `@` tokens. Brief: § 5.2 rule 1 states the recognised shape (dotted domain, last label 2+ letters) and names the residual; the state example becomes `a@b.co`; note that rule 1 before rule 2 drops the host of a URL with userinfo.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-15"
+status = "verified"
+severity = "minor"
+title = 'Expected config validation to cover every jev config failure (§ 5.2 five reasons); observed a sixth, Config("jev_url"), at the first ask'
+detail = """
+§ 5.2 config lists five reasons; plan PHASE-13 EX-2 names five. `src/screwtape/jev/client.gleam:50-53` maps an unparsable `base_url <> "/v1/systemone"` (e.g. `https://` with an empty host, which passes validation) to `Config("jev_url")` at the first ask. PHASE-13 VA-1 F6 accepted it with a test; stricter validation would add a reason EX-2 does not name. The README lists no config reasons at all, so nothing there is missing.
+"""
+disposition = "design-wrong"
+response = """
+Accepted at PHASE-13 (F6). Brief: § 5.2 config notes that a base_url that validates but cannot form the request URL fails `Config("jev_url")` at the first ask.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Accepted at PHASE-13 (F6). Brief: § 5.2 config notes that a base_url that validates but cannot form the request URL fails `Config("jev_url")` at the first ask.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-16"
+status = "verified"
+severity = "minor"
+title = "Expected POL-002 to name the slice that owns the real-mail tagging pass; observed '(SL-004)', the eval now IMP-003"
+detail = """
+POL-002 § Statement (`.doctrine/policy/002/policy-002.md:17-19`): "the LLM tagging pass the operator runs for the evaluation (SL-004)." The eval moved to IMP-003 (operator, 2026-10-28; notes Harvest § Open "FOR RECONCILE"). Line 27 "(SL-004 research)" is accurate history and stays. The operator asked that this go through a REV.
+"""
+disposition = "design-wrong"
+response = """
+Governance wording. Brief (REV): POL-002 § Statement "(SL-004)" → "(IMP-003)" on line 19 only. Operator's call per their 2026-10-28 instruction.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Governance wording. Brief (REV): POL-002 § Statement "(SL-004)" → "(IMP-003)" on line 19 only. Operator's call per their 2026-10-28 instruction.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-17"
+status = "verified"
+severity = "minor"
+title = "Expected inq-9 settled by close (design § 6); observed the DEC-016 exposure note and the satan:RFC-020 D1/D5 amendment draft still open"
+detail = """
+Design § 6: "SL-004 inq-9, deferred to close: the satan:RFC-020 D1/D5 amendment draft in ~/dev/satan, and the DEC-016 exposure note (the Jev key and mail in flight)."
+DEC-016 consequences name only the Fastmail token readable in `$XDG_RUNTIME_DIR/credentials` while a run is live. SL-004 adds a second credential (`jev`, decrypted only inside the transient classify unit) and sends PII-stripped mail to Jev through the gateway. No note exists yet. The satan:RFC-020 draft lives in another repo.
+"""
+disposition = "design-wrong"
+response = """
+Brief (governance): DEC-016 gains an exposure consequence for the jev credential and mail in flight. The satan:RFC-020 D1/D5 amendment draft is outside this repo and both reconcile surfaces; design § 6 schedules it at close, an outward act for the operator.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Brief (governance): DEC-016 gains an exposure consequence for the jev credential and mail in flight. The satan:RFC-020 D1/D5 amendment draft is outside this repo and both reconcile surfaces; design § 6 schedules it at close, an outward act for the operator.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-18"
+status = "verified"
+severity = "nit"
+title = "Expected § 5.2, § 5.5 and § 6 to carry the live evidence; observed A1, the F-9 tolerances and the state-size inference still marked unconfirmed"
+detail = """
+PHASE-14 live check (notes, observed): A1 reply shape confirmed (`model`, `answers`, `usage`; score answers add an ignored `legend`); F-9 tolerances hold with margin (Σ = 1 at float precision 30/30, max |score − Σ i·pᵢ| = 0.01); largest request 19.7 KB → 5,884 input tokens, far under 32k; replies are not deterministic (81 of 150 scalars differ between two runs, max Δ 0.13, one choice flipped). Alias behaviour stays untestable: the gateway key is scoped to the pinned model (403 on `typesafe/jev-latest`).
+Design § 5.2 ("first estimates … A1 smoke test confirms them"; "Inference, unmeasured" worst case), § 5.5 A1 and § 6 still read as open.
+"""
+disposition = "design-wrong"
+response = """
+Brief: § 5.2 tolerances note and worst-case paragraph, § 5.5 A1 and § 6 updated with the PHASE-14 observations (A1 confirmed except the alias, untestable through a pinned key; tolerances held; 19.7 KB → 5,884 tokens; non-deterministic replies).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Brief: § 5.2 tolerances note and worst-case paragraph, § 5.5 A1 and § 6 updated with the PHASE-14 observations (A1 confirmed except the alias, untestable through a pinned key; tolerances held; 19.7 KB → 5,884 tokens; non-deterministic replies).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

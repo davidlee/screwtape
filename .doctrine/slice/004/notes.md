@@ -30,13 +30,14 @@ fresh-as-of: 2026-10-28 · ready; design re-locked without the eval (run rev 43)
 - mem.fact.doctrine.governance-confirmed-invalidated-by-edges — new governing edges stale the governance act
 
 ### Open
-- SL-004 inq-9 (deferred to close) — satan:RFC-020 D1/D5 amendment draft + DEC-016 exposure note
-- design A1 — Jev reply shape unconfirmed live
+- SL-004 inq-9 (deferred to close) — satan:RFC-020 D1/D5 amendment draft + DEC-016 exposure note (RV-018 F-17)
+- RV-018 F-12 — operator to accept the agent-authored mail-1 instructions and label descriptions before DEC-035 is amended
+- SETTLED design A1 — confirmed live at PHASE-14 except the alias (untestable through the pinned gateway key); design prose: RV-018 F-18
 - design § 6 — substance signal and calibration: now IMP-003's question
 - design § 5.2 — worst-case state about 51 KB encoded vs Jev 32k tokens: unmeasured; jev_context error + skip-by-cursor covers it
-- design § 5.2 — location of Jev's max_tokens_exceeded code in a 400 body: confirm with A1
+- SETTLED design § 5.2 max_tokens_exceeded location — DEC-039; design prose: RV-018 F-9
 - SETTLED `review_pass … STALE` after lock: seen at both locks (RV-016 rev 36, RV-017 rev 43); status shows 1 change since baseline right after the stage move, so the lock itself stales the pass. Inference: benign, not a review gap
-- design § 5.2 — F-9 reply tolerances (sum 1 ± 0.02, score ± 0.05) are estimates; A1 smoke test confirms
+- SETTLED design § 5.2 F-9 tolerances — held live with margin; RV-018 F-18
 - design § 6 — token usage assumed visible in llm-gateway accounting (unverified)
 - FOR RECONCILE (operator, 2026-10-28): revise POL-002 § Statement, tagging-pass exemption "(SL-004)" → "(IMP-003)", through a REV (governance edit); source: RV-017 pass, pi review finding 3
 - DONE plan rework (operator, 2026-10-28): 4 phases. (1) http seam lift; (2) pure core: pii, classify/input, classify/state, jev, jev/client, classify/schema, with spec-based fixtures; (3) classify verb: argv, config, run_piped, stdin edge, render, loop, token-leak; (4) ingress and docs: nix wrapper/provision/shared crash-dump settings, POL-002 guard, README, then a live run confirming A1 and fixing the codec if needed. Keep the draft's criteria, merged per phase (they carry the RV-016 repairs).
@@ -149,6 +150,12 @@ Endpoint: gateway `http://127.0.0.1:4000` (LiteLLM 1.106.2), key scoped to `type
 Operator confirmation (VH-1, VH-2; not marked verified):
 - VH-1: the agent's probes ran under your key: check `journalctl --user --since "2026-10-29 02:40" --until "2026-10-29 03:00" | grep 'Started \[systemd-run\]'`: the agent's units run `bash …/scratchpad/live/call.sh` (two 15-request passes; one oversized + alias probe; plus one failed start with a wrong script path) and `bash …/keycheck.sh` (the key-byte check), beside the wrapper's own `screwtape --config … classify` unit, and the gateway's spend for key `screwtape` (≈ $0.0023 plus the 15 wrapper calls). Nothing secret was printed: the unit printed only `<request path> <status> <seconds>` lines and `clean <path>` lines; confirm no key appears in this session's transcript if you wish.
 - VH-2: run `cat test/fixtures/mail/read-*.json | screwtape classify` in ~/dev/screwtape (duplicates included: 16 lines) and confirm 16 `"kind":"classify"` lines with `"model":"jev-1.14.0"` and nothing on stderr.
+
+### Audit (RV-018, 2026-10-29)
+- Gates: `nix develop -c just check` 615 passed; `nix flake check` rc 0. verify-vt 18/20 (two keyword-literal misses, F-11).
+- Delta registry: PHASE-01/12/13 held zero-width ranges; re-recorded with `slice record-delta` (F-1, friction observation). Conformance then 63 conformant, 0 undelivered, 3 undeclared source paths (F-2).
+- pi review sweep (deepseek-flash max, $0.085, 47 req, final): design § 5.1–§ 5.5/§ 9/§ 10 vs code; 5 new divergences + 3 ambiguities, each probed; became F-4 (render arity), F-5 (empty domain), F-6 (keying), F-10 (jev provisionable only when set), F-14 (dotless emails survive, probed), F-15 (jev_url). Precedence of non_https over trailing_slash: not raised (no design rule).
+- 18 findings (1 major, 12 minor, 5 nit), all verified: 16 design-wrong, 1 fix-now (F-1, done), 1 tolerated (F-11). No code defect. Brief in review-018.md.
 
 ## Autonomy log
 <!-- one line per envelope decision: phase · what · why · tier (decided / deferred / escalated) -->

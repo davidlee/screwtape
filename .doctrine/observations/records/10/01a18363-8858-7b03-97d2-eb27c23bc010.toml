@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a18363-8858-7b03-97d2-eb27c23bc010"
+recorded_at = "2026-10-28T16:41:40.696632994Z"
+kind = "friction"
+summary = "solo phase-binding recorded zero-width source deltas for SL-004 PHASE-01/12/13"
+detail = "boundaries.toml held code_start_oid == code_end_oid (the phase commit) for three solo phases, so slice conformance reported every design-target selector as undelivered. Audit re-recorded ranges with slice record-delta --start/--end. Seen 2026-10-29 at the SL-004 audit (RV-018 F-1)."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
