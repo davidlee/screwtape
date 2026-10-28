@@ -99,6 +99,21 @@ Seat: /super-orchestrator, 2026-10-28. Phases in order PHASE-01, PHASE-12, PHASE
 - Inference, unverified: an alias (typesafe/jev-latest) may come back as the served version; design pins a version (§ 7). Check at the live run.
 - Drift for audit: design invariant I2 says `model` printed "only if it equals the configured model" without the last-`/` exception of § 5.2.
 
+### PHASE-14 operator handoff (pre-live done at 2ba7251; phase stays in_progress)
+Operator acts (EN-3; the agent never sees the key):
+1. Bump the screwtape input in ~/flakes to 2ba7251 or later, and set in the Home Manager profile:
+   `services.screwtape.jev = { baseUrl = "http://127.0.0.1:<relayPort>"; model = "typesafe/jev-1.14.0"; };` (relayPort is 4000 per flakes README).
+2. `llm-gateway issue screwtape --models typesafe/jev-1.14.0 --budget <USD> --out <file>` (no sudo; `--out` refuses an existing file).
+3. Deploy (`just home-switch` in ~/flakes), so `screwtape-provision` knows `jev`.
+4. `screwtape-provision jev --from-file <file>`: prints `credential jev stored` and deletes `<file>`.
+5. Tell the agent "deployed and provisioned".
+Then the agent runs, on the host:
+- EX-7: `screwtape classify < <the scrubbed read envelopes from test/fixtures/mail/>` through the deployed wrapper; one classify line per input, model `jev-1.14.0` (the accepted last-`/` form).
+- EX-8: one probe with a synthetic oversized state under `systemd-run --user --pipe --wait --collect -p LoadCredentialEncrypted=jev:~/.config/credstore.encrypted/screwtape.jev`, the key read inside the unit by a shell builtin only; records where `max_tokens_exceeded` sits in the 400.
+- EX-9: replace test/fixtures/jev/ with the recorded mail-1 reply and 400 body (no key bytes, no mail text), PROVENANCE.md with date, model id, request shape; VT-4 codec test over them.
+- EX-10: notes record per question type the reply keys, probability sums and drift, argmax, score vs Σ i·p_i, the model string, the 400 error-code path; EX-11 codec fixes within § 5.2 (tolerances, key location), else /consult.
+Operator confirms afterwards: VH-1 the probe ran with their key and nothing secret was printed; VH-2 they ran `screwtape classify` over the scrubbed fixtures and saw classify output.
+
 ## Autonomy log
 <!-- one line per envelope decision: phase · what · why · tier (decided / deferred / escalated) -->
 - seat · PHASE-14 EN-2 operator act changes from interim key to gateway key provisioning · operator ruling 2026-10-28 · decided
