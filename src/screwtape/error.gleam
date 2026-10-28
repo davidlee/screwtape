@@ -8,8 +8,11 @@
 //// `Store` and `QueryUnstable` are defined here now so the type is closed once;
 //// PHASE-04/05 raise them.
 
+import gleam/dynamic/decode
+import gleam/int
 import gleam/json
 import gleam/list
+import gleam/string
 
 pub type Error {
   /// A configuration file that is unusable; `reason` names the failing check.
@@ -69,6 +72,42 @@ pub fn to_json_line(error: Error) -> String {
   |> list.append(fields)
   |> json.object
   |> json.to_string
+}
+
+/// The path of a decode failure: the first error's segments, list indices as
+/// `[n]` and field names as `.name`, joined after `prefix` (a leading `.` is
+/// dropped; an empty result is `"$"`). Only for decoders that name fixed
+/// fields: one that iterates a map would put a document key in the path.
+pub fn decode_failure(
+  errors: List(decode.DecodeError),
+  prefix: String,
+) -> Error {
+  let segments = case errors {
+    [decode.DecodeError(path: segments, ..), ..] -> segments
+    [] -> []
+  }
+  Decode(failure_path(prefix, segments))
+}
+
+fn failure_path(prefix: String, segments: List(String)) -> String {
+  let rendered =
+    segments
+    |> list.map(fn(segment) {
+      case int.parse(segment) {
+        Ok(_) -> "[" <> segment <> "]"
+        Error(_) -> "." <> segment
+      }
+    })
+    |> string.concat
+  let text = prefix <> rendered
+  let text = case string.starts_with(text, ".") {
+    True -> string.drop_start(text, 1)
+    False -> text
+  }
+  case text {
+    "" -> "$"
+    _ -> text
+  }
 }
 
 /// 2 for a usage or configuration mistake, 1 for every runtime failure (design

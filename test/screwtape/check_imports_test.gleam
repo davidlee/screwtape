@@ -2,13 +2,15 @@
 ////
 //// Fixtures are inline values, never files: a .gleam fixture under `test/`
 //// would be compiled as a module (`normalise` would collide with the real one),
-//// and the checker only wants text. The Erlang wrapper is represented by the
-//// import list of a compiled beam — `Ok(imports)` or `Error(Nil)` for a beam
+//// and the checker only wants text. Each Erlang wrapper is represented by the
+//// import list of its compiled beam — `Ok(imports)` or `Error(Nil)` for a beam
 //// that is missing — because that is what the checker reads. A fixed resolver
 //// table stands in for the build/packages tree, so the tests never depend on
 //// what has been downloaded.
 
-import check_imports.{type Origin, Local, Package, check, describe}
+import check_imports.{
+  type Beam, type Origin, Beam, Local, Package, check, describe,
+}
 import gleam/list
 import gleeunit
 import gleeunit/should
@@ -35,7 +37,23 @@ const render_path = "src/screwtape/render.gleam"
 
 const html_sax_path = "src/screwtape/html_sax.gleam"
 
+const pii_path = "src/screwtape/pii.gleam"
+
+const classify_input_path = "src/screwtape/classify/input.gleam"
+
+const classify_state_path = "src/screwtape/classify/state.gleam"
+
+const classify_schema_path = "src/screwtape/classify/schema.gleam"
+
+const jev_path = "src/screwtape/jev.gleam"
+
+const jev_client_path = "src/screwtape/jev/client.gleam"
+
 const request_path = "src/screwtape/jmap/request.gleam"
+
+const html_ffi_path = "src/screwtape_html_ffi.erl"
+
+const pii_ffi_path = "src/screwtape_pii_ffi.erl"
 
 const model_source =
   "import gleam/option.{type Option}
@@ -128,11 +146,103 @@ const html_sax_source =
 fn sax(html: String) -> Nil
 "
 
-const ffi_imports = [
+const pii_source =
+  "import gleam/string
+
+@external(erlang, \"screwtape_pii_ffi\", \"replace\")
+fn replace(text: String, pattern: String, replacement: String) -> String
+"
+
+const classify_input_source =
+  "import screwtape/error
+
+pub fn input(x: String) -> Result(String, error.Error) {
+  Ok(x)
+}
+"
+
+const classify_state_source =
+  "import screwtape/classify/input
+import screwtape/pii
+import screwtape/utf8
+
+pub fn build(x: String) -> String {
+  let _ = input.input
+  let _ = pii.replace
+  utf8.prefix(x, 10)
+}
+"
+
+const classify_schema_source =
+  "import screwtape/jev
+
+pub fn questions() -> List(jev.Question) {
+  []
+}
+"
+
+const jev_source =
+  "import screwtape/error
+
+pub fn reply(x: String) -> Result(String, error.Error) {
+  Ok(x)
+}
+"
+
+const jev_client_source =
+  "import screwtape/credential
+import screwtape/error
+import screwtape/http
+import screwtape/jev
+
+pub fn ask(token: credential.Token) -> Result(String, error.Error) {
+  let _ = token
+  let _ = http.failure
+  let _ = jev.reply
+  Ok(\"\")
+}
+"
+
+const html_ffi_imports = [
   #("erlang", "get_module_info", 1),
   #("erlang", "get_module_info", 2),
   #("htmgrrrl_ffi", "sax", 3),
 ]
+
+const pii_ffi_imports = [
+  #("erlang", "get_module_info", 1),
+  #("erlang", "get_module_info", 2),
+  #("re", "replace", 4),
+]
+
+/// The compiler's own exports, present in every beam.
+const compiler_exports = [#("module_info", 0), #("module_info", 1)]
+
+const html_ffi_exports = [#("sax", 3)]
+
+const pii_ffi_exports = [#("replace", 3)]
+
+type Beams =
+  List(#(String, Result(Beam, Nil)))
+
+/// The two wrapper entries the checker reads.
+fn beams(html: Result(Beam, Nil), pii: Result(Beam, Nil)) -> Beams {
+  [#(html_ffi_path, html), #(pii_ffi_path, pii)]
+}
+
+fn html_beam(imports: List(#(String, String, Int))) -> Beam {
+  Beam(
+    imports: imports,
+    exports: list.append(html_ffi_exports, compiler_exports),
+  )
+}
+
+fn pii_beam(imports: List(#(String, String, Int))) -> Beam {
+  Beam(
+    imports: imports,
+    exports: list.append(pii_ffi_exports, compiler_exports),
+  )
+}
 
 /// The package each fixture module resolves to: `gleam/erlang/process` is
 /// gleam_erlang even though it starts with `gleam/` (RV-001 F-24).
@@ -149,6 +259,14 @@ fn resolve(module: String) -> Result(Origin, Nil) {
     | "screwtape/utf8"
     | "screwtape/cursor"
     | "screwtape/normalise"
+    | "screwtape/pii"
+    | "screwtape/http"
+    | "screwtape/credential"
+    | "screwtape/classify/input"
+    | "screwtape/classify/state"
+    | "screwtape/classify/schema"
+    | "screwtape/jev"
+    | "screwtape/jev/client"
     | "screwtape/error" -> Ok(Local)
     _ -> Error(Nil)
   }
@@ -165,11 +283,17 @@ fn sources() -> List(#(String, String)) {
     #(retain_path, retain_source),
     #(render_path, render_source),
     #(html_sax_path, html_sax_source),
+    #(pii_path, pii_source),
+    #(classify_input_path, classify_input_source),
+    #(classify_state_path, classify_state_source),
+    #(classify_schema_path, classify_schema_source),
+    #(jev_path, jev_source),
+    #(jev_client_path, jev_client_source),
   ]
 }
 
-fn erlang() -> Result(List(#(String, String, Int)), Nil) {
-  Ok(ffi_imports)
+fn erlang() -> Beams {
+  beams(Ok(html_beam(html_ffi_imports)), Ok(pii_beam(pii_ffi_imports)))
 }
 
 fn with_source(
@@ -187,9 +311,9 @@ fn with_source(
 
 fn descriptions(
   gleam_sources: List(#(String, String)),
-  erlang_imports: Result(List(#(String, String, Int)), Nil),
+  erlang_beams: Beams,
 ) -> List(String) {
-  check(gleam_sources, erlang_imports, resolve)
+  check(gleam_sources, erlang_beams, resolve)
   |> list.map(describe)
 }
 
@@ -335,9 +459,12 @@ pub fn ffi_imports_of_file_read_file_is_a_violation_test() {
     #("file", "read_file", 1),
     #("htmgrrrl_ffi", "sax", 3),
   ]
-  descriptions(sources(), Ok(imports))
+  descriptions(
+    sources(),
+    beams(Ok(html_beam(imports)), Ok(pii_beam(pii_ffi_imports))),
+  )
   |> should.equal([
-    "src/screwtape_html_ffi.erl: remote call file:read_file/1 is not htmgrrrl_ffi:sax/3",
+    "src/screwtape_html_ffi.erl: remote call file:read_file/1 is not allowed here",
   ])
 }
 
@@ -350,16 +477,94 @@ pub fn ffi_imports_of_erlang_apply_is_a_violation_test() {
     #("erlang", "apply", 3),
     #("htmgrrrl_ffi", "sax", 3),
   ]
-  descriptions(sources(), Ok(imports))
+  descriptions(
+    sources(),
+    beams(Ok(html_beam(imports)), Ok(pii_beam(pii_ffi_imports))),
+  )
   |> should.equal([
-    "src/screwtape_html_ffi.erl: remote call erlang:apply/3 is not htmgrrrl_ffi:sax/3",
+    "src/screwtape_html_ffi.erl: remote call erlang:apply/3 is not allowed here",
+  ])
+}
+
+pub fn pii_ffi_importing_anything_else_is_a_violation_test() {
+  let imports = [
+    #("erlang", "get_module_info", 1),
+    #("erlang", "get_module_info", 2),
+    #("re", "replace", 4),
+    #("re", "split", 2),
+  ]
+  descriptions(
+    sources(),
+    beams(Ok(html_beam(html_ffi_imports)), Ok(pii_beam(imports))),
+  )
+  |> should.equal([
+    "src/screwtape_pii_ffi.erl: remote call re:split/2 is not allowed here",
+  ])
+}
+
+pub fn wrapper_exporting_more_than_it_may_is_a_violation_test() {
+  let exports = list.append([#("sax", 3), #("leak", 0)], compiler_exports)
+  descriptions(
+    sources(),
+    beams(
+      Ok(Beam(imports: html_ffi_imports, exports: exports)),
+      Ok(pii_beam(pii_ffi_imports)),
+    ),
+  )
+  |> should.equal([
+    "src/screwtape_html_ffi.erl: export leak/0 is not allowed here",
+  ])
+}
+
+pub fn pii_wrapper_exporting_more_than_it_may_is_a_violation_test() {
+  let exports = list.append([#("replace", 3), #("split", 2)], compiler_exports)
+  descriptions(
+    sources(),
+    beams(
+      Ok(html_beam(html_ffi_imports)),
+      Ok(Beam(imports: pii_ffi_imports, exports: exports)),
+    ),
+  )
+  |> should.equal([
+    "src/screwtape_pii_ffi.erl: export split/2 is not allowed here",
+  ])
+}
+
+pub fn exports_with_the_compilers_module_info_are_allowed_test() {
+  check(sources(), erlang(), resolve) |> should.equal([])
+}
+
+pub fn pii_importing_a_local_module_is_a_violation_test() {
+  let pii =
+    "import screwtape/model
+
+@external(erlang, \"screwtape_pii_ffi\", \"replace\")
+fn replace(text: String, pattern: String, replacement: String) -> String
+"
+  descriptions(with_source(sources(), pii_path, pii), erlang())
+  |> should.equal([
+    "src/screwtape/pii.gleam: local import screwtape/model is not allowed here",
+  ])
+}
+
+pub fn pii_external_naming_another_module_is_a_violation_test() {
+  let pii =
+    "import gleam/string
+
+@external(erlang, \"file\", \"read_file\")
+fn replace(text: String, pattern: String, replacement: String) -> String
+"
+  descriptions(with_source(sources(), pii_path, pii), erlang())
+  |> should.equal([
+    "src/screwtape/pii.gleam: @external names \"file\", not \"screwtape_pii_ffi\"",
   ])
 }
 
 pub fn missing_ffi_beam_is_a_violation_test() {
-  descriptions(sources(), Error(Nil))
+  descriptions(sources(), beams(Error(Nil), Error(Nil)))
   |> should.equal([
     "src/screwtape_html_ffi.erl: governed file is missing",
+    "src/screwtape_pii_ffi.erl: governed file is missing",
   ])
 }
 

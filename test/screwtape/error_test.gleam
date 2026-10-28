@@ -3,6 +3,8 @@
 //// method name — never server text or request data — so a line can be asserted
 //// exactly.
 
+import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -110,4 +112,28 @@ pub fn exit_code_runtime_failures_are_one_test() {
   error.exit_code(LimitExceeded("max_pages")) |> should.equal(1)
   error.exit_code(QueryUnstable) |> should.equal(1)
   error.exit_code(Store("no_snapshot")) |> should.equal(1)
+}
+
+// The shared decode-failure helper (PHASE-12, T2).
+
+pub fn decode_failure_names_indices_and_fields_test() {
+  let data = dynamic.list([dynamic.string("x"), dynamic.int(1)])
+  let assert Error(errors) = decode.run(data, decode.list(decode.int))
+  error.decode_failure(errors, "data.bodies")
+  |> should.equal(Decode("data.bodies[0]"))
+}
+
+pub fn decode_failure_drops_the_leading_dot_test() {
+  let assert Error(errors) =
+    decode.run(
+      dynamic.properties([#(dynamic.string("subject"), dynamic.int(1))]),
+      decode.at(["subject"], decode.string),
+    )
+  error.decode_failure(errors, "")
+  |> should.equal(Decode("subject"))
+}
+
+pub fn decode_failure_at_the_root_is_dollar_test() {
+  let assert Error(errors) = decode.run(dynamic.string("x"), decode.int)
+  error.decode_failure(errors, "") |> should.equal(Decode("$"))
 }

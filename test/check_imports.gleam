@@ -15,10 +15,11 @@
 //// stdlib has no `gleam/regex`, and the patterns the rules need (an import
 //// token, a quoted literal) are small enough to scan directly.
 ////
-//// The Erlang wrapper is not scanned as text: a text scan can be fooled
+//// The Erlang wrappers are not scanned as text: a text scan can be fooled
 //// (`'file':'read_file'(X)`, `fun file:read_file/1`, `apply(file, read_file,
-//// [X])`), so the check reads the `imports` chunk of the compiled beam instead.
-//// Every call a module can make appears there, the last as `erlang:apply/3`.
+//// [X])`), so the check reads the `imports` chunk of each compiled beam
+//// instead. Every call a module can make appears there, the last as
+//// `erlang:apply/3`.
 
 import gleam/int
 import gleam/io
@@ -26,13 +27,63 @@ import gleam/list
 import gleam/string
 import screwtape/file
 
-const erl_path = "src/screwtape_html_ffi.erl"
-
-const erl_beam_path = "build/dev/erlang/screwtape/ebin/screwtape_html_ffi.beam"
-
 const request_path = "src/screwtape/jmap/request.gleam"
 
-const ffi_module = "screwtape_html_ffi"
+const html_ffi_path = "src/screwtape_html_ffi.erl"
+
+const pii_ffi_path = "src/screwtape_pii_ffi.erl"
+
+/// A remote call: Erlang module, function, arity.
+type Call =
+  #(String, String, Int)
+
+/// A function a wrapper offers: name, arity.
+pub type Export =
+  #(String, Int)
+
+/// What the check reads from one compiled wrapper: the remote calls it can
+/// make and the functions it exports.
+pub type Beam {
+  Beam(imports: List(Call), exports: List(Export))
+}
+
+/// The import the compiler emits into every module itself, so every wrapper
+/// makes it.
+const compiler_imports = [
+  #("erlang", "get_module_info", 1),
+  #("erlang", "get_module_info", 2),
+]
+
+/// The exports the compiler emits into every module itself, so every wrapper
+/// makes them.
+const compiler_exports = [#("module_info", 0), #("module_info", 1)]
+
+/// One governed wrapper: its source, the beam the check reads, the one remote
+/// call it may make and the functions it may export.
+type Wrapper {
+  Wrapper(
+    path: String,
+    beam_path: String,
+    calls: List(Call),
+    exports: List(Export),
+  )
+}
+
+/// The governed wrappers, one entry each.
+const wrappers = [
+  Wrapper(
+    html_ffi_path,
+    "build/dev/erlang/screwtape/ebin/screwtape_html_ffi.beam",
+    [#("htmgrrrl_ffi", "sax", 3)],
+    [#("sax", 3)],
+  ),
+  Wrapper(
+    pii_ffi_path,
+    "build/dev/erlang/screwtape/ebin/screwtape_pii_ffi.beam",
+    [#("re", "replace", 4)],
+    [#("replace", 3)],
+  ),
+]
 
 /// Denied even when the module's package is allowed: `gleam/io` writes to
 /// stdout/stderr, so a governed module must not reach it.
@@ -51,13 +102,15 @@ pub type Violation {
   UnresolvedImport(path: String, module: String)
   ForbiddenImport(path: String, module: String, origin: Origin)
   ExternalInPureModule(path: String)
-  ExternalWrongTarget(path: String, target: String)
+  ExternalWrongTarget(path: String, target: String, expected: String)
   RemoteCallNotAllowed(path: String, call: String)
+  ExportNotAllowed(path: String, export: String)
   MethodNameLiteral(path: String, literal: String)
 }
 
 /// What a governed module may reach: local modules by name, and packages.
-/// `html_sax` is the one governed module allowed to declare `@external`.
+/// Only the modules that own a wrapper are allowed to declare `@external`,
+/// and only against their own wrapper.
 type Rule {
   Rule(
     path: String,
@@ -69,7 +122,7 @@ type Rule {
 
 type External {
   NoExternal
-  FfiOnly
+  FfiOnly(String)
 }
 
 const rules = [
@@ -110,14 +163,55 @@ const rules = [
     "src/screwtape/html_sax.gleam",
     [],
     ["gleam_stdlib", "htmgrrrl"],
-    FfiOnly,
+    FfiOnly("screwtape_html_ffi"),
+  ),
+  Rule(
+    "src/screwtape/pii.gleam",
+    [],
+    ["gleam_stdlib"],
+    FfiOnly("screwtape_pii_ffi"),
+  ),
+  Rule(
+    "src/screwtape/classify/input.gleam",
+    ["screwtape/error"],
+    ["gleam_stdlib", "gleam_json"],
+    NoExternal,
+  ),
+  Rule(
+    "src/screwtape/classify/state.gleam",
+    ["screwtape/classify/input", "screwtape/pii", "screwtape/utf8"],
+    ["gleam_stdlib", "gleam_json"],
+    NoExternal,
+  ),
+  Rule(
+    "src/screwtape/classify/schema.gleam",
+    ["screwtape/jev"],
+    ["gleam_stdlib"],
+    NoExternal,
+  ),
+  Rule(
+    "src/screwtape/jev.gleam",
+    ["screwtape/error"],
+    ["gleam_stdlib", "gleam_json"],
+    NoExternal,
+  ),
+  Rule(
+    "src/screwtape/jev/client.gleam",
+    [
+      "screwtape/http",
+      "screwtape/jev",
+      "screwtape/credential",
+      "screwtape/error",
+    ],
+    ["gleam_stdlib", "gleam_json", "gleam_http"],
+    NoExternal,
   ),
 ]
 
 /// All violations, in a stable order: missing files first, then per file.
 pub fn check(
   gleam_sources: List(#(String, String)),
-  erlang_imports: Result(List(#(String, String, Int)), Nil),
+  erlang_beams: List(#(String, Result(Beam, Nil))),
   resolve: fn(String) -> Result(Origin, Nil),
 ) -> List(Violation) {
   let missing_governed =
@@ -143,7 +237,7 @@ pub fn check(
     |> list.filter(fn(source) { source.0 != request_path })
     |> list.flat_map(fn(source) { check_method_literals(source.0, source.1) })
 
-  let erlang_violations = check_erlang_imports(erlang_imports)
+  let erlang_violations = check_erlang_beams(erlang_beams)
 
   list.flatten([
     missing_governed,
@@ -171,17 +265,19 @@ pub fn describe(violation: Violation) -> String {
       <> ") is not allowed here"
     ExternalInPureModule(path) ->
       path <> ": declares @external, but this module must be pure"
-    ExternalWrongTarget(path, "") ->
+    ExternalWrongTarget(path, "", _expected) ->
       path <> ": @external names no Erlang module"
-    ExternalWrongTarget(path, target) ->
+    ExternalWrongTarget(path, target, expected) ->
       path
       <> ": @external names \""
       <> target
       <> "\", not \""
-      <> ffi_module
+      <> expected
       <> "\""
     RemoteCallNotAllowed(path, call) ->
-      path <> ": remote call " <> call <> " is not htmgrrrl_ffi:sax/3"
+      path <> ": remote call " <> call <> " is not allowed here"
+    ExportNotAllowed(path, export) ->
+      path <> ": export " <> export <> " is not allowed here"
     MethodNameLiteral(path, literal) ->
       path <> ": string literal \"" <> literal <> "\" names a JMAP method"
   }
@@ -264,15 +360,15 @@ fn check_externals(path: String, text: String) -> List(Violation) {
             [] -> []
             _ -> [ExternalInPureModule(path)]
           }
-        FfiOnly ->
+        FfiOnly(wrapper) ->
           list.filter_map(lines, fn(line) {
             case external_module(line) {
               Ok(target) ->
-                case target == ffi_module {
+                case target == wrapper {
                   True -> Error(Nil)
-                  False -> Ok(ExternalWrongTarget(path, target))
+                  False -> Ok(ExternalWrongTarget(path, target, wrapper))
                 }
-              Error(Nil) -> Ok(ExternalWrongTarget(path, ""))
+              Error(Nil) -> Ok(ExternalWrongTarget(path, "", wrapper))
             }
           })
       }
@@ -344,35 +440,53 @@ fn quoted(
   }
 }
 
-/// The wrapper's beam imports. `Error(Nil)` means the beam is missing or
-/// unreadable, which is the same failure as a missing governed source.
-fn check_erlang_imports(
-  imports: Result(List(#(String, String, Int)), Nil),
+/// Each wrapper's beam, in the governed order. `Error(Nil)` means the beam is
+/// missing or unreadable, which is the same failure as a missing governed
+/// source; a wrapper with no entry at all is missing too.
+fn check_erlang_beams(
+  beams: List(#(String, Result(Beam, Nil))),
 ) -> List(Violation) {
-  case imports {
-    Error(Nil) -> [MissingFile(erl_path)]
-    Ok(imports) ->
-      imports
-      |> list.filter(fn(call) { !is_allowed_erlang_import(call) })
-      |> list.map(fn(call) {
-        RemoteCallNotAllowed(erl_path, erlang_import(call))
-      })
-  }
+  list.flat_map(wrappers, fn(wrapper) {
+    case list.find(beams, fn(entry) { entry.0 == wrapper.path }) {
+      Error(Nil) -> [MissingFile(wrapper.path)]
+      Ok(#(_, Error(Nil))) -> [MissingFile(wrapper.path)]
+      Ok(#(_, Ok(beam))) ->
+        list.append(
+          beam.imports
+            |> list.filter(fn(call) { !is_allowed_call(call, wrapper.calls) })
+            |> list.map(fn(call) {
+              RemoteCallNotAllowed(wrapper.path, erlang_import(call))
+            }),
+          beam.exports
+            |> list.filter(fn(export) {
+              !is_allowed_export(export, wrapper.exports)
+            })
+            |> list.map(fn(export) {
+              ExportNotAllowed(wrapper.path, erlang_export(export))
+            }),
+        )
+    }
+  })
 }
 
-fn erlang_import(call: #(String, String, Int)) -> String {
+fn erlang_import(call: Call) -> String {
   call.0 <> ":" <> call.1 <> "/" <> int.to_string(call.2)
 }
 
-/// The one call the wrapper is allowed to make, plus the two `get_module_info`
-/// imports the compiler emits itself.
-fn is_allowed_erlang_import(call: #(String, String, Int)) -> Bool {
-  case call {
-    #("htmgrrrl_ffi", "sax", 3) -> True
-    #("erlang", "get_module_info", 1) -> True
-    #("erlang", "get_module_info", 2) -> True
-    _ -> False
-  }
+fn erlang_export(export: Export) -> String {
+  export.0 <> "/" <> int.to_string(export.1)
+}
+
+/// The wrapper's own call, plus the two `get_module_info` imports the compiler
+/// emits itself.
+fn is_allowed_call(call: Call, allowed: List(Call)) -> Bool {
+  list.contains(allowed, call) || list.contains(compiler_imports, call)
+}
+
+/// The wrapper's own exports, plus the two `module_info` functions the
+/// compiler emits itself.
+fn is_allowed_export(export: Export, allowed: List(Export)) -> Bool {
+  list.contains(allowed, export) || list.contains(compiler_exports, export)
 }
 
 fn take_while(items: List(String), accept: fn(String) -> Bool) -> List(String) {
@@ -417,8 +531,10 @@ pub fn main() -> Nil {
     gleam_sources()
     |> list.filter_map(read_source)
 
-  let violations =
-    check(gleam_sources, beam_imports(erl_beam_path), resolver(package_names()))
+  let erlang_beams =
+    list.map(wrappers, fn(wrapper) { #(wrapper.path, beam(wrapper.beam_path)) })
+
+  let violations = check(gleam_sources, erlang_beams, resolver(package_names()))
 
   case violations {
     [] -> io.println("check-imports: ok")
@@ -464,10 +580,24 @@ fn gleam_sources() -> List(String)
 @external(erlang, "check_imports_ffi", "package_names")
 fn package_names() -> List(String)
 
+/// One wrapper's beam as the check reads it: its imports and its exports, or
+/// `Error(Nil)` when either chunk cannot be read.
+fn beam(path: String) -> Result(Beam, Nil) {
+  case beam_imports(path), beam_exports(path) {
+    Ok(imports), Ok(exports) -> Ok(Beam(imports: imports, exports: exports))
+    _, _ -> Error(Nil)
+  }
+}
+
 /// The `imports` chunk of a compiled module, or `Error(Nil)` when the beam is
 /// missing or unreadable.
 @external(erlang, "check_imports_ffi", "beam_imports")
 fn beam_imports(path: String) -> Result(List(#(String, String, Int)), Nil)
+
+/// The `exports` chunk of a compiled module, or `Error(Nil)` when the beam is
+/// missing or unreadable.
+@external(erlang, "check_imports_ffi", "beam_exports")
+fn beam_exports(path: String) -> Result(List(#(String, Int)), Nil)
 
 @external(erlang, "check_imports_ffi", "exists")
 fn exists(path: String) -> Bool

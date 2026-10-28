@@ -1,0 +1,6 @@
+{
+  "detail": {
+    "code": "max_tokens_exceeded",
+    "message": "Request exceeds the model's context length."
+  }
+}

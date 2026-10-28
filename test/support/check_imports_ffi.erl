@@ -8,7 +8,8 @@
 %% `ffi_terms` is the suite's existing string/list conversion helper.
 -module(check_imports_ffi).
 
--export([gleam_sources/0, beam_imports/1, package_names/0, exists/1, halt/1]).
+-export([gleam_sources/0, beam_imports/1, beam_exports/1, package_names/0,
+         exists/1, halt/1]).
 
 gleam_sources() ->
     [ffi_terms:to_binary(Path)
@@ -24,6 +25,18 @@ beam_imports(Path) ->
                    atom_to_binary(Function, utf8),
                    Arity}
                   || {Module, Function, Arity} <- Imports]};
+        _ ->
+            {error, nil}
+    end.
+
+%% The exports chunk of a compiled module: the functions it offers, which a
+%% wrapper may only keep within the list `check_imports` allows. `{error, nil}`
+%% when the beam is missing or unreadable.
+beam_exports(Path) ->
+    case beam_lib:chunks(ffi_terms:to_list(Path), [exports]) of
+        {ok, {_Module, [{exports, Exports}]}} ->
+            {ok, [{atom_to_binary(Function, utf8), Arity}
+                  || {Function, Arity} <- Exports]};
         _ ->
             {error, nil}
     end.
