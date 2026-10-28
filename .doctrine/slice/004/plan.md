@@ -76,6 +76,10 @@ replaced by the review posture below.
   the operator's request.
 - `inq-9` (the satan:RFC-020 D1/D5 amendment draft and the DEC-016 exposure
   note) is due at close, not in a phase.
+- PHASE-14 EN-3 supersedes EN-2 (operator ruling 2026-10-28): the live check
+  uses a gateway client key (`llm-gateway issue` → `screwtape-provision jev
+  --from-file`) and the gateway config (design § 5.4 "Swapping to the
+  gateway"), not the interim TypeSafe key.
 - Token usage is not measured here. llm-gateway accounting is expected to
   show it once the gateway route (flakes:IMP-054) lands (unverified).
 - The worst-case state size (about 51 KB encoded) stays unmeasured; the

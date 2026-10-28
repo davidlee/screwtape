@@ -125,6 +125,7 @@ objective = "Ship the key ingress (DEC-038): services.screwtape.jev options, the
 entrance_criteria = [
   { id = "EN-1", text = "PHASE-13 is complete." },
   { id = "EN-2", text = "Before the live check (EX-7 onward): the operator has stored the interim key exactly as screwtape-provision will (systemd-creds encrypt --user --name=jev - ~/.config/credstore.encrypted/screwtape.jev) and deployed EX-1–EX-6 to their Home Manager profile (the screwtape input bump in ~/flakes is the operator's act; flakes:IMP-054 is not touched). The agent never sees the key." },
+  { id = "EN-3", text = "Supersedes EN-2 (operator ruling 2026-10-28: the live check goes through the gateway, not the interim key). Before the live check (EX-7 onward) the operator has run llm-gateway issue screwtape --models typesafe/jev-1.14.0 --budget <USD> --out <file>, then screwtape-provision jev --from-file <file>, and deployed EX-1–EX-6 to their Home Manager profile with jev.baseUrl = http://127.0.0.1:<relayPort> and jev.model = typesafe/jev-1.14.0 (the screwtape input bump in ~/flakes is the operator's act; flakes:IMP-054 is not touched). The agent never sees the key." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "With jev set, the wrapper runs classify (not classify --state) as systemd-run --user --pipe --quiet --wait --collect -p LoadCredentialEncrypted=jev:… -p LimitCORE=0 -E ERL_CRASH_DUMP_SECONDS=0; other verbs run directly; with jev unset the wrapper is unchanged." },

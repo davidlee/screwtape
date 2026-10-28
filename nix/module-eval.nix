@@ -128,7 +128,35 @@
       memoryMax = "512M";
     };
   };
-  overText = name: (lib.findFirst (p: (p.name or "") == name) {text = "";} over.config.home.packages).text;
+  # The text of a configuration's home package of that name ("" if absent).
+  packageText = cfg: name: (lib.findFirst (p: (p.name or "") == name) {text = "";} cfg.config.home.packages).text;
+  overText = packageText over;
+
+  # The Jev key ingress (DEC-038): same module, `jev` set.
+  withJev = hm {
+    services.screwtape.jev = {
+      baseUrl = "http://127.0.0.1:4000";
+      model = "typesafe/jev-1.14.0";
+    };
+  };
+  jevWrapperText = packageText withJev "screwtape";
+  jevProvisionText = packageText withJev "screwtape-provision";
+  homePackage = cfg: name: lib.findFirst (p: (p.name or "") == name) null cfg.config.home.packages;
+  jevProvision = homePackage withJev "screwtape-provision";
+  jevWrapper = homePackage withJev "screwtape";
+  linesOf = text: lib.splitString "\n" (builtins.unsafeDiscardStringContext text);
+  runLines = text: lib.filter (l: lib.hasInfix "systemd-run" l && builtins.match " *exec .*" l != null) (linesOf text);
+  # What the module's inputs must assemble to: the one transient-unit exec line.
+  expectedJevExec = builtins.unsafeDiscardStringContext (lib.concatStringsSep " " [
+    "exec ${pkgs.systemd}/bin/systemd-run --user --pipe --quiet --wait --collect"
+    "-p 'LoadCredentialEncrypted=jev:${withJev.config.xdg.configHome}/credstore.encrypted/screwtape.jev'"
+    "-p LimitCORE=0 -E ERL_CRASH_DUMP_SECONDS=0"
+    "${withJev.config.services.screwtape.package}/bin/screwtape --config ${withJev.config.services.screwtape.configFile} \"$@\""
+  ]);
+  # classify, but not exactly `classify --state`, takes the credential-loading branch.
+  jevBranchTest = ''if [ "''${1-}" = classify ] && ! { [ "$#" -eq 2 ] && [ "$2" = --state ]; }; then'';
+  fallthroughExec = builtins.unsafeDiscardStringContext "exec ${withJev.config.services.screwtape.package}/bin/screwtape --config ${withJev.config.services.screwtape.configFile} \"$@\"";
+  jevSvc = (withJev.config.systemd.user.services.screwtape or {}).Service or {};
 
   # The generated config goes through the program's own parser at build time:
   # one the parser rejects must fail to build, and say why.
@@ -273,6 +301,28 @@
     (lib.assertMsg (lib.hasInfix "/home/operator/.config/credstore.encrypted/screwtape.fastmail" provisionText)
       "screwtape-provision: must write %E/credstore.encrypted/screwtape.fastmail, %E being xdg.configHome")
 
+    # ---- the Jev ingress: wrapper, crash-dump parity, provision (EX-1..3) ----
+    (lib.assertMsg (wrapper != null && !(lib.hasInfix "systemd-run" wrapperText))
+      "wrapper (jev unset): must not mention systemd-run; it stays the single --config exec")
+    (lib.assertMsg (lib.length (runLines jevWrapperText) == 1 && lib.head (runLines jevWrapperText) == "  ${expectedJevExec}")
+      "wrapper (jev set): want exactly one systemd-run exec line: ${expectedJevExec}")
+    (lib.assertMsg (lib.elem fallthroughExec (map (lib.removePrefix "  ") (linesOf jevWrapperText)))
+      "wrapper (jev set): want the plain `exec <package>/bin/screwtape --config <configFile> \"$@\"` fallthrough line")
+    (lib.assertMsg (lib.elem jevBranchTest (linesOf jevWrapperText))
+      "wrapper (jev set): want the branch test exactly: ${jevBranchTest}")
+    (lib.assertMsg (eq jevSvc "LimitCORE" "0"
+      && envHas "ERL_CRASH_DUMP_SECONDS=0" (field jevSvc "Environment")
+      && lib.hasInfix "-p LimitCORE=0 -E ERL_CRASH_DUMP_SECONDS=0 " (builtins.unsafeDiscardStringContext jevWrapperText))
+    "crash-dump parity: the wrapper's LimitCORE / ERL_CRASH_DUMP_SECONDS must equal the service's")
+    (lib.assertMsg (lib.hasInfix "--name=jev " jevProvisionText)
+      "screwtape-provision (jev set): systemd-creds --name must be the wrapper's credential id, jev")
+    (lib.assertMsg (lib.hasInfix "/home/operator/.config/credstore.encrypted/screwtape.jev" jevProvisionText)
+      "screwtape-provision (jev set): must write credstore.encrypted/screwtape.jev under xdg.configHome")
+    (lib.assertMsg (lib.hasInfix "--from-file" jevProvisionText)
+      "screwtape-provision (jev set): must accept --from-file")
+    (lib.assertMsg (lib.hasInfix "--name=fastmail " provisionText && !(lib.hasInfix "screwtape.jev" provisionText))
+      "screwtape-provision (jev unset): fastmail only; jev is not accepted")
+
     # ---- every option reaches the unit, the wrapper or the provision script --
     (lib.assertMsg (lib.hasInfix (builtins.unsafeDiscardStringContext "exec ${otherPackage}/bin/screwtape --config ") (overText "screwtape"))
       "home.packages screwtape wrapper: must exec services.screwtape.package")
@@ -288,6 +338,7 @@ in
     pkgs.runCommand "screwtape-module-eval" {} ''
       set -eu
       export HOME="$TMPDIR"
+      cd "$TMPDIR"
       cfg=${configFile}
 
       # D3: the generated config, key by key, as src/screwtape/config.gleam
@@ -319,8 +370,52 @@ in
       grep -q no_window_bound ${noWindowBound}/testBuildFailure.log
       grep -q '"error":"config"' ${plainHttp}/testBuildFailure.log
 
-      # Building it runs writeShellApplication's shellcheck over the script.
+      # The program accepts the jev block, and ok config has none (jev = null).
+      ${pkgs.jq}/bin/jq -e '.jev == null' "$cfg" > /dev/null
+      ${pkgs.jq}/bin/jq -e '
+        .jev == {"base_url": "http://127.0.0.1:4000", "credential_name": "jev", "model": "typesafe/jev-1.14.0"}
+      ' ${withJev.config.services.screwtape.configFile} > /dev/null
+
+      # Building it runs writeShellApplication's shellcheck over the scripts
+      # and wrappers, jev set or not.
       test -x ${provision}/bin/screwtape-provision
+      test -x ${jevProvision}/bin/screwtape-provision
+      test -x ${jevWrapper}/bin/screwtape
+
+      # Bad arguments: usage, exit 2, nothing written; never reaching op or
+      # systemd-creds.
+      expect_usage() {
+        status=0
+        "$@" > /dev/null 2>&1 || status=$?
+        if [ "$status" -ne 2 ]; then
+          echo "want exit 2, got $status: $*" >&2
+          exit 1
+        fi
+      }
+      for p in ${provision}/bin/screwtape-provision ${jevProvision}/bin/screwtape-provision; do
+        expect_usage "$p" bogus
+        expect_usage "$p" --from-file
+        expect_usage "$p" --bogus
+        expect_usage "$p" fastmail fastmail
+        expect_usage "$p" --from-file /nonexistent/key
+      done
+      expect_usage ${provision}/bin/screwtape-provision jev
+      expect_usage ${jevProvision}/bin/screwtape-provision jev fastmail
+      expect_usage ${jevProvision}/bin/screwtape-provision jev --from-file a --from-file b
+      expect_usage ${jevProvision}/bin/screwtape-provision jev --from-file /nonexistent/key
+      # A symlink source is refused (exit 2) and its target left alone; so are
+      # a directory and a dash-named path.
+      echo key > real-key
+      ln -s real-key link-key
+      expect_usage ${jevProvision}/bin/screwtape-provision jev --from-file link-key
+      test -f real-key
+      expect_usage ${jevProvision}/bin/screwtape-provision jev --from-file .
+      expect_usage ${jevProvision}/bin/screwtape-provision jev --from-file -
+      # jev without opRef and without --from-file names the missing source.
+      expect_usage ${jevProvision}/bin/screwtape-provision jev
+      msg=$(${jevProvision}/bin/screwtape-provision jev 2>&1 || true)
+      case "$msg" in *--from-file*) ;; *) echo "want a message naming --from-file, got: $msg" >&2; exit 1 ;; esac
+      test ! -e /home/operator
 
       touch $out
     ''

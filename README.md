@@ -42,6 +42,8 @@ screwtape --config <path> <verb>
 | `read <id>` | `[--max-bytes <n>]` |
 | `read --after <cursor> --max-bytes <n>` | `[list's filters] [--limit <1..500>]` |
 | `thread <id>` | `[--limit <1..500>]` |
+| `classify` | none |
+| `classify --state` | none |
 
 `list`, and the `read` selection, take their flags in any order, each at most
 once. `--limit` defaults to 50 and accepts 1 to 500; `--offset` defaults to
@@ -62,13 +64,20 @@ to stdout, in a versioned envelope. `read --after` writes zero or more lines,
 one `read` envelope each, oldest first; a selection that matches nothing
 writes nothing and exits 0.
 
+`classify` is the one verb that reads stdin: it takes version-1 `read`
+envelopes, one per line, and writes one envelope per line, in input order.
+It pairs with a selection: `screwtape read --after <cursor> --max-bytes <n> |
+screwtape classify`. `classify --state` prints the state it would send
+instead of asking Jev, so it needs neither the `jev` config block nor the
+credential.
+
 ```json
 {"version":1,"kind":"list","data":{"offset":0,"limit":50,"items":[]}}
 ```
 
 `kind` is the verb name. Optional values print as `null`, never omitted. The
 envelope and every kind's fields are specified in [Contract](#contract).
-A failure writes nothing to stdout. Diagnostics go to stderr as one JSON
+Except `classify`, a failure writes nothing to stdout. Diagnostics go to stderr as one JSON
 line each:
 
 ```json
@@ -77,7 +86,11 @@ line each:
 
 `reason` is a fixed code and never one of the arguments. The read verbs add
 `invalid_cursor`, `offset_with_after`, `missing_after` and
-`missing_max_bytes`.
+`missing_max_bytes`. `classify` adds `no_jev` (`"error":"config"`, exit 2: no
+`jev` block in the config, unless `--state`) and `no_stdin` (`"error":"usage"`,
+exit 2: there is no stdin to read). It stops at its first failing line and
+keeps the documents it printed before it on stdout (see
+[Resume and skip](#resume-and-skip)).
 
 There is one warning: an account the session does not report as read-only
 adds `{"level":"warning","warning":"account_not_read_only"}` to stderr and
@@ -93,9 +106,9 @@ Exit codes:
 
 ## Contract
 
-The contract is what the read verbs print to stdout: `mailboxes`, `list`,
-`read` and `thread`. The store's tables are private (screwtape DEC-027): a
-consumer reads this JSON, never the SQLite file.
+The contract is what the verbs print to stdout: `mailboxes`, `list`, `read`,
+`thread`, `classify` and `classify_state`. The store's tables are private
+(screwtape DEC-027): a consumer reads this JSON, never the SQLite file.
 
 Every document is one envelope:
 
@@ -199,6 +212,84 @@ Truncation has two levels: per body, `is_truncated` and `truncated_by` record
 a cut at sync time; per read, `output_truncated` records a `--max-bytes` cut
 of this output.
 
+### classify
+
+One envelope per input line, in input order: a version-1 `read` envelope in,
+its message classified out.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | string | JMAP message id, from the `read` line. |
+| `cursor` | string | The message's arrival position; see Cursor below. |
+| `schema` | string | Question schema id, `mail-1`. |
+| `model` | string | The model the reply reports, as accepted: the configured model, or its text after the last `/` (a gateway's provider prefix). |
+| `answers` | object | One key per question, in the order of the `mail-1` table below. |
+| `answers.<name>.choice` | string | A choice question's label, one of its labels and the most probable one (ties allowed). |
+| `answers.<name>.noul` | float | A noul question's probability, 0 to 1. |
+| `answers.<name>.score` | float | A score question's level, from 0 to the last level's index (n-1) and within 0.05 of the probability-weighted level Σ i·p_i. |
+| `answers.<name>.confidence` | float | A choice or score question's confidence, 0 to 1. |
+| `answers.<name>.probabilities` (choice) | object | A choice question's `{label: float}`, one key per label in label order, summing to 1 within 0.02. |
+| `answers.<name>.probabilities` (score) | object | A score question's `{index: float}`, keyed by level index `"0"`…`"n-1"`, summing to 1 within 0.02. |
+
+Floats print as `gleam_json` prints them.
+
+### classify_state
+
+The state `classify` would send, printed without asking Jev:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | string | JMAP message id, from the `read` line. |
+| `cursor` | string | The message's arrival position; see Cursor below. |
+| `schema` | string | Question schema id, `mail-1`. |
+| `state` | object | What Jev would receive; the fields below. |
+| `state.subject` | string \| null | Subject after control-character removal and PII stripping, at most 512 bytes. |
+| `state.sender_domains` | [string] | The text after the last `@` of each sender, control-stripped, lowercased, PII-stripped and deduplicated in order, at most 10 of at most 253 bytes each. |
+| `state.sender_domains_omitted` | int | Senders dropped: no `@`, an empty domain, a domain over the bound, or past the tenth. |
+| `state.bodies` | [body] | At most 10 texts, sharing 16,384 bytes in body order. |
+| `state.bodies[].text` | string | The text after control-character removal, PII stripping and the byte bound. |
+| `state.bodies[].is_truncated` | bool | Cut here, cut on arrival, cut at sync time, or emptied because the shared budget was spent. |
+| `state.bodies[].conversion_failed` | bool | HTML conversion failed at sync time, so the text is `""`. |
+| `state.bodies_omitted` | int | Bodies past the tenth. |
+| `state.attachments` | [attachment] | At most 20, type and name only, never the bytes. |
+| `state.attachments[].type` | string | Media type after PII stripping, at most 128 bytes. |
+| `state.attachments[].name` | string \| null | Filename after PII stripping, at most 128 bytes. |
+| `state.attachments_omitted` | int | Attachments past the twentieth. |
+
+A body `read` cut on arrival also loses its last partial word before
+stripping, so a half-recognised address or number is never sent.
+
+### mail-1
+
+The questions, one row per question, in the order `classify` prints its
+answers, each question's instructions opened by the same untrusted-data
+preamble.
+
+| Question | Type | Labels or levels | Meaning |
+|---|---|---|---|
+| `primary_purpose` | choice | `correspondence`, `payment_due`, `payment_record`, `service_notice`, `editorial`, `promotion`, `other` | The dominant purpose of the mail, as one of those labels. |
+| `security_related` | noul | — | Whether the mail concerns account or system security, such as sign-in, passwords, verification codes, access or suspicious activity. |
+| `recipient_action_requested` | noul | — | Whether the mail asks the recipient to take an action. |
+| `deadline_present` | noul | — | Whether the mail states a date or time by which something must happen. |
+| `deception_cues` | noul | — | Whether the mail shows cues of deception, such as impersonation, claims that contradict each other, or requests for credentials or payment details. |
+| `agent_directive` | noul | — | Whether the mail contains instructions addressed to an AI, classifier or automated agent rather than to the human recipient. |
+| `claimed_time_pressure` | score | 0 `none`, 1 `deadline or prompt attention without immediate demand`, 2 `immediate attention demanded` | How much time pressure the mail claims. |
+| `substance` | score | 0 `boilerplate or automated filler`, 1 `some informative content`, 2 `substantive informative content` | How much informative content the mail carries. |
+
+### What Jev sees
+
+Only the state above leaves the machine, and `pii.strip` has run over its
+texts. It replaces an email address with `[email]`, keeps a URL's scheme and
+host but drops its port and userinfo and replaces the path, query and
+fragment with `/[…]`, replaces an IPv4 address with `[ip]`, and replaces a run
+of eight or more digits, which may be joined by single spaces, dashes or dots
+(`0412 345 678`), with `[number]`. Dates and times are kept.
+
+Names, postal addresses and short numbers are not removed: they go to Jev.
+In `sender_domains`, display names and local parts are dropped, leaving only
+the domain after the `@`; names inside the subject or body text are not
+removed.
+
 ### thread
 
 | Field | Type | Meaning |
@@ -257,6 +348,46 @@ while :; do
 done
 ```
 
+### Resume and skip
+
+`classify` prints one line per input line and stops at the first failure,
+keeping the lines before it. To resume, re-run from the `cursor` of the last
+line printed:
+
+```sh
+screwtape read --after "$cursor" --max-bytes 8192 | screwtape classify
+```
+
+A line the classifier fails on prints its own error line, carrying that
+message's cursor:
+
+```json
+{"level":"error","error":"limit_exceeded","bound":"jev_context","cursor":"…"}
+```
+
+Re-run `read --after` that cursor: it starts past the message, so the run
+skips it. The same move skips any message that fails on every run.
+
+### The key, and the wrapper
+
+With `jev` set, the Home Manager wrapper runs `classify`, but not
+`classify --state`, in a transient systemd unit, so only that unit decrypts
+the key:
+
+```sh
+systemd-run --user --pipe --quiet --wait --collect \
+  -p LoadCredentialEncrypted=jev:<configHome>/credstore.encrypted/screwtape.jev \
+  -p LimitCORE=0 -E ERL_CRASH_DUMP_SECONDS=0 \
+  screwtape --config <file> classify
+```
+
+`--pipe` passes stdin, stdout and the exit code through; `--collect` removes
+the transient unit even when it fails. The two crash-dump settings close the
+core-dump and `erl_crash.dump` channels, so neither can carry the key or the
+mail. Outside the wrapper, `classify` reads the key from
+`$CREDENTIALS_DIRECTORY`, the directory systemd hands a unit; there is no
+other way in.
+
 ### Bounds
 
 - `--limit` is 1 to 500 and defaults to 50.
@@ -265,6 +396,9 @@ done
   therefore at most `--limit` × `--max-bytes`. Headers, addresses and
   attachment metadata are uncapped. `output_truncated` says whether that
   read cut anything.
+- `classify` reads at most 16 MiB of stdin; more fails with
+  `limit_exceeded` / `stdin_bytes` and exit 1. Page the selection with
+  `read --limit`.
 - `thread --limit` keeps the last entries in thread order, 50 by default;
   `total` is the thread's entry count and `truncated` is true when entries
   were dropped.
@@ -367,6 +501,10 @@ The flake exports `homeManagerModules.default`:
   services.screwtape = {
     enable = true;
     opRef = "op://Private/Fastmail read-only/credential";
+    jev = {
+      baseUrl = "http://127.0.0.1:4000";   # the gateway relay
+      model = "typesafe/jev-1.14.0";
+    };
   };
 }
 ```
@@ -378,6 +516,10 @@ Options:
 | `enable` | `false` | Install the service, timer, wrapper and `screwtape-provision`. |
 | `package` | this flake's default package | The Screwtape package to run. |
 | `opRef` | (required) | 1Password reference to the Fastmail API token, read by `screwtape-provision`. |
+| `jev` | `null` | The classification gateway; `null` disables the `classify` key ingress. |
+| `jev.baseUrl` | `https://api.typesafe.ai` | The gateway's base URL; for the local relay, `http://127.0.0.1:<relayPort>`. |
+| `jev.model` | (required) | The pinned Jev model version, for example `typesafe/jev-1.14.0`. |
+| `jev.opRef` | `null` | 1Password reference to the Jev key, read by `screwtape-provision jev` when no `--from-file` is given. |
 | `sessionUrl` | `https://api.fastmail.com/jmap/session` | The JMAP session resource (https only). |
 | `window.mailboxes` | `["inbox"]` | Mailboxes to mirror, each matched by role first, then by name. |
 | `window.maxAgeDays` | `30` | Mirror messages received within this many days. |
@@ -392,6 +534,12 @@ Options:
 | `timeoutStartSec` | `5min` | `TimeoutStartSec` of the sync unit. |
 | `memoryMax` | `1G` | `MemoryMax` of the sync unit: contains the process if the application bounds fail. |
 
+`jev` as above is the deployed form: the local LLM gateway relays to Jev.
+Left unset, `baseUrl` defaults to the direct TypeSafe endpoint,
+`https://api.typesafe.ai`; `model` has no default, and the direct endpoint's
+pinned version is `jev-1.14.0`. Swapping between the two is config plus
+re-provisioning the key, no code change.
+
 Two host notes:
 
 - Leave `xdg.stateHome` at its default. The module asserts it is
@@ -404,24 +552,47 @@ Two host notes:
 
 ## Provisioning
 
-The token must be a Fastmail API token with mail scope, stored in 1Password.
-Run `screwtape-provision` once per token rotation:
+`screwtape-provision [fastmail|jev] [--from-file <path>]` stores one
+credential. The name defaults to `fastmail`; `jev` has no default source, so
+without `--from-file` its `opRef` must be set.
+
+A token comes from `op read --no-newline <opRef>` for `fastmail`, from
+`op read --no-newline <jev.opRef>` for `jev`, or from the file named by
+`--from-file`. The token is piped into
+`systemd-creds encrypt --user --name=<name>`, writing a staged file in a
+private per-run directory
+`~/.config/credstore.encrypted/screwtape.<name>.XXXXXX/` under `umask 077`.
+Only if both steps succeed does it move the staged file onto
+`~/.config/credstore.encrypted/screwtape.<name>`; otherwise it removes the
+staging directory, leaves the stored credential unchanged, and exits 1. A
+`--from-file` source must be a regular file, not a symlink and not the stored
+credential itself (exit 2); it is deleted after a successful move.
+
+Only `fastmail` then starts `screwtape.service` once: success prints that the
+first sync succeeded, failure points at `journalctl --user -u screwtape` and
+exits 1. `jev` just reports the credential stored.
+
+The Fastmail token must have mail scope and live in 1Password, so a rotation
+is:
 
 ```sh
 screwtape-provision
 ```
 
-It runs `op read --no-newline <opRef>` piped into
-`systemd-creds encrypt --user --name=fastmail -`, writing a staged file
-`~/.config/credstore.encrypted/screwtape.fastmail.new` under `umask 077`. Only
-if both steps succeed does it move the staged file onto
-`~/.config/credstore.encrypted/screwtape.fastmail`; otherwise it removes the
-staged file, leaves the stored credential unchanged, and exits 1. It then
-starts `screwtape.service` once: success prints that the first sync
-succeeded, failure points at `journalctl --user -u screwtape` and exits 1.
+The gateway issues a Jev key to a file, which is then provisioned from it:
 
-The token never appears in argv, in an environment variable, or in a clear
-file.
+```sh
+llm-gateway issue screwtape --models typesafe/jev-1.14.0 --budget <USD> --out <file>
+screwtape-provision jev --from-file <file>
+```
+
+`llm-gateway issue` runs without sudo. The key is never in argv or in an
+environment variable, and `screwtape-provision` never writes a clear file. With
+`--from-file`, the key sits in the file `llm-gateway` wrote (mode 0600) until
+provisioning deletes it.
+
+**Caution:** `--from-file` deletes the named file after a successful store.
+Name only a throwaway file.
 
 ## Plaintext at rest
 
