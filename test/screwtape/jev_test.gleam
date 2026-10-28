@@ -165,27 +165,25 @@ pub fn missing_probability_key_test() {
   |> should_fail("answers.primary_purpose.probabilities.b")
 }
 
-pub fn extra_probability_key_is_ignored_test() {
-  let reply =
-    reply_with(
-      choice_answer("a", 0.9, [#("a", 0.7), #("b", 0.3), #("c", 0.2)]),
-      good_noul(),
-      good_score(),
-    )
-    |> decode_reply
-  let assert Ok(reply) = reply
-  let assert [#(_, jev.ChoiceAnswer(_, _, probabilities)), ..] = reply.answers
-  probabilities |> should.equal([#("a", 0.7), #("b", 0.3)])
-}
-
-pub fn extra_probability_key_with_no_mass_is_ignored_test() {
+/// EX-12 (operator ruling 2026-10-29): probabilities hold exactly our keys. An
+/// extra key fails whatever mass it claims, and the path names only our own
+/// question, never the server's key.
+pub fn extra_probability_key_fails_test() {
   reply_with(
-    choice_answer("a", 0.9, [#("a", 0.8), #("b", 0.2), #("c", 0.0)]),
+    choice_answer("a", 0.9, [#("a", 0.7), #("b", 0.3), #("LEAKKEY", 0.2)]),
     good_noul(),
     good_score(),
   )
-  |> decode_reply
-  |> should.be_ok
+  |> should_fail("answers.primary_purpose.probabilities")
+}
+
+pub fn extra_probability_key_with_no_mass_fails_test() {
+  reply_with(
+    choice_answer("a", 0.9, [#("a", 0.8), #("b", 0.2), #("LEAKKEY", 0.0)]),
+    good_noul(),
+    good_score(),
+  )
+  |> should_fail("answers.primary_purpose.probabilities")
 }
 
 pub fn non_normalised_probabilities_test() {

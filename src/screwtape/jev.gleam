@@ -8,8 +8,10 @@
 //// per known question, and never by iterating the reply's keys. A failure is a
 //// `Decode(path)` whose path is built only from our question names and labels,
 //// never from the reply, so a reply can never put its own text into an `Error`.
-//// Extra answers, extra probability keys and `usage`/`legend` are ignored.
+//// Extra answers and `usage`/`legend` are ignored; a probabilities object
+//// with any key besides ours fails (EX-12), by its key count alone.
 
+import gleam/dict
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/float
@@ -271,8 +273,8 @@ fn confidence(answers: Dynamic, name: String) -> Result(Float, Error) {
 }
 
 /// Our keys' probabilities in the given key order, each in [0, 1] and summing
-/// to 1 within the tolerance. Only our keys are read: any other key the reply
-/// carries is ignored, whatever mass it claims.
+/// to 1 within the tolerance, and no other key (EX-12): every key of ours is
+/// present, so a key count equal to ours means exactly ours.
 fn probabilities(
   answers: Dynamic,
   name: String,
@@ -290,15 +292,30 @@ fn probabilities(
       }
     }),
   )
-  case
+  let sums_to_one =
     within(
       float.absolute_value(float.sum(values) -. 1.0),
       probability_tolerance,
     )
-  {
+  case sums_to_one && key_count(answers, name) == Ok(list.length(keys)) {
     True -> Ok(values)
     False -> Error(Decode(path(name, "probabilities")))
   }
+}
+
+/// How many keys the reply's probabilities object holds. The one place a reply
+/// object is read as a dict (operator ruling 2026-10-29): only its size is
+/// kept, so no key of the server's can reach an error, output or log.
+fn key_count(answers: Dynamic, name: String) -> Result(Int, Nil) {
+  decode.run(
+    answers,
+    decode.at(
+      [name, "probabilities"],
+      decode.dict(decode.dynamic, decode.dynamic),
+    ),
+  )
+  |> result.map(dict.size)
+  |> result.replace_error(Nil)
 }
 
 fn in_unit_range(value: Float) -> Bool {
