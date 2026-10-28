@@ -23,6 +23,8 @@ const utf8_path = "src/screwtape/utf8.gleam"
 
 const cursor_path = "src/screwtape/cursor.gleam"
 
+const http_path = "src/screwtape/http.gleam"
+
 const html_text_path = "src/screwtape/html_text.gleam"
 
 const normalise_path = "src/screwtape/normalise.gleam"
@@ -90,6 +92,14 @@ pub fn to_string(id: String) -> String {
 }
 "
 
+const http_source =
+  "import screwtape/error
+
+pub fn failure(reason: String) -> error.Error {
+  error.Http(reason)
+}
+"
+
 const render_source =
   "import gleam/json
 import gleam/option.{type Option, None, Some}
@@ -149,6 +159,7 @@ fn sources() -> List(#(String, String)) {
     #(model_path, model_source),
     #(utf8_path, utf8_source),
     #(cursor_path, cursor_source),
+    #(http_path, http_source),
     #(html_text_path, html_text_source),
     #(normalise_path, normalise_source),
     #(retain_path, retain_source),

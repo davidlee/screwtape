@@ -25,7 +25,7 @@
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/erlang/process
-import gleam/http.{type Method, Post}
+import gleam/http.{type Method} as gleam_http
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response, Response}
 import gleam/json
@@ -33,12 +33,12 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/uri
-import screwtape/jmap/client
+import screwtape/http
 import screwtape/jmap/request as jmap_request
 
 /// What one position answers with.
 pub type Reply =
-  Result(Response(String), client.HttpFailure)
+  Result(Response(String), http.HttpFailure)
 
 /// One scripted position. `Step` matches by HTTP method only; `Expect` matches a
 /// POST by the JMAP method its first call names.
@@ -89,7 +89,7 @@ pub fn start(script: List(Step)) -> Fixture {
 }
 
 /// The `Send` to hand to `client.session` and `client.call`.
-pub fn send(fixture: Fixture) -> client.Send {
+pub fn send(fixture: Fixture) -> http.Send {
   fn(request: Request(String), cap: Int) -> Reply {
     let recorded =
       Recorded(
@@ -195,7 +195,7 @@ fn matches(step: Step, received: Recorded) -> Bool {
   case step {
     Step(method:, ..) -> method == received.method
     Expect(call:, ..) ->
-      case received.method == Post, call_of(received.body) {
+      case received.method == gleam_http.Post, call_of(received.body) {
         True, Some(recorded) -> recorded.name == jmap_request.method_name(call)
         _, _ -> False
       }
@@ -232,7 +232,7 @@ fn capped(reply: Reply, cap: Int) -> Reply {
   case reply {
     Ok(response) ->
       case string.byte_size(response.body) > cap {
-        True -> Error(client.TooLarge)
+        True -> Error(http.TooLarge)
         False -> Ok(response)
       }
     Error(_) -> reply

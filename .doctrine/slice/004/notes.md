@@ -48,6 +48,10 @@ fresh-as-of: 2026-10-28 · ready; design re-locked without the eval (run rev 43)
 Written after RV-016 concluded (round 4). No further adversarial design pass is needed: four rounds converged, the last raised one minor edge case, and the remaining risks are empirical, not design defects. They are settled by instruments at execution, not by review: the A1 live smoke test (reply shape, F-9 tolerances), the token-leak subprocess test with a lowercase model-shaped sentinel (F-1), the pii near-date table (F-2), the render.read to state cut-on-arrival tests (F-3, F-12), and the first eval run (calibration, state size). A code review at audit should probe the pii regexes against the section 9 table and the systemd-run wrapper's generated properties.
 Updated after rounds 5–6 (F-13, the jev_context error-line tag): the conclusion stands.
 
+### PHASE-01 passes (2026-10-28)
+- pi implement (deepseek-flash, $0.050, 35 req): pure move done, red then green (482 passed). Miss: touched check_imports_test outside allowlist (needed); otherwise clean.
+- pi review (deepseek-flash max, $0.031): pure move confirmed; F1 minor no test pins "401/429 body not read" (fixed, negative control red 2 failures); F2 minor http_test bound unpinned (fixed); F3 nit 3xx/boundaries (fixed); F4 nit alias inconsistency (accepted); F5 nit design § 5.1 `failure/1` (deferred audit).
+
 ## Implementation run
 Seat: /super-orchestrator, 2026-10-28. Phases in order PHASE-01, PHASE-12, PHASE-13, PHASE-14. Main worktree, no dispatch. Halt before audit.
 
@@ -73,3 +77,7 @@ Seat: /super-orchestrator, 2026-10-28. Phases in order PHASE-01, PHASE-12, PHASE
 <!-- one line per envelope decision: phase · what · why · tier (decided / deferred / escalated) -->
 - seat · PHASE-14 EN-2 operator act changes from interim key to gateway key provisioning · operator ruling 2026-10-28 · decided
 - seat · design I2 wording vs § 5.2 last-`/` rule · drift, not a defect · deferred (audit)
+- PHASE-01 · pi worker also edited test/screwtape/check_imports_test.gleam (fixture entry for the new governed path; required, else MissingFile) · fixture-only, outside brief allowlist · decided
+- PHASE-01 · added test/screwtape/http_test.gleam and two client_test status rows (problem document under 401/429 never read) · review F1/F2, test-only, negative control confirmed red · decided
+- PHASE-01 · design § 5.1 table says `failure/1` (§ 5.2, EX-1 and code say `failure/2`) · drift, code right · deferred (audit)
+- PHASE-01 · `gleam/http` aliased `method` in client/client_test/transport_test, `gleam_http` in fixture_send · nit, no behaviour; accepted · decided

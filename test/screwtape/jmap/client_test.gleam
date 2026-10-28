@@ -8,7 +8,7 @@
 //// Most requests go through `support/fixture_send`; the exhaustion case also
 //// runs once over the production `Send` against `support/local_jmap`.
 
-import gleam/http
+import gleam/http as method
 import gleam/http/response.{Response}
 import gleam/json
 import gleam/list
@@ -18,6 +18,7 @@ import gleeunit
 import gleeunit/should
 import screwtape/cli
 import screwtape/error
+import screwtape/http
 import screwtape/jmap/client
 import screwtape/jmap/decode
 import screwtape/jmap/request as jmap_request
@@ -57,19 +58,19 @@ fn ok(status: Int, body: String) -> fixture_send.Reply {
 }
 
 fn get(status: Int, body: String) -> fixture_send.Step {
-  fixture_send.Step(http.Get, ok(status, body))
+  fixture_send.Step(method.Get, ok(status, body))
 }
 
 fn post(status: Int, body: String) -> fixture_send.Step {
-  fixture_send.Step(http.Post, ok(status, body))
+  fixture_send.Step(method.Post, ok(status, body))
 }
 
-fn get_failure(failure: client.HttpFailure) -> fixture_send.Step {
-  fixture_send.Step(http.Get, Error(failure))
+fn get_failure(failure: http.HttpFailure) -> fixture_send.Step {
+  fixture_send.Step(method.Get, Error(failure))
 }
 
-fn post_failure(failure: client.HttpFailure) -> fixture_send.Step {
-  fixture_send.Step(http.Post, Error(failure))
+fn post_failure(failure: http.HttpFailure) -> fixture_send.Step {
+  fixture_send.Step(method.Post, Error(failure))
 }
 
 fn invocation() -> jmap_request.Invocation {
@@ -264,7 +265,7 @@ pub fn session_and_call_decode_test() {
 
   // The GET is the session URL; the POST is the session's own `apiUrl` and the
   // request document, not the session URL again.
-  let assert [#(http.Get, _, _), #(http.Post, url, body)] =
+  let assert [#(method.Get, _, _), #(method.Post, url, body)] =
     fixture_send.recorded(fixture)
     |> list.map(fn(request) { #(request.method, request.url, request.body) })
   url |> should.equal("https://api.example.test/jmap/")
@@ -424,12 +425,16 @@ fn two_entries() -> String {
 // ---------------------------------------------------------------- statuses
 
 /// D2, status by status: 401/403 with no body, 429, a 500 whose body is a JMAP
-/// problem document, and a 500 whose body is not. Each is one request.
+/// problem document, and a 500 whose body is not. Each is one request. A
+/// problem document under 401 or 429 is never read: only a non-2xx `Http`
+/// answer gives the body a second reading.
 pub fn session_status_table_test() {
   let cases = [
     #(401, "unauthorized", error.Auth(401)),
     #(403, "forbidden", error.Auth(403)),
     #(429, "slow down", error.RateLimited),
+    #(401, jmap_fixture.text("problem_not_request.json"), error.Auth(401)),
+    #(429, jmap_fixture.text("problem_not_request.json"), error.RateLimited),
     #(
       500,
       jmap_fixture.text("problem_not_request.json"),
@@ -452,6 +457,8 @@ pub fn call_status_table_test() {
     #(401, "unauthorized", error.Auth(401)),
     #(403, "forbidden", error.Auth(403)),
     #(429, "slow down", error.RateLimited),
+    #(401, jmap_fixture.text("problem_not_request.json"), error.Auth(401)),
+    #(429, jmap_fixture.text("problem_not_request.json"), error.RateLimited),
     #(
       500,
       jmap_fixture.text("problem_not_request.json"),
@@ -470,11 +477,11 @@ pub fn call_status_table_test() {
 /// Every `HttpFailure` has its own fixed reason, and `TooLarge` is the budget's.
 pub fn send_failure_table_test() {
   let cases = [
-    #(client.Timeout, error.Http("timeout")),
-    #(client.ConnectFailed, error.Http("connect_failed")),
-    #(client.TlsFailed, error.Http("tls_failed")),
-    #(client.BadUtf8, error.Http("bad_utf8")),
-    #(client.TooLarge, error.LimitExceeded("max_total_bytes")),
+    #(http.Timeout, error.Http("timeout")),
+    #(http.ConnectFailed, error.Http("connect_failed")),
+    #(http.TlsFailed, error.Http("tls_failed")),
+    #(http.BadUtf8, error.Http("bad_utf8")),
+    #(http.TooLarge, error.LimitExceeded("max_total_bytes")),
   ]
 
   cases
@@ -487,7 +494,7 @@ pub fn send_failure_table_test() {
 
 /// A transport failure on the POST maps the same way as one on the session.
 pub fn call_send_failure_test() {
-  let #(_, client_) = with_session([post_failure(client.Timeout)])
+  let #(_, client_) = with_session([post_failure(http.Timeout)])
 
   client.call(client_, [invocation()]) |> expect_error(error.Http("timeout"))
 }

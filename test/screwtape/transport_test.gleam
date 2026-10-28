@@ -9,7 +9,7 @@
 //// POST, and every call passes the server's per-run CA (`Some(ca_path)`).
 
 import gleam/bit_array
-import gleam/http
+import gleam/http as method
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response, get_header}
 import gleam/list
@@ -18,7 +18,7 @@ import gleam/string
 import gleeunit
 import gleeunit/should
 import screwtape/cli
-import screwtape/jmap/client
+import screwtape/http
 import support/local_jmap
 
 pub fn main() -> Nil {
@@ -50,7 +50,7 @@ const retry_after_zero = #("retry-after", "0")
 fn post_to(url: String) -> Request(String) {
   let assert Ok(req) = request.to(url)
   req
-  |> request.set_method(http.Post)
+  |> request.set_method(method.Post)
   |> request.set_header("content-type", "application/json")
   |> request.set_body("{\"using\":[\"urn:ietf:params:jmap:core\"]}")
 }
@@ -59,7 +59,7 @@ fn send_to(
   server: local_jmap.Server,
   cap: Int,
   timeout_ms: Int,
-) -> Result(Response(String), client.HttpFailure) {
+) -> Result(Response(String), http.HttpFailure) {
   send(
     post_to(local_jmap.url(server, "/jmap")),
     cap,
@@ -120,7 +120,7 @@ pub fn fixed_length_500_too_large_while_withheld_test() {
   local_jmap.release(server)
   local_jmap.stop(server)
 
-  result |> should.equal(Error(client.TooLarge))
+  result |> should.equal(Error(http.TooLarge))
   still_withholding |> should.be_true
 }
 
@@ -137,7 +137,7 @@ pub fn chunked_500_too_large_while_withheld_test() {
   local_jmap.release(server)
   local_jmap.stop(server)
 
-  result |> should.equal(Error(client.TooLarge))
+  result |> should.equal(Error(http.TooLarge))
   still_withholding |> should.be_true
 }
 
@@ -173,7 +173,7 @@ pub fn oversized_503_too_large_one_request_test() {
   local_jmap.stop(server)
 
   count |> should.equal(1)
-  result |> should.equal(Error(client.TooLarge))
+  result |> should.equal(Error(http.TooLarge))
 }
 
 /// A success still looks like a success: status, body and a header (keys are
@@ -209,7 +209,7 @@ pub fn oversized_200_too_large_while_withheld_test() {
   local_jmap.release(server)
   local_jmap.stop(server)
 
-  result |> should.equal(Error(client.TooLarge))
+  result |> should.equal(Error(http.TooLarge))
   still_withholding |> should.be_true
 }
 
@@ -274,7 +274,7 @@ pub fn untrusted_ca_tls_failed_test() {
   local_jmap.stop(untrusted)
   local_jmap.stop(trusted)
 
-  result |> should.equal(Error(client.TlsFailed))
+  result |> should.equal(Error(http.TlsFailed))
 }
 
 /// A CA file that cannot be read is a TLS verdict, not a connect failure:
@@ -291,7 +291,7 @@ pub fn missing_ca_file_tls_failed_test() {
     )
   local_jmap.stop(server)
 
-  result |> should.equal(Error(client.TlsFailed))
+  result |> should.equal(Error(http.TlsFailed))
 }
 
 /// `None` means the system store (DEC-018). The per-run CA is not in it, so
@@ -308,7 +308,7 @@ pub fn system_cas_reject_local_ca_tls_failed_test() {
     )
   local_jmap.stop(server)
 
-  result |> should.equal(Error(client.TlsFailed))
+  result |> should.equal(Error(http.TlsFailed))
 }
 
 /// Nothing is listening on the port any more: a connection failure, not a
@@ -325,7 +325,7 @@ pub fn closed_port_connect_failed_test() {
   let result = send(post_to(url), roomy_cap, long_timeout_ms, Some(ca_path))
   local_jmap.stop(live)
 
-  result |> should.equal(Error(client.ConnectFailed))
+  result |> should.equal(Error(http.ConnectFailed))
 }
 
 /// Under the cap, so no ceiling applies; the withheld end can only surface as
@@ -342,7 +342,7 @@ pub fn withheld_under_cap_times_out_test() {
   local_jmap.release(server)
   local_jmap.stop(server)
 
-  result |> should.equal(Error(client.Timeout))
+  result |> should.equal(Error(http.Timeout))
   still_withholding |> should.be_true
   count |> should.equal(1)
 }
@@ -364,7 +364,7 @@ pub fn invalid_utf8_body_bad_utf8_test() {
   let result = send_to(server, cap, long_timeout_ms)
   local_jmap.stop(server)
 
-  result |> should.equal(Error(client.BadUtf8))
+  result |> should.equal(Error(http.BadUtf8))
 }
 
 /// D2/D8: the production `Send`, owned by `screwtape/cli`, bound with each
@@ -374,6 +374,6 @@ fn send(
   cap: Int,
   timeout_ms: Int,
   ca_file: Option(String),
-) -> Result(Response(String), client.HttpFailure) {
+) -> Result(Response(String), http.HttpFailure) {
   cli.production_send(timeout_ms, ca_file)(req, cap)
 }

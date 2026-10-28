@@ -77,6 +77,12 @@ const rules = [
   Rule("src/screwtape/utf8.gleam", [], ["gleam_stdlib"], NoExternal),
   Rule("src/screwtape/cursor.gleam", [], ["gleam_stdlib"], NoExternal),
   Rule(
+    "src/screwtape/http.gleam",
+    ["screwtape/error"],
+    ["gleam_stdlib", "gleam_http"],
+    NoExternal,
+  ),
+  Rule(
     "src/screwtape/html_text.gleam",
     ["screwtape/html_sax"],
     ["gleam_stdlib"],

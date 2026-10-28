@@ -1,12 +1,15 @@
-//// The JMAP client over an injected `Send` (design § 5.2, DEC-006).
+//// The JMAP client over an injected `http.Send` (design § 5.2, DEC-006).
+//// The transport types and the status and failure mappings live in
+//// `screwtape/http`; this module keeps the budget and the one JMAP branch — a
+//// non-2xx `Http(...)` whose body reads as a problem document.
 ////
 //// `session` fetches the session document with the bearer token and binds a
 //// `Client` to it; `call` posts one JMAP request to the session's own `apiUrl`
 //// and decodes the method responses. Both go through one private exchange, so
-//// the `Budget` and the status mapping exist once: an exhausted budget refuses
-//// the request before it is sent (a cap of 0 crashes httpc, RV-001 F-29), each
-//// request is capped at the bytes still allowed, and every response body is
-//// charged — whatever its status — before the status is acted on.
+//// the `Budget` exists once: an exhausted budget refuses the request before it
+//// is sent (a cap of 0 crashes httpc, RV-001 F-29), each request is capped at
+//// the bytes still allowed, and every response body is charged — whatever its
+//// status — before the status is acted on.
 ////
 //// The budget is a value the client threads: a successful `call` hands back
 //// the client with the bytes it received taken off. A failed request ends the
@@ -14,33 +17,18 @@
 //// request and no transport reason, and no `Error` raised here carries server
 //// text, a request or the token.
 
-import gleam/http.{Get, Post}
+import gleam/http as method
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
-import gleam/int
 import gleam/json
 import gleam/list
 import gleam/result
 import gleam/string
 import screwtape/credential.{type Token}
 import screwtape/error.{type Error}
+import screwtape/http
 import screwtape/jmap/decode.{type MethodResponse, type Session}
 import screwtape/jmap/request as jmap_request
-
-/// Why a request produced no response. No variant carries the request or a
-/// transport reason, either of which could hold the bearer token.
-pub type HttpFailure {
-  Timeout
-  ConnectFailed
-  TlsFailed
-  BadUtf8
-  TooLarge
-}
-
-/// The second argument caps the response body bytes this call may receive;
-/// it must be positive (RV-001 F-29).
-pub type Send =
-  fn(Request(String), Int) -> Result(Response(String), HttpFailure)
 
 /// The response bytes a run may still receive, across every request.
 pub opaque type Budget {
@@ -49,7 +37,7 @@ pub opaque type Budget {
 
 /// A client bound to a decoded session, its token and the budget left.
 pub opaque type Client {
-  Client(send: Send, token: Token, session: Session, budget: Budget)
+  Client(send: http.Send, token: Token, session: Session, budget: Budget)
 }
 
 /// A budget of `max_total_bytes` response bytes for a run.
@@ -65,7 +53,7 @@ pub fn remaining(budget: Budget) -> Int {
 /// Fetch the session at `url` and bind a client to it. A URL we cannot parse is
 /// `Config("session_url")`; the body must decode as a session.
 pub fn session(
-  send: Send,
+  send: http.Send,
   token: Token,
   url: String,
   budget: Budget,
@@ -94,7 +82,7 @@ pub fn call(
   )
   let req =
     req
-    |> request.set_method(Post)
+    |> request.set_method(method.Post)
     |> request.set_header("content-type", "application/json")
     |> request.set_body(json.to_string(jmap_request.body(calls)))
   use #(response, budget) <- result.try(exchange(
@@ -136,10 +124,12 @@ pub fn budget_of(client: Client) -> Budget {
 }
 
 // The one exchange: refuse an exhausted budget, send under the bytes left,
-// charge the received body, then map the status.
+// charge the received body, then map the status. The status mapping is
+// `screwtape/http`'s; only a non-2xx `Http(...)` gives the body a second
+// reading, as a JMAP problem document.
 
 fn exchange(
-  send: Send,
+  send: http.Send,
   token: Token,
   req: Request(String),
   budget: Budget,
@@ -149,11 +139,19 @@ fn exchange(
     True -> Error(error.LimitExceeded("max_total_bytes"))
     False -> {
       use response <- result.try(
-        send(authorized(req, token), cap) |> result.map_error(send_failure),
+        send(authorized(req, token), cap)
+        |> result.map_error(http.failure(_, "max_total_bytes")),
       )
       let budget = charge(budget, response)
-      use response <- result.map(status(response))
-      #(response, budget)
+      case http.status(response) {
+        Ok(ok_response) -> Ok(#(ok_response, budget))
+        Error(error.Http(reason)) ->
+          case decode.problem(response.body) {
+            Ok(type_) -> Error(error.JmapRequest(type_))
+            Error(Nil) -> Error(error.Http(reason))
+          }
+        Error(other) -> Error(other)
+      }
     }
   }
 }
@@ -173,38 +171,7 @@ fn charge(budget: Budget, response: Response(String)) -> Budget {
   Budget(budget.remaining - string.byte_size(response.body))
 }
 
-/// D2: 2xx is the call's; 401/403 are `Auth`; 429 is `RateLimited`; any other
-/// non-2xx is the JMAP problem document's type, else its status as `Http`.
-fn status(response: Response(String)) -> Result(Response(String), Error) {
-  let code = response.status
-  case code >= 200 && code < 300 {
-    True -> Ok(response)
-    False ->
-      case code {
-        401 | 403 -> Error(error.Auth(code))
-        429 -> Error(error.RateLimited)
-        _ ->
-          case decode.problem(response.body) {
-            Ok(type_) -> Error(error.JmapRequest(type_))
-            Error(Nil) -> Error(error.Http("status_" <> int.to_string(code)))
-          }
-      }
-  }
-}
-
-/// A transport failure is a fixed reason; `TooLarge` is the budget's ceiling,
-/// not the transport's.
-fn send_failure(failure: HttpFailure) -> Error {
-  case failure {
-    Timeout -> error.Http("timeout")
-    ConnectFailed -> error.Http("connect_failed")
-    TlsFailed -> error.Http("tls_failed")
-    BadUtf8 -> error.Http("bad_utf8")
-    TooLarge -> error.LimitExceeded("max_total_bytes")
-  }
-}
-
 fn session_request(url: String) -> Result(Request(String), Nil) {
   request.to(url)
-  |> result.map(fn(req) { request.set_method(req, Get) })
+  |> result.map(fn(req) { request.set_method(req, method.Get) })
 }

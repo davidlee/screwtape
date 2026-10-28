@@ -43,6 +43,7 @@ import screwtape/credential
 import screwtape/cursor
 import screwtape/error.{type Error}
 import screwtape/file
+import screwtape/http
 import screwtape/jmap/client
 import screwtape/model
 import screwtape/render
@@ -85,10 +86,7 @@ pub fn run_with(
 /// The one production `Send` (D8): the Erlang adapter's entry point bound with
 /// this run's timeout and CA file, so the rest of the program only sees a
 /// `Send`.
-pub fn production_send(
-  timeout_ms: Int,
-  ca_file: Option(String),
-) -> client.Send {
+pub fn production_send(timeout_ms: Int, ca_file: Option(String)) -> http.Send {
   fn(request, cap) { send(request, cap, timeout_ms, ca_file) }
 }
 
@@ -426,4 +424,4 @@ fn send(
   cap: Int,
   timeout_ms: Int,
   ca_file: Option(String),
-) -> Result(Response(String), client.HttpFailure)
+) -> Result(Response(String), http.HttpFailure)
