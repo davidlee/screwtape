@@ -381,7 +381,8 @@ fn criterion_entry(criterion: #(String, String)) -> #(String, Json) {
   #(criterion.0, json.string(criterion.1))
 }
 
-fn question_name(question: Question) -> String {
+/// Our name for a question: the key its answer is stored and printed under.
+pub fn question_name(question: Question) -> String {
   case question {
     Choice(name, ..) -> name
     Noul(name, ..) -> name

@@ -52,10 +52,10 @@ start_for(DnsName) ->
     start_with([{dNSName, ffi_terms:to_list(DnsName)}]).
 
 start_with(Sans) ->
-    serve(Sans, fun fixed_response/1).
+    serve(Sans, fun fixed_response/2).
 
 %% The one responder this module has: the fixed 200 and nothing else.
-fixed_response(Socket) ->
+fixed_response(Socket, _Head) ->
     _ = ssl:send(Socket, ?RESPONSE),
     ok.
 
@@ -91,8 +91,9 @@ listen(Sans) ->
     }.
 
 %% listen/1 plus the accept loop: every handshaken connection has its request
-%% read for it, then goes to `Responder` as `fun(Socket) -> ok`. The socket is
-%% closed when the responder returns.
+%% read for it, then goes to `Responder` as `fun(Socket, Head) -> ok`, `Head`
+%% being the request line and headers as received (`<<>>` when none arrived).
+%% The socket is closed when the responder returns.
 serve(Sans, Responder) ->
     Handle = listen(Sans),
     _Accepter = spawn(fun() -> accept_loop(maps:get(listen, Handle), Responder) end),
@@ -215,8 +216,8 @@ accept_loop(Listen, Responder) ->
 serve_connection(Transport, Responder) ->
     case ssl:handshake(Transport, ?RECV_TIMEOUT) of
         {ok, Socket} ->
-            _ = read_request(Socket),
-            Responder(Socket),
+            Head = read_request(Socket),
+            Responder(Socket, Head),
             catch ssl:close(Socket),
             ok;
         {error, _Reason} ->
@@ -232,6 +233,7 @@ serve_connection(Transport, Responder) ->
 %% Read headers, then a Content-Length body if the request carries one (JMAP
 %% POSTs do; GETs do not). The body is read even when none of it arrived with
 %% the headers, which is when a POST's payload follows in its own record.
+%% Returns the request line and headers.
 read_request(Socket) ->
     read_request(Socket, <<>>).
 
@@ -242,19 +244,17 @@ read_request(Socket, Acc) ->
         [_Incomplete] ->
             case ssl:recv(Socket, 0, ?RECV_TIMEOUT) of
                 {ok, Data} -> read_request(Socket, <<Acc/binary, Data/binary>>);
-                {error, _Reason} -> ok
+                {error, _Reason} -> <<>>
             end
     end.
 
 read_body(Socket, Head, Rest) ->
     case body_length(Head) - byte_size(Rest) of
         Missing when Missing > 0 ->
-            case ssl:recv(Socket, Missing, ?RECV_TIMEOUT) of
-                {ok, _Data} -> ok;
-                {error, _Reason} -> ok
-            end;
+            _ = ssl:recv(Socket, Missing, ?RECV_TIMEOUT),
+            Head;
         _Room ->
-            ok
+            Head
     end.
 
 body_length(Head) ->

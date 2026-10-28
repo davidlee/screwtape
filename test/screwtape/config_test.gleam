@@ -8,6 +8,7 @@
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -299,4 +300,99 @@ pub fn window_json_changes_with_retain_messages_test() {
 
   with |> should.not_equal(without)
   with |> string.contains("\"retain_messages\":20") |> should.be_true
+}
+
+// ---------------------------------------------------------------------------
+// The optional `jev` block (PHASE-13 T1; VT-2, EX-2)
+// ---------------------------------------------------------------------------
+
+const jev_base_url = "https://api.typesafe.ai"
+
+const jev_credential_name = "jev"
+
+const jev_model = "typesafe/jev-1.14.0"
+
+/// The valid document with a `jev` block spliced in before the window.
+fn with_jev(
+  base_url: String,
+  credential_name: String,
+  model: String,
+) -> String {
+  let block =
+    ",\"jev\":{\"base_url\":"
+    <> json.to_string(json.string(base_url))
+    <> ",\"credential_name\":"
+    <> json.to_string(json.string(credential_name))
+    <> ",\"model\":"
+    <> json.to_string(json.string(model))
+    <> "}"
+  broken(",\"window\"", block <> ",\"window\"")
+}
+
+fn accepted_jev() -> String {
+  with_jev(jev_base_url, jev_credential_name, jev_model)
+}
+
+pub fn jev_block_decoded_test() {
+  let assert Ok(parsed) = config.parse(accepted_jev())
+
+  parsed.jev
+  |> should.equal(
+    Some(config.Jev(
+      base_url: jev_base_url,
+      credential_name: jev_credential_name,
+      model: jev_model,
+    )),
+  )
+}
+
+pub fn jev_absent_is_none_test() {
+  let assert Ok(parsed) = config.parse(valid_text(None))
+
+  parsed.jev |> should.equal(None)
+}
+
+/// DEC-033: the base URL is `https`, or loopback `http` with a numeric port
+/// and no path; and it never ends in a slash.
+pub fn jev_base_url_table_test() {
+  let cases = [
+    #("https://api.typesafe.ai", Ok(Nil)),
+    #("http://127.0.0.1", Ok(Nil)),
+    #("http://127.0.0.1:4000", Ok(Nil)),
+    #("http://127.0.0.1/", Error("non_https:jev.base_url")),
+    #("http://127.0.0.1:8080/v1", Error("non_https:jev.base_url")),
+    #("http://localhost:8080", Error("non_https:jev.base_url")),
+    #("http://127.0.0.1:", Error("non_https:jev.base_url")),
+    #("http://127.0.0.1:80a", Error("non_https:jev.base_url")),
+    #("https://api.typesafe.ai/", Error("trailing_slash:jev.base_url")),
+  ]
+
+  list.each(cases, fn(entry) {
+    let expected = case entry.1 {
+      Ok(_) -> Ok(Nil)
+      Error(reason) -> Error(error.Config(reason))
+    }
+    config.parse(with_jev(entry.0, jev_credential_name, jev_model))
+    |> result.map(fn(_) { Nil })
+    |> should.equal(expected)
+  })
+}
+
+pub fn jev_credential_name_checks_test() {
+  config.parse(with_jev(jev_base_url, "", jev_model))
+  |> should.equal(Error(error.Config("empty:jev.credential_name")))
+
+  config.parse(with_jev(jev_base_url, "srv/jev", jev_model))
+  |> should.equal(Error(error.Config("invalid:jev.credential_name")))
+}
+
+pub fn jev_model_checks_test() {
+  config.parse(with_jev(jev_base_url, jev_credential_name, ""))
+  |> should.equal(Error(error.Config("empty:jev.model")))
+}
+
+pub fn jev_wrong_type_is_invalid_json_test() {
+  let text = broken(",\"window\"", ",\"jev\":\"yes\",\"window\"")
+
+  config.parse(text) |> should.equal(Error(error.Config("invalid_json")))
 }

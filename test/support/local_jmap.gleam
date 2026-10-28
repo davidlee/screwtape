@@ -93,6 +93,12 @@ pub fn request_count(server: Server) -> Int {
   request_count_ffi(server.handle)
 }
 
+/// The request line and headers of every request received, in arrival order,
+/// so a test can prove what the client sent (a bearer header, say).
+pub fn request_heads(server: Server) -> List(String) {
+  request_heads_ffi(server.handle)
+}
+
 /// True while a reply's end is being held back, i.e. from the moment the
 /// server blocks until `release`.
 pub fn withholding(server: Server) -> Bool {
@@ -151,6 +157,9 @@ fn ca_path_ffi(handle: Handle) -> String
 
 @external(erlang, "local_jmap_ffi", "request_count")
 fn request_count_ffi(handle: Handle) -> Int
+
+@external(erlang, "local_jmap_ffi", "request_heads")
+fn request_heads_ffi(handle: Handle) -> List(String)
 
 @external(erlang, "local_jmap_ffi", "withholding")
 fn withholding_ffi(handle: Handle) -> Bool

@@ -47,7 +47,30 @@ pub type Error {
 /// One JSON object on stderr, with no trailing newline: the caller writes the
 /// line, so it owns the separator.
 pub fn to_json_line(error: Error) -> String {
-  let fields = case error {
+  json_line(error, [])
+}
+
+/// The same line with a final `cursor` field: the classify run says which input
+/// line failed, and a cursor is the only part of the line it keeps (EX-8).
+pub fn to_json_line_at(error: Error, cursor: String) -> String {
+  json_line(error, [#("cursor", json.string(cursor))])
+}
+
+fn json_line(error: Error, extra: List(#(String, json.Json))) -> String {
+  [
+    #("level", json.string("error")),
+    #("error", json.string(variant_name(error))),
+  ]
+  |> list.append(fields(error))
+  |> list.append(extra)
+  |> json.object
+  |> json.to_string
+}
+
+/// The fields of the variant: what the reason, status or bound was. A line
+/// with a cursor appends it after these.
+fn fields(error: Error) -> List(#(String, json.Json)) {
+  case error {
     Config(reason) -> [#("reason", json.string(reason))]
     Credential(reason) -> [#("reason", json.string(reason))]
     Http(reason) -> [#("reason", json.string(reason))]
@@ -64,14 +87,6 @@ pub fn to_json_line(error: Error) -> String {
     Store(reason) -> [#("reason", json.string(reason))]
     Usage(reason) -> [#("reason", json.string(reason))]
   }
-
-  [
-    #("level", json.string("error")),
-    #("error", json.string(variant_name(error))),
-  ]
-  |> list.append(fields)
-  |> json.object
-  |> json.to_string
 }
 
 /// The path of a decode failure: the first error's segments, list indices as

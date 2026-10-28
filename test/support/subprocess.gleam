@@ -73,6 +73,32 @@ pub fn run_env(
   }
 }
 
+/// Runs `executable` with `args`, feeding `stdin` on the child's standard
+/// input; stdout and stderr are collected separately as in `run`.
+///
+/// The bytes cross to `subprocess_ffi` as a binary and reach the child through
+/// a private temp file, so a case can hand over 16 MiB without an argument.
+pub fn run_stdin(
+  executable: String,
+  args: List(String),
+  stdin: BitArray,
+) -> Result(Record, Failure) {
+  run_stdin_env(executable, args, [], stdin)
+}
+
+/// `run_stdin` with `env` applied as in `run_env`.
+pub fn run_stdin_env(
+  executable: String,
+  args: List(String),
+  env: List(#(String, Option(String))),
+  stdin: BitArray,
+) -> Result(Record, Failure) {
+  case run_stdin_ffi(executable, args, stdin, env) {
+    Ok(#(exit_code, stdout, stderr)) -> Ok(Record(exit_code, stdout, stderr))
+    Error(failure) -> Error(failure)
+  }
+}
+
 /// Runs an Erlang expression with every shipped ebin on the code path.
 pub fn erl_eval(expression: String) -> Result(Record, Failure) {
   case shipment_dir() {
@@ -152,6 +178,14 @@ fn erl_path() -> Result(String, Failure) {
 fn run_ffi(
   executable: String,
   args: List(String),
+  env: List(#(String, Option(String))),
+) -> Result(#(Int, BitArray, String), Failure)
+
+@external(erlang, "subprocess_ffi", "run_stdin")
+fn run_stdin_ffi(
+  executable: String,
+  args: List(String),
+  stdin: BitArray,
   env: List(#(String, Option(String))),
 ) -> Result(#(Int, BitArray, String), Failure)
 

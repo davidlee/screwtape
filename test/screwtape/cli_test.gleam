@@ -19,18 +19,25 @@ import gleam/bit_array
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
+import gleam/http as method
+import gleam/http/response.{Response}
 import gleam/int
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import gleeunit
 import gleeunit/should
+import screwtape/classify/input as classify_input
+import screwtape/classify/state as classify_state
 import screwtape/cli
+import screwtape/error
+import screwtape/http
 import screwtape/model
 import screwtape/store
 import support/cli_fixture
+import support/fixture_send
 import support/jmap_fixture
 import support/local_jmap
 import support/paging
@@ -1829,4 +1836,387 @@ pub fn shipment_list_prints_one_document_test() {
   cli_fixture.field(document, ["kind"], decode.string)
   |> should.equal(Ok("list"))
   cli_fixture.item_ids(document) |> should.equal(Ok(listing_ids(["m6", "m5"])))
+}
+
+// ---------------------------------------------------------------- classify
+
+/// The Jev deployment the classify cases name: a URL no transport reaches (the
+/// scripted `Send` answers instead) and a config model the fixture reply's
+/// bare `jev-1.14.0` is accepted for.
+const jev_base_url = "https://jev.example.test"
+
+/// The bearer secret the classify cases hand the scripted `Send`.
+const jev_secret = "SENTINEL-cli-classify-0123456789abcdef"
+
+/// The stdout document per line; a case's `flat_map` over it assumes the
+/// separator is one newline, which `string.join` makes.
+fn stdout_lines(outcome: cli.Outcome) -> List(String) {
+  let assert Some(text) = outcome.stdout
+  string.split(text, "\n")
+}
+
+/// One stdout line's `kind`.
+fn kind_of(line: String) -> Result(String, Nil) {
+  cli_fixture.field(cli_fixture.stdout_text_json(line), ["kind"], decode.string)
+}
+
+/// One stdout line's `data.id` and `data.cursor`, in order.
+fn document_fields(line: String) -> #(String, String) {
+  let document = cli_fixture.stdout_text_json(line)
+  let assert Ok(id) = cli_fixture.field(document, ["data", "id"], decode.string)
+  let assert Ok(cursor) =
+    cli_fixture.field(document, ["data", "cursor"], decode.string)
+  #(id, cursor)
+}
+
+/// One fixture line by index; a case names the line it fails at.
+fn nth_line(lines: List(String), index: Int) -> String {
+  let assert Ok(line) = list.drop(lines, index) |> list.first
+  line
+}
+
+/// The input lines' ids and cursors, decoded the way the run decodes them.
+fn input_ids_and_cursors(lines: List(String)) -> List(#(String, String)) {
+  list.map(lines, fn(line) {
+    let assert Ok(mail) = classify_input.line(line)
+    #(mail.id, mail.cursor)
+  })
+}
+
+/// One scripted Jev answer at a `Post` position.
+fn jev_step(status: Int, body: String) -> fixture_send.Step {
+  fixture_send.Step(
+    method.Post,
+    Ok(Response(status: status, headers: [], body: body)),
+  )
+}
+
+/// The `send_for` a classify case injects: the fixture's `Send`, whatever
+/// timeout and CA file the config named.
+fn scripted_send(fixture: fixture_send.Fixture) {
+  fn(_timeout_ms, _ca_file) { fixture_send.send(fixture) }
+}
+
+/// The two fakes a classify case pins I5 with: a store opener and a `Send`
+/// factory that panic if called. Classify opens no store and, for `--state`,
+/// builds no `Send`, so a call is a failure; both cases share these.
+fn panicking_fakes() -> #(
+  fn(String) -> Result(store.Reader, error.Error),
+  fn(Int, Option(String)) -> http.Send,
+) {
+  #(fn(_path) { panic as "store opened by classify" }, fn(_, _) {
+    panic as "send built for --state"
+  })
+}
+
+/// Run one classify argv with `stdin` over the scripted `Send`.
+fn run_classify(
+  setup: cli_fixture.ReadSetup,
+  args: List(String),
+  env: fn(String) -> Result(String, Nil),
+  stdin: String,
+  fixture: fixture_send.Fixture,
+) -> cli.Outcome {
+  let #(never_opened, _) = panicking_fakes()
+  cli.run_with(
+    ["--config", setup.config_path, ..args],
+    env,
+    fn() { Ok(stdin) },
+    never_opened,
+    scripted_send(fixture),
+  )
+}
+
+/// VT-1: `--state` needs no credential, no network and no `jev` block — the
+/// five fixture lines each print one `classify_state` document, in order.
+pub fn classify_state_over_the_read_fixture_test() {
+  let setup = cli_fixture.unseeded("cli-classify-state")
+  let lines = cli_fixture.read_after_lines()
+  lines |> list.length |> should.equal(5)
+  let #(never_opened, never_sent) = panicking_fakes()
+  let outcome =
+    cli.run_with(
+      ["--config", setup.config_path, "classify", "--state"],
+      no_env,
+      fn() { Ok(cli_fixture.read_after_stdin()) },
+      never_opened,
+      never_sent,
+    )
+  temp.remove_dir(setup.dir)
+
+  outcome.exit_code |> should.equal(0)
+  outcome.stderr |> should.equal([])
+  let printed = stdout_lines(outcome)
+  printed |> list.length |> should.equal(5)
+  printed
+  |> list.map(kind_of)
+  |> should.equal(list.repeat(Ok("classify_state"), 5))
+  printed
+  |> list.map(document_fields)
+  |> should.equal(input_ids_and_cursors(lines))
+}
+
+/// No lines at all — empty stdin or only blank ones — is nothing on stdout and
+/// exit 0, the shape a selection that selected nothing has (C4).
+pub fn classify_with_no_lines_prints_nothing_test() {
+  let setup = cli_fixture.unseeded("cli-classify-empty")
+  ["", "\n\n"]
+  |> list.each(fn(stdin) {
+    cli.run_piped(
+      ["--config", setup.config_path, "classify", "--state"],
+      no_env,
+      fn() { Ok(stdin) },
+    )
+    |> should.equal(cli.Outcome(None, [], 0))
+  })
+  temp.remove_dir(setup.dir)
+}
+
+/// EX-3: `run` has no stdin, so a classify run through it is `no_stdin`,
+/// which exits 2.
+pub fn classify_through_run_is_no_stdin_test() {
+  let setup = cli_fixture.unseeded("cli-classify-no-stdin")
+  let line =
+    cli.run(["--config", setup.config_path, "classify", "--state"], no_env)
+    |> expect_failure("usage", 2)
+  temp.remove_dir(setup.dir)
+  cli_fixture.error_reason(line) |> should.equal(Ok("no_stdin"))
+}
+
+/// EX-3: a remote classify without the `jev` block is `no_jev` before stdin is
+/// read — the reader would crash the test if it ran.
+pub fn classify_without_jev_block_is_no_jev_test() {
+  let setup = cli_fixture.unseeded("cli-classify-no-jev")
+  let line =
+    cli.run_piped(["--config", setup.config_path, "classify"], no_env, fn() {
+      panic as "stdin read without a jev block"
+    })
+    |> expect_failure("config", 2)
+  temp.remove_dir(setup.dir)
+  cli_fixture.error_reason(line) |> should.equal(Ok("no_jev"))
+}
+
+/// VT-2 through the cli: a bad `jev.base_url` is that config reason and exits
+/// 2; a loopback base URL is accepted, and `--state` then runs without a
+/// credential or a network.
+pub fn classify_config_reasons_through_the_cli_test() {
+  let bad =
+    cli_fixture.jev_config("cli-classify-non-https", "http://jev.example.test")
+  let line =
+    cli.run_piped(["--config", bad.config_path, "classify"], no_env, fn() {
+      Ok("")
+    })
+    |> expect_failure("config", 2)
+  temp.remove_dir(bad.dir)
+  cli_fixture.error_reason(line)
+  |> should.equal(Ok("non_https:jev.base_url"))
+
+  let loopback =
+    cli_fixture.jev_config("cli-classify-loopback", "http://127.0.0.1:4000")
+  let outcome =
+    cli.run_piped(
+      ["--config", loopback.config_path, "classify", "--state"],
+      no_env,
+      fn() { Ok("") },
+    )
+  temp.remove_dir(loopback.dir)
+  outcome |> should.equal(cli.Outcome(None, [], 0))
+}
+
+/// VT-2 through the cli: a `jev.base_url` that passes config but is not a URL
+/// `request.to` can parse is `Config("jev_url")`, exits 2, prints nothing, and
+/// the scripted `Send` is never consulted.
+pub fn classify_unparsable_jev_url_is_jev_url_test() {
+  let setup = cli_fixture.jev_config("cli-classify-bad-url", "https://a b")
+  let credentials = cli_fixture.jev_credential_dir(jev_secret)
+  let line = cli_fixture.read_after_lines() |> nth_line(0)
+  let fixture = fixture_send.start([])
+  let outcome =
+    run_classify(
+      setup,
+      ["classify"],
+      credentials_env(credentials),
+      line,
+      fixture,
+    )
+  temp.remove_dir(setup.dir)
+  temp.remove_dir(credentials)
+
+  outcome.exit_code |> should.equal(2)
+  outcome.stdout |> should.equal(None)
+  let assert [error_line] = outcome.stderr
+  cli_fixture.error_reason(error_line) |> should.equal(Ok("jev_url"))
+  fixture_send.request_count(fixture) |> should.equal(0)
+}
+
+/// VT-1: one line, one Jev POST to `<base_url>/v1/systemone`, one `classify`
+/// document; three lines are three of each and no warnings.
+pub fn classify_posts_each_line_and_prints_a_document_test() {
+  let setup = cli_fixture.jev_config("cli-classify-remote", jev_base_url)
+  let credentials = cli_fixture.jev_credential_dir(jev_secret)
+  let lines = list.take(cli_fixture.read_after_lines(), 3)
+  let reply = cli_fixture.jev_reply("mail-1-reply.json")
+  let fixture = fixture_send.start(list.repeat(jev_step(200, reply), 3))
+  let outcome =
+    run_classify(
+      setup,
+      ["classify"],
+      credentials_env(credentials),
+      string.join(lines, "\n"),
+      fixture,
+    )
+  temp.remove_dir(setup.dir)
+  temp.remove_dir(credentials)
+
+  outcome.exit_code |> should.equal(0)
+  outcome.stderr |> should.equal([])
+  let printed = stdout_lines(outcome)
+  printed |> list.length |> should.equal(3)
+  printed
+  |> list.map(kind_of)
+  |> should.equal(list.repeat(Ok("classify"), 3))
+  printed
+  |> list.map(document_fields)
+  |> should.equal(input_ids_and_cursors(lines))
+
+  fixture_send.request_count(fixture) |> should.equal(3)
+  fixture_send.recorded(fixture)
+  |> list.map(fn(request) { request.url })
+  |> should.equal(list.repeat(jev_base_url <> "/v1/systemone", 3))
+
+  // Each request carries its own line's state: three copies of one state would
+  // fail, and so would a body that is not the state `build` makes.
+  let states =
+    list.map(lines, fn(line) {
+      let assert Ok(mail) = classify_input.line(line)
+      json.to_string(classify_state.build(mail))
+    })
+  list.zip(
+    fixture_send.recorded(fixture) |> list.map(fn(request) { request.body }),
+    states,
+  )
+  |> list.each(fn(pair) {
+    let #(body, state) = pair
+    string.contains(body, state) |> should.be_true
+  })
+}
+
+/// VT-4: a failure at the third line leaves exactly the first two documents on
+/// stdout, and the one error line names the bound and the failing line's
+/// cursor; exit 1.
+pub fn classify_stops_at_the_failing_line_test() {
+  let setup = cli_fixture.jev_config("cli-classify-k2", jev_base_url)
+  let credentials = cli_fixture.jev_credential_dir(jev_secret)
+  let lines = list.take(cli_fixture.read_after_lines(), 3)
+  let reply = cli_fixture.jev_reply("mail-1-reply.json")
+  let limit = cli_fixture.jev_reply("max-tokens-exceeded-400.json")
+  let fixture =
+    fixture_send.start([
+      jev_step(200, reply),
+      jev_step(200, reply),
+      jev_step(400, limit),
+    ])
+  let outcome =
+    run_classify(
+      setup,
+      ["classify"],
+      credentials_env(credentials),
+      string.join(lines, "\n"),
+      fixture,
+    )
+
+  // The same first two lines through a passing run: its stdout is the exact
+  // text the failing run must have printed before line three.
+  let passing = fixture_send.start(list.repeat(jev_step(200, reply), 2))
+  let ok =
+    run_classify(
+      setup,
+      ["classify"],
+      credentials_env(credentials),
+      string.join(list.take(lines, 2), "\n"),
+      passing,
+    )
+  temp.remove_dir(setup.dir)
+  temp.remove_dir(credentials)
+
+  ok.exit_code |> should.equal(0)
+  outcome.exit_code |> should.equal(1)
+  outcome.stdout |> should.equal(ok.stdout)
+  let assert [line] = outcome.stderr
+  cli_fixture.error_kind(line) |> should.equal(Ok("limit_exceeded"))
+  cli_fixture.field(
+    cli_fixture.stdout_text_json(line),
+    ["bound"],
+    decode.string,
+  )
+  |> should.equal(Ok("jev_context"))
+  let assert Ok(mail) = classify_input.line(nth_line(lines, 2))
+  cli_fixture.field(
+    cli_fixture.stdout_text_json(line),
+    ["cursor"],
+    decode.string,
+  )
+  |> should.equal(Ok(mail.cursor))
+}
+
+/// VT-4: a failure at the first line prints nothing, one error line, exit 1.
+pub fn classify_failure_at_the_first_line_prints_nothing_test() {
+  let setup = cli_fixture.jev_config("cli-classify-k0", jev_base_url)
+  let credentials = cli_fixture.jev_credential_dir(jev_secret)
+  let line = cli_fixture.read_after_lines() |> nth_line(0)
+  let limit = cli_fixture.jev_reply("max-tokens-exceeded-400.json")
+  let fixture = fixture_send.start([jev_step(400, limit)])
+  let outcome =
+    run_classify(
+      setup,
+      ["classify"],
+      credentials_env(credentials),
+      line,
+      fixture,
+    )
+  temp.remove_dir(setup.dir)
+  temp.remove_dir(credentials)
+
+  outcome.exit_code |> should.equal(1)
+  outcome.stdout |> should.equal(None)
+  let assert [error_line] = outcome.stderr
+  cli_fixture.error_kind(error_line) |> should.equal(Ok("limit_exceeded"))
+  let assert Ok(mail) = classify_input.line(line)
+  cli_fixture.field(
+    cli_fixture.stdout_text_json(error_line),
+    ["cursor"],
+    decode.string,
+  )
+  |> should.equal(Ok(mail.cursor))
+}
+
+/// EX-8: a line that does not decode is the plain `decode` line with no
+/// `cursor`; the good line before it is already on stdout.
+pub fn classify_non_decoding_line_has_no_cursor_test() {
+  let setup = cli_fixture.jev_config("cli-classify-decode", jev_base_url)
+  let credentials = cli_fixture.jev_credential_dir(jev_secret)
+  let good = cli_fixture.read_after_lines() |> nth_line(0)
+  let reply = cli_fixture.jev_reply("mail-1-reply.json")
+  let fixture = fixture_send.start([jev_step(200, reply)])
+  let outcome =
+    run_classify(
+      setup,
+      ["classify"],
+      credentials_env(credentials),
+      good <> "\n{\"version\":2}",
+      fixture,
+    )
+  temp.remove_dir(setup.dir)
+  temp.remove_dir(credentials)
+
+  outcome.exit_code |> should.equal(1)
+  stdout_lines(outcome) |> list.length |> should.equal(1)
+  let assert [error_line] = outcome.stderr
+  cli_fixture.error_kind(error_line) |> should.equal(Ok("decode"))
+  cli_fixture.field(
+    cli_fixture.stdout_text_json(error_line),
+    ["cursor"],
+    decode.string,
+  )
+  |> should.equal(Error(Nil))
 }

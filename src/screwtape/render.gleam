@@ -1,15 +1,18 @@
-//// The JSON output documents (PHASE-06; design § 5.2, § 5.1): every verb's
-//// stdout is one `{"version": 1, "kind": <verb>, "data": …}` envelope, and
-//// `envelope` is its only writer.
+//// The JSON output documents (PHASE-06, PHASE-13; design § 5.2, § 5.1): every
+//// verb's stdout is one `{"version": 1, "kind": <verb>, "data": …}` envelope,
+//// and `envelope` is its only writer.
 ////
 //// Pure: model values in, JSON text out. Optional values print as `null`,
 //// never omitted; times print their raw `UtcDate` text.
 
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import screwtape/classify/schema
 import screwtape/cursor
+import screwtape/jev
 import screwtape/model.{
   type Address, type AddressField, type Attachment, type Body, type Mailbox,
   type Message, type MessageSummary, type Source, type ThreadEntry,
@@ -26,6 +29,81 @@ pub fn envelope(kind: String, data: Json) -> String {
     #("data", data),
   ])
   |> json.to_string
+}
+
+/// `classify`: the classified state's provenance plus `answers`, one key per
+/// question in the schema's order (EX-6).
+pub fn classify(
+  id id: String,
+  cursor cursor: String,
+  reply reply: jev.Reply,
+) -> String {
+  envelope(
+    "classify",
+    json.object([
+      #("id", json.string(id)),
+      #("cursor", json.string(cursor)),
+      #("schema", json.string(schema.id)),
+      #("model", json.string(reply.model)),
+      #("answers", json.object(list.map(reply.answers, answer_entry))),
+    ]),
+  )
+}
+
+/// `classify --state`: the same provenance with the state the classifier would
+/// send, so a consumer can inspect it without asking (EX-6).
+pub fn classify_state(
+  id id: String,
+  cursor cursor: String,
+  state state: Json,
+) -> String {
+  envelope(
+    "classify_state",
+    json.object([
+      #("id", json.string(id)),
+      #("cursor", json.string(cursor)),
+      #("schema", json.string(schema.id)),
+      #("state", state),
+    ]),
+  )
+}
+
+fn answer_entry(entry: #(jev.Question, jev.Answer)) -> #(String, Json) {
+  #(jev.question_name(entry.0), answer_json(entry.1))
+}
+
+/// One answer in its question type's shape: a choice's label distribution, a
+/// noul's probability, or a score's distribution keyed by level index.
+fn answer_json(answer: jev.Answer) -> Json {
+  case answer {
+    jev.ChoiceAnswer(choice, confidence, probabilities) ->
+      json.object([
+        #("choice", json.string(choice)),
+        #("confidence", json.float(confidence)),
+        #(
+          "probabilities",
+          json.object(
+            list.map(probabilities, fn(entry) {
+              #(entry.0, json.float(entry.1))
+            }),
+          ),
+        ),
+      ])
+    jev.NoulAnswer(noul) -> json.object([#("noul", json.float(noul))])
+    jev.ScoreAnswer(score, confidence, probabilities) ->
+      json.object([
+        #("score", json.float(score)),
+        #("confidence", json.float(confidence)),
+        #(
+          "probabilities",
+          json.object(
+            list.index_map(probabilities, fn(probability, index) {
+              #(int.to_string(index), json.float(probability))
+            }),
+          ),
+        ),
+      ])
+  }
 }
 
 /// `mailboxes`: `{"items": [mailbox]}`, in the order given.

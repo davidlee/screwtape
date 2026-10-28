@@ -31,7 +31,7 @@
 
 -export([
     start/1, load/2, stop/1, port/1, ca_path/1,
-    request_count/1, withholding/1, release/1
+    request_count/1, request_heads/1, withholding/1, release/1
 ]).
 
 %% The certificate the scripted server presents: the same SANs as local_tls.
@@ -43,9 +43,9 @@
 
 start(Script) ->
     State = spawn(fun() ->
-        state_loop(#{script => Script, count => 0, withheld => [], blocking => false})
+        state_loop(#{script => Script, count => 0, heads => [], withheld => [], blocking => false})
     end),
-    Handle = local_tls_ffi:serve(?SANS, fun(Socket) -> respond(Socket, State) end),
+    Handle = local_tls_ffi:serve(?SANS, fun(Socket, Head) -> respond(Socket, Head, State) end),
     Handle#{state => State}.
 
 %% Close the listener, unblock any withheld connection, delete the CA PEM.
@@ -72,6 +72,10 @@ load(#{state := State}, Script) ->
 request_count(#{state := State}) ->
     call(State, request_count).
 
+%% The request line and headers of every request received, in arrival order.
+request_heads(#{state := State}) ->
+    call(State, request_heads).
+
 withholding(#{state := State}) ->
     call(State, withholding).
 
@@ -85,9 +89,16 @@ release(#{state := State}) ->
 %% withholding/1 reports; `withheld` is the connections waiting for a release.
 state_loop(#{script := Script, count := Count, withheld := Withheld} = State) ->
     receive
-        {next, From} ->
+        {{next, Head}, From} ->
             From ! {reply, next_from_script(Script)},
-            state_loop(State#{script := rest_of_script(Script), count := Count + 1});
+            state_loop(State#{
+                script := rest_of_script(Script),
+                count := Count + 1,
+                heads := [Head | maps:get(heads, State)]
+            });
+        {request_heads, From} ->
+            From ! {reply, lists:reverse(maps:get(heads, State))},
+            state_loop(State);
         {{withheld, Worker}, From} ->
             From ! {reply, ok},
             state_loop(State#{withheld := [Worker | Withheld], blocking := true});
@@ -126,8 +137,8 @@ rest_of_script([]) ->
 
 %% The responder local_tls_ffi:serve/2 calls, with the request already read:
 %% one scripted reply, after which the shared loop closes the socket.
-respond(Socket, State) ->
-    send_reply(Socket, State, call(State, next)).
+respond(Socket, Head, State) ->
+    send_reply(Socket, State, call(State, {next, Head})).
 
 %% One scripted reply, or a 500 once the script is spent. A withheld reply
 %% registers with the state process *before* its first byte goes out: a client

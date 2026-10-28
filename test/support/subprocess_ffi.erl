@@ -19,10 +19,23 @@
 %% for the executable or its arguments.
 -module(subprocess_ffi).
 
--export([run/2, run/3, getenv/1, is_dir/1, ebin_dirs/1, find_executable/1]).
+-export([
+    run/2,
+    run/3,
+    run_stdin/3,
+    run_stdin/4,
+    getenv/1,
+    is_dir/1,
+    ebin_dirs/1,
+    find_executable/1
+]).
 
 %% $0 = "screwtape-subprocess", $1 = stderr path, $2.. = executable + args.
 -define(SCRIPT, "s=$1; shift; exec \"$@\" 2>\"$s\"").
+
+%% $0 = "screwtape-subprocess", $1 = stderr path, $2 = stdin path,
+%% $3.. = executable + args.
+-define(STDIN_SCRIPT, "s=$1; i=$2; shift 2; exec \"$@\" <\"$i\" 2>\"$s\"").
 
 %% A child that has written nothing for this long is hung: close the port
 %% rather than block the whole run.
@@ -40,9 +53,23 @@ run(Executable, Args) ->
     run(Executable, Args, []).
 
 run(Executable, Args, Env) ->
-    case temp_ffi:file("screwtape-subprocess") of
-        {ok, StderrPath} -> run_with_stderr(StderrPath, Executable, Args, Env);
-        {error, Reason} -> {error, {spawn_failed, Reason}}
+    run_capture(?SCRIPT, [], Executable, Args, Env).
+
+%% As run/3, with `Stdin` fed to the child's standard input. The bytes go
+%% through a private temp file redirected into the child: an argument cannot
+%% carry 16 MiB, and this keeps the script's arguments positional.
+run_stdin(Executable, Args, Stdin) ->
+    run_stdin(Executable, Args, Stdin, []).
+
+%% As run_stdin/3, with `Env` as in run/3.
+run_stdin(Executable, Args, Stdin, Env) ->
+    case temp_ffi:file("screwtape-stdin") of
+        {ok, StdinPath} ->
+            Result = write_stdin(StdinPath, Stdin, Executable, Args, Env),
+            temp_ffi:remove_file(StdinPath),
+            Result;
+        {error, Reason} ->
+            {error, {spawn_failed, Reason}}
     end.
 
 %% Returns {ok, Value} or {error, nil} (Gleam Result(String, Nil)).
@@ -81,8 +108,30 @@ find_executable(Name) ->
 
 %% Internals
 
-run_with_stderr(StderrPath, Executable, Args, Env) ->
+write_stdin(StdinPath, Stdin, Executable, Args, Env) ->
+    case file:write_file(ffi_terms:to_list(StdinPath), Stdin) of
+        ok ->
+            run_capture(?STDIN_SCRIPT, [StdinPath], Executable, Args, Env);
+        {error, Reason} ->
+            {error,
+                {spawn_failed,
+                    ffi_terms:format(
+                        "cannot write the stdin file ~ts: ~p", [StdinPath, Reason]
+                    )}}
+    end.
+
+run_capture(Script, FixedArgs, Executable, Args, Env) ->
+    case temp_ffi:file("screwtape-subprocess") of
+        {ok, StderrPath} ->
+            run_with_stderr(Script, FixedArgs, StderrPath, Executable, Args, Env);
+        {error, Reason} ->
+            {error, {spawn_failed, Reason}}
+    end.
+
+run_with_stderr(Script, FixedArgs, StderrPath, Executable, Args, Env) ->
     Started = start(
+        Script,
+        FixedArgs,
         StderrPath,
         ffi_terms:to_list(Executable),
         [ffi_terms:to_list(Arg) || Arg <- Args],
@@ -104,14 +153,13 @@ run_with_stderr(StderrPath, Executable, Args, Env) ->
             {error, {spawn_failed, Reason}}
     end.
 
-start(StderrPath, Executable, Args, Env) ->
+start(Script, FixedArgs, StderrPath, Executable, Args, Env) ->
     PortArgs = [
         "-c",
-        ?SCRIPT,
+        Script,
         "screwtape-subprocess",
-        ffi_terms:to_list(StderrPath),
-        Executable
-        | Args
+        ffi_terms:to_list(StderrPath)
+        | [ffi_terms:to_list(Arg) || Arg <- FixedArgs] ++ [Executable | Args]
     ],
     try
         {ok,

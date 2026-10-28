@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a182f0-0620-7b43-ad8a-32692b8fe88a"
+recorded_at = "2026-10-28T14:35:30.720767185Z"
+kind = "friction"
+summary = "pi implement runs hit the 15-min wall clock on subprocess/edge work"
+detail = "SL-004 PHASE-13 T5 (stdin reader + subprocess tests): two pi runs timed out (each ~15 min) debugging erl stdio encoding; orchestrator finished the one-line fix. W1 (three small pure tasks) also timed out once. Brief smaller tasks or hand edge/FFI work to a Claude worker."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

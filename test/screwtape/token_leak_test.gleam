@@ -50,6 +50,7 @@
 //// fail a run before any case reached its own edge.
 
 import gleam/bit_array
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleeunit
@@ -365,6 +366,66 @@ pub fn query_state_keeps_moving_test() {
   should_fail_late(record, "query_unstable", None)
 }
 
+// ---------------------------------------------------------------- case 13
+
+/// SL-004 EX-9 / VT-6 (RV-016 F-1): a `classify` run over the loopback TLS
+/// server whose Jev reply reflects the credential in `model`. The reply's model
+/// is not the configured one, so the run fails with `Decode("model")`; the error
+/// line names only our path, and neither stdout, stderr nor the line holds a
+/// byte of the key. The reflected form is the sentinel lowercased
+/// (`sentinel-i1-9f3c1d7a4b2e5068`): ASCII lowercase letters, digits and `-`
+/// only, so it is a well-formed model id as it stands and every sentinel byte is
+/// checked, in both forms, with no lossy derivation. The server must also have
+/// received the bearer header, so the absence below is not for want of a run.
+pub fn classify_reflected_model_test() {
+  let reflected = string.lowercase(sentinel)
+  let reply =
+    cli_fixture.jev_reply("mail-1-reply.json")
+    |> string.replace(
+      "\"model\": \"jev-1.14.0\"",
+      "\"model\": \"" <> reflected <> "\"",
+    )
+  string.contains(reply, reflected) |> should.be_true
+  let server =
+    local_jmap.start_with(fn(_base_url) {
+      list.repeat(local_jmap.reply(200, reply), 3)
+    })
+  let credentials = cli_fixture.jev_credential_dir(sentinel)
+  let #(dir, config) =
+    cli_fixture.config_dir(
+      "i1-classify",
+      cli_fixture.config_text_jev(
+        "https://api.example.test/session",
+        "unused.sqlite3",
+        Some(server.ca_path),
+        local_jmap.url(server, ""),
+        cli_fixture.jev_credential_name,
+        cli_fixture.jev_model,
+      ),
+    )
+  let assert Ok(line) = list.first(cli_fixture.read_after_lines())
+  let record =
+    unwrap(subprocess.run_stdin_env(
+      subprocess.entrypoint(unwrap(subprocess.shipment_dir())),
+      ["run", "--config", config, "classify"],
+      [#("CREDENTIALS_DIRECTORY", Some(credentials))],
+      bit_array.from_string(line <> "\n"),
+    ))
+  let heads = local_jmap.request_heads(server)
+  local_jmap.release(server)
+  local_jmap.stop(server)
+  temp.remove_dir(dir)
+  temp.remove_dir(credentials)
+
+  should_fail_late(record, "decode", Some("\"path\":\"model\""))
+  assert_no_reflected_sentinel(record)
+  // Non-vacuous: the server saw one POST carrying the bearer key.
+  heads |> list.length |> should.equal(1)
+  heads
+  |> list.all(string.contains(_, "Bearer " <> sentinel))
+  |> should.be_true
+}
+
 // ---------------------------------------------------------------- driver
 
 /// Run one scenario both ways: the shipment subprocess (cases 1-8's assertions)
@@ -638,6 +699,17 @@ fn assert_internal_error(record: subprocess.Record) -> Nil {
   record.stderr
   |> should.equal("{\"level\":\"error\",\"error\":\"internal\"}\n")
   record.stderr |> string.contains(sentinel) |> should.be_false
+}
+
+/// The sentinel is absent from both streams in the form the suite checks and in
+/// the lowercase form a server may reflect.
+fn assert_no_reflected_sentinel(record: subprocess.Record) -> Nil {
+  let stdout = bit_array.to_string(record.stdout) |> should.be_ok
+  [sentinel, string.lowercase(sentinel)]
+  |> list.each(fn(form) {
+    stdout |> string.contains(form) |> should.be_false
+    record.stderr |> string.contains(form) |> should.be_false
+  })
 }
 
 fn unwrap(result: Result(a, subprocess.Failure)) -> a {

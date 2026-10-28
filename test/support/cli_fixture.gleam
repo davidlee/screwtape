@@ -20,8 +20,10 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import screwtape/classify/input as classify_input
 import screwtape/cli
 import screwtape/credential
+import screwtape/file
 import screwtape/model
 import screwtape/store
 import support/jmap_fixture
@@ -72,6 +74,26 @@ pub fn config_text_with(
   )
 }
 
+/// The same document with a `jev` block, for the classify run's remote path.
+pub fn config_text_jev(
+  session_url: String,
+  store_path: String,
+  ca_file: Option(String),
+  base_url: String,
+  credential_name: String,
+  model: String,
+) -> String {
+  document_jev(
+    session_url,
+    store_path,
+    ca_file,
+    ["inbox"],
+    default_max_total_bytes,
+    default_request_timeout_ms,
+    Some(#(base_url, credential_name, model)),
+  )
+}
+
 /// The same document over a given window, for the case that names a mailbox the
 /// server does not have (the run reaches `Mailbox/get` and fails there).
 pub fn config_text_window(
@@ -98,6 +120,26 @@ fn document(
   max_total_bytes: Int,
   request_timeout_ms: Int,
 ) -> String {
+  document_jev(
+    session_url,
+    store_path,
+    ca_file,
+    mailboxes,
+    max_total_bytes,
+    request_timeout_ms,
+    None,
+  )
+}
+
+fn document_jev(
+  session_url: String,
+  store_path: String,
+  ca_file: Option(String),
+  mailboxes: List(String),
+  max_total_bytes: Int,
+  request_timeout_ms: Int,
+  jev jev: Option(#(String, String, String)),
+) -> String {
   let fields = [
     #("session_url", json.string(session_url)),
     #("credential_name", json.string("fastmail")),
@@ -119,6 +161,20 @@ fn document(
     None -> fields
     Some(path) -> list.append(fields, [#("ca_file", json.string(path))])
   }
+  let fields = case jev {
+    None -> fields
+    Some(#(base_url, credential_name, model)) ->
+      list.append(fields, [
+        #(
+          "jev",
+          json.object([
+            #("base_url", json.string(base_url)),
+            #("credential_name", json.string(credential_name)),
+            #("model", json.string(model)),
+          ]),
+        ),
+      ])
+  }
   json.object(fields) |> json.to_string
 }
 
@@ -134,9 +190,63 @@ pub fn config_dir(prefix: String, text: String) -> #(String, String) {
 /// A fresh temp directory holding the credential file `fastmail`, whose trimmed
 /// contents are `secret`.
 pub fn credential_dir(secret: String) -> String {
+  credential_dir_named("fastmail", secret)
+}
+
+/// A fresh temp directory holding the credential file `name`.
+pub fn credential_dir_named(name: String, secret: String) -> String {
   let dir = temp.dir("cli-credentials")
-  temp.write(dir <> "/fastmail", bit_array.from_string(secret <> "\n"))
+  temp.write(dir <> "/" <> name, bit_array.from_string(secret <> "\n"))
   dir
+}
+
+/// The credential name the classify configs use.
+pub const jev_credential_name = "jev"
+
+/// The model they carry: the bare model `test/fixtures/jev/mail-1-reply.json`
+/// answers with, behind a provider prefix `jev.reply` accepts.
+pub const jev_model = "typesafe/jev-1.14.0"
+
+/// The credentials directory a classify run reads: the `jev` credential.
+pub fn jev_credential_dir(secret: String) -> String {
+  credential_dir_named(jev_credential_name, secret)
+}
+
+/// A config naming a store that does not exist yet, with a `jev` block pointed
+/// at `base_url`.
+pub fn jev_config(prefix: String, base_url: String) -> ReadSetup {
+  let dir = temp.dir(prefix)
+  let store_path = dir <> "/mail.sqlite3"
+  let config_path = dir <> "/config.json"
+  temp.write(
+    config_path,
+    bit_array.from_string(config_text_jev(
+      unused_session_url,
+      store_path,
+      None,
+      base_url,
+      jev_credential_name,
+      jev_model,
+    )),
+  )
+  ReadSetup(dir, store_path, config_path)
+}
+
+/// The mail fixture's five `read` documents as stdin, newline terminated.
+pub fn read_after_stdin() -> String {
+  let assert Ok(text) = file.read_text("test/fixtures/mail/read-after-1.json")
+  text
+}
+
+/// The same fixture's lines, split the way the classify run splits stdin.
+pub fn read_after_lines() -> List(String) {
+  classify_input.lines(read_after_stdin())
+}
+
+/// A Jev fixture's body, from `test/fixtures/jev`.
+pub fn jev_reply(name: String) -> String {
+  let assert Ok(text) = file.read_text("test/fixtures/jev/" <> name)
+  text
 }
 
 /// The only way to a `Token`: a real file, read by `credential.read`.
@@ -236,6 +346,12 @@ fn threads_reply() -> local_jmap.Reply {
 /// The `inbox` mailbox `jmap_fixture.email` files its messages in.
 fn inbox() -> jmap_fixture.Mailbox {
   jmap_fixture.mailbox("mb-1", "Inbox", Some("inbox"))
+}
+
+/// The error line's `reason` field, for the failures whose reason names the
+/// check that refused.
+pub fn error_reason(line: String) -> Result(String, Nil) {
+  field(stdout_text_json(line), ["reason"], decode.string)
 }
 
 /// The error line as a decoded document's `error` field, so a case does not

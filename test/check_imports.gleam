@@ -155,7 +155,13 @@ const rules = [
   ),
   Rule(
     "src/screwtape/render.gleam",
-    ["screwtape/cursor", "screwtape/model", "screwtape/utf8"],
+    [
+      "screwtape/classify/schema",
+      "screwtape/cursor",
+      "screwtape/jev",
+      "screwtape/model",
+      "screwtape/utf8",
+    ],
     ["gleam_stdlib", "gleam_json"],
     NoExternal,
   ),

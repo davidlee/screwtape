@@ -2,7 +2,8 @@
 //// in, one `Command` out, or the one `Usage`.
 ////
 //// argv is `--config <path> <verb> [args]`: `sync`, or one of the read verbs
-//// `mailboxes`, `list`, `read` and `thread` (PHASE-06, D7). `parse` turns it
+//// `mailboxes`, `list`, `read` and `thread` (PHASE-06, D7), or `classify`
+//// with its one optional `--state` (PHASE-13, EX-1). `parse` turns it
 //// into one `Command`; every shape it does not accept is a `Usage`, whose
 //// reason is a fixed code and never one of the arguments (I1).
 ////
@@ -38,6 +39,7 @@ pub type Verb {
   Read(id: String, max_bytes: Option(Int))
   ReadAfter(filters: Filters, after: Cursor, limit: Int, max_bytes: Int)
   Thread(id: String, limit: Int)
+  Classify(state_only: Bool)
 }
 
 /// `list`'s checked filters with their defaults applied; `since_ms` is the
@@ -114,6 +116,9 @@ fn verb_command(
         let #(id, limit) = parsed
         Command(path, Thread(id, limit))
       })
+    "classify", [] -> Ok(Command(path, Classify(False)))
+    "classify", ["--state"] -> Ok(Command(path, Classify(True)))
+    "classify", _ -> usage("unexpected_argument")
     _, _ -> usage("unknown_verb")
   }
 }

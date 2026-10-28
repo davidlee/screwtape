@@ -34,6 +34,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleeunit/should
 import screwtape/cli
+import screwtape/error
 import screwtape/model.{
   type Message, type Snapshot, Address, Attachment, Body, From, Message,
   PlainText, Snapshot, Thread, To, UtcDate,
@@ -131,9 +132,15 @@ fn cli_read_verb_serves_one_snapshot(
 
   let expected = cli.run(argv, fn(_name) { Error(Nil) })
   let actual =
-    cli.run_with(argv, fn(_name) { Error(Nil) }, fn(path) {
-      store.open_reader_with(path, commit_hook(path, new_snapshot, None))
-    })
+    cli.run_with(
+      argv,
+      fn(_name) { Error(Nil) },
+      fn() { Error(error.Usage("no_stdin")) },
+      fn(path) {
+        store.open_reader_with(path, commit_hook(path, new_snapshot, None))
+      },
+      cli.production_send,
+    )
   let afterwards = cli.run(argv, fn(_name) { Error(Nil) })
   temp.remove_dir(setup.dir)
 

@@ -62,6 +62,14 @@ Updated after rounds 5–6 (F-13, the jev_context error-line tag): the conclusio
 - Orchestrator pii fixes: 12 rows added (quoted/decomposed/apostrophe emails, fractional-second runs, double-`@` userinfo, IPv6 ports, y/m/d + time, ISO fraction/offset) plus the 64k near-address test; 564 passed. Two of my expectations were wrong (a time without seconds before `:` is a whole token, so `12.12.2026 14:00:[number]`), corrected.
 - T6 pi implement ($0.065, 35 req, final): R1-R9 review fixes; 577 passed on the host gate. Honest about weak reds: R3, R4, R6, R7 were green before their fixes (contract-preserving).
 
+### PHASE-13 passes (2026-10-28)
+- W1 pi implement ($0.062, 50 req; wall-clock timeout, one short continuation): T1 config jev block, T2 argv Classify, T3 render classify/classify_state; byte-exact contract strings transcribed from the spec; 588 passed. Made `jev.question_name` public (reuse).
+- W2 pi implement ($0.065, 33 req, final): T4 run_piped/run_with, dispatch → Outcome, classify loop, `error.to_json_line_at`, cli_fixture jev helpers, 9 cli cases; 597 passed. No misses on read.
+- W3 pi implement ($0.085, two runs, both wall-clock timeouts): T5 edge reader + `subprocess.run_stdin`. Miss: setting `{encoding, latin1}` on standard_io and leaving it escaped every codepoint >255 in stdout as `\x{…}`; orchestrator fixed (restore the device encoding). Design's `{encoding, unicode}` does not work (observed `no_translation` on valid UTF-8, `\xff` passed through).
+- W4 Sonnet capsule-worker (reason: security negative control; pi failed twice next door): token_leak classify case, reflected lowercase sentinel in `model`; bearer header asserted at the server; planted-leak controls fired; 601 passed. Shared `local_tls_ffi` responder now receives the request head.
+- VA-1 pi review (deepseek-flash max, $0.100, 52 req): 10 findings, no blocker/major. F1 I5 unpinned (accept: panicking opener/send fakes). F2 k=0 cursor unasserted (accept). F3 one state per line unproved (accept). F4 printed model is the reply's (configured or its last-`/` part) not the configured string (reject for this phase: § 5.2 rule, I2 drift already deferred to audit). F5 EX-7 "Some(lines)" vs empty-stdin None (accept: one `joined` rule shared with read --after, documented; EX-7 wording drift deferred to audit). F6 unparsable https base_url passes config, fails `Config("jev_url")` at the first ask (accept: test added; stricter validation would need a sixth reason, not in EX-2). F7 set-vs-order assertion (accept: comment). F8 duplication (accept: `joined`, `broken`, `jev_reply`; token-leak helper fold rejected, nit). F9 temp dirs leaked (accept). F10 VT-3 keyword (accept: tests renamed `read_stdin_*`).
+- Fix pi implement ($0.046, 36 req, final): R1-R8; bite probes reverted (I5 opener panics; constant state and dropped cursor both fail); host gate 602 passed.
+
 ## Implementation run
 Seat: /super-orchestrator, 2026-10-28. Phases in order PHASE-01, PHASE-12, PHASE-13, PHASE-14. Main worktree, no dispatch. Halt before audit.
 
@@ -101,3 +109,9 @@ Seat: /super-orchestrator, 2026-10-28. Phases in order PHASE-01, PHASE-12, PHASE
 - PHASE-12 · EX-12 "probabilities with exactly our keys" cannot hold alongside "never decode.dict"; extra keys are ignored (VA-2 F3 disproved the earlier sum argument) · design contradiction · flagged to seat; deferred (audit)
 - PHASE-12 · non-ASCII digits/separators survive rule 5 · outside the design's ASCII rules · deferred (RSK-001)
 - PHASE-12 · VT-1 table: one spec row contradicted the whole-token rule (space-joined shapes), corrected; 6 rows added after a boundary leak · strengthens the contract · decided
+- PHASE-13 · cli tests reach `fixture_send` through an injected `send_for` in `@internal run_with` (production passes `production_send`) · design names only `production_send`; keeps § 5.2 · decided
+- PHASE-13 · the edge reads stdin as raw bytes (`{encoding, latin1}`), validates UTF-8 with `unicode:characters_to_binary/1`, then restores the device encoding · design § 5.2 says `{encoding, unicode}`: observed `file:read` then fails `no_translation` on valid UTF-8 and lets `\xff` through, and leaving latin1 escapes output codepoints >255; contract unchanged · decided, flag for audit
+- PHASE-13 · `jev.question_name` made public for render (POL-001) · decided
+- seat · EX-12 count-only decode.dict for probabilities · operator ruling 2026-10-29 · decided
+- PHASE-13 · review F4: printed `model` is the reply's accepted form, not the configured string · § 5.2 rule; same I2 drift · deferred (audit)
+- PHASE-13 · review F5: EX-7 says success is `Some(lines)`; empty stdin is `None` per § 5.5 edge case, shared `joined` rule · EX-7 wording drift · deferred (audit)

@@ -28,6 +28,12 @@
 //// The production `Send`'s Erlang binding lives here (D8), so the program has
 //// exactly one: `production_send` closes it over the run's timeout and CA file,
 //// and the transport tests import that instead of binding their own.
+////
+//// `classify` is the one verb that reads stdin: `run_piped` takes the reader, so
+//// the process edge passes the function and only the run asks. `--state` builds
+//// and renders each line's state locally; a remote run needs the config's `jev`
+//// block, the credential and one Jev POST per line. A line that fails keeps the
+//// documents before it on stdout, and its error line carries that line's cursor.
 
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
@@ -38,12 +44,16 @@ import gleam/result
 import gleam/string
 import gleam/time/timestamp
 import screwtape/argv
+import screwtape/classify/input
+import screwtape/classify/schema
+import screwtape/classify/state as classify_state
 import screwtape/config
 import screwtape/credential
 import screwtape/cursor
 import screwtape/error.{type Error}
 import screwtape/file
 import screwtape/http
+import screwtape/jev/client as jev_client
 import screwtape/jmap/client
 import screwtape/model
 import screwtape/render
@@ -57,29 +67,40 @@ pub type Outcome {
   Outcome(stdout: Option(String), stderr: List(String), exit_code: Int)
 }
 
-/// Run one invocation. Pure of process effects: no printing, no exit.
+/// Run one invocation. Pure of process effects: no printing, no exit, and no
+/// stdin — a verb that reads it gets `Usage("no_stdin")`.
 pub fn run(
   args: List(String),
   env: fn(String) -> Result(String, Nil),
 ) -> Outcome {
-  run_with(args, env, store.open_reader)
+  run_piped(args, env, fn() { Error(error.Usage("no_stdin")) })
 }
 
-/// `run` with the read verbs' reader opener injected. Exposed so the I8 tests
-/// can hand every read verb a reader whose selects commit a new snapshot.
+/// `run` with stdin injected: the classify verb reads it, every other verb does
+/// not, so the reader runs only when the verb asks.
+pub fn run_piped(
+  args: List(String),
+  env: fn(String) -> Result(String, Nil),
+  read_stdin: fn() -> Result(String, Error),
+) -> Outcome {
+  run_with(args, env, read_stdin, store.open_reader, production_send)
+}
+
+/// `run_piped` with the reader opener and the `Send` factory injected: the I8
+/// tests hand every read verb a hooked reader, the classify tests a scripted
+/// `Send`. Production passes `store.open_reader` and `production_send`.
 @internal
 pub fn run_with(
   args: List(String),
   env: fn(String) -> Result(String, Nil),
+  read_stdin: fn() -> Result(String, Error),
   open_reader: fn(String) -> Result(store.Reader, Error),
+  send_for: fn(Int, Option(String)) -> http.Send,
 ) -> Outcome {
   case argv.parse(args) {
     Error(error) -> failure(error)
     Ok(argv.Command(path, verb)) ->
-      case dispatch(path, verb, env, open_reader) {
-        Ok(#(stdout, warnings)) -> Outcome(stdout, warnings, 0)
-        Error(error) -> failure(error)
-      }
+      dispatch(path, verb, env, read_stdin, open_reader, send_for)
   }
 }
 
@@ -92,26 +113,33 @@ pub fn production_send(timeout_ms: Int, ca_file: Option(String)) -> http.Send {
 
 // ---------------------------------------------------------------- verbs
 
-/// Run the parsed verb: `sync`, or one read verb over the config's store. The
-/// stdout is `None` only for a selection that selected nothing.
+/// Run the parsed verb. The existing verbs share `outcome`; the classify run
+/// builds its own `Outcome` because a late failure keeps the documents already
+/// printed (EX-7).
 fn dispatch(
   path: String,
   verb: argv.Verb,
   env: fn(String) -> Result(String, Nil),
+  read_stdin: fn() -> Result(String, Error),
   open_reader: fn(String) -> Result(store.Reader, Error),
-) -> Result(#(Option(String), List(String)), Error) {
+  send_for: fn(Int, Option(String)) -> http.Send,
+) -> Outcome {
   let run_read = fn(query) { read_verb(path, open_reader, query) }
   let run_document = fn(document) {
     run_read(fn(tx) { document(tx) |> result.map(Some) })
   }
   case verb {
-    argv.Sync -> sync(path, env, open_reader)
-    argv.Mailboxes -> run_document(mailboxes_document)
-    argv.List(filters, page) -> run_document(list_document(filters, page))
-    argv.Read(id, max_bytes) -> run_document(read_document(id, max_bytes))
+    argv.Sync -> outcome(sync(path, env, open_reader))
+    argv.Mailboxes -> outcome(run_document(mailboxes_document))
+    argv.List(filters, page) ->
+      outcome(run_document(list_document(filters, page)))
+    argv.Read(id, max_bytes) ->
+      outcome(run_document(read_document(id, max_bytes)))
     argv.ReadAfter(filters, after, limit, max_bytes) ->
-      run_read(read_stream(filters, after, limit, max_bytes))
-    argv.Thread(id, limit) -> run_document(thread_document(id, limit))
+      outcome(run_read(read_stream(filters, after, limit, max_bytes)))
+    argv.Thread(id, limit) -> outcome(run_document(thread_document(id, limit)))
+    argv.Classify(state_only) ->
+      classify_run(path, state_only, env, read_stdin, send_for)
   }
 }
 
@@ -249,20 +277,17 @@ fn read_stream(
     use list_query <- result.try(list_query(tx, filters, page))
     use ids <- result.try(query.message_ids(tx, list_query))
     use messages <- result.try(query.messages_of(tx, ids))
-    case messages {
-      [] -> Ok(None)
-      _ ->
+    Ok(
+      joined(
         list.map(messages, fn(message) {
           render.read(
             account_id: account_id,
             message: message,
             max_bytes: Some(max_bytes),
           )
-        })
-        |> string.join("\n")
-        |> Some
-        |> Ok
-    }
+        }),
+      ),
+    )
   }
 }
 
@@ -410,7 +435,158 @@ fn states(states: List(model.TypeState)) -> json.Json {
   )
 }
 
+// ---------------------------------------------------------------- classify
+
+/// How the classify run answers one line: `--state` builds the state and
+/// renders it locally; otherwise each line is one Jev request over the run's
+/// `Send` and the document carries Jev's reply.
+type Classifier {
+  Local
+  Remote(
+    endpoint: jev_client.Endpoint,
+    token: credential.Token,
+    send: http.Send,
+  )
+}
+
+/// The classify run (EX-3, EX-5, EX-7): the config, then — unless `--state` —
+/// the `jev` block, the credential and a `Send`; then stdin, then one document
+/// per line, in order, stopping at the first `Error`.
+fn classify_run(
+  path: String,
+  state_only: Bool,
+  env: fn(String) -> Result(String, Nil),
+  read_stdin: fn() -> Result(String, Error),
+  send_for: fn(Int, Option(String)) -> http.Send,
+) -> Outcome {
+  case read_classifier(path, state_only, env, send_for) {
+    Error(error) -> failure(error)
+    Ok(classifier) ->
+      case read_stdin() {
+        Error(error) -> failure(error)
+        Ok(stdin) -> classify_lines(classifier, input.lines(stdin))
+      }
+  }
+}
+
+fn read_classifier(
+  path: String,
+  state_only: Bool,
+  env: fn(String) -> Result(String, Nil),
+  send_for: fn(Int, Option(String)) -> http.Send,
+) -> Result(Classifier, Error) {
+  use settings <- result.try(read_config(path))
+  case state_only {
+    True -> Ok(Local)
+    False ->
+      case settings.jev {
+        None -> Error(error.Config("no_jev"))
+        Some(jev) -> {
+          use dir <- result.try(credentials_directory(env))
+          use token <- result.try(credential.read(dir, jev.credential_name))
+          Ok(Remote(
+            endpoint: jev_client.Endpoint(
+              base_url: jev.base_url,
+              model: jev.model,
+            ),
+            token: token,
+            send: send_for(settings.request_timeout_ms, settings.ca_file),
+          ))
+        }
+      }
+  }
+}
+
+/// One document per line, in order; no line at all prints nothing, and a line
+/// that fails keeps the documents before it on stdout (EX-7, EX-8).
+fn classify_lines(classifier: Classifier, lines: List(String)) -> Outcome {
+  case classify_walk(classifier, lines, []) {
+    Ok(documents) -> Outcome(joined(documents), [], 0)
+    Error(#(error, documents, cursor)) ->
+      Outcome(
+        joined(documents),
+        [line_at(error, cursor)],
+        error.exit_code(error),
+      )
+  }
+}
+
+/// The walk, carrying the documents printed so far (newest first) and, on a
+/// failure, the decoded line's cursor so the error line can name it.
+fn classify_walk(
+  classifier: Classifier,
+  lines: List(String),
+  documents: List(String),
+) -> Result(List(String), #(Error, List(String), Option(String))) {
+  case lines {
+    [] -> Ok(list.reverse(documents))
+    [line, ..rest] ->
+      case input.line(line) {
+        Error(error) -> Error(#(error, list.reverse(documents), None))
+        Ok(mail) ->
+          case classify_mail(classifier, mail) {
+            Error(error) ->
+              Error(#(error, list.reverse(documents), Some(mail.cursor)))
+            Ok(document) ->
+              classify_walk(classifier, rest, [document, ..documents])
+          }
+      }
+  }
+}
+
+fn classify_mail(
+  classifier: Classifier,
+  mail: input.Mail,
+) -> Result(String, Error) {
+  case classifier {
+    Local ->
+      Ok(render.classify_state(
+        id: mail.id,
+        cursor: mail.cursor,
+        state: classify_state.build(mail),
+      ))
+    Remote(endpoint, token, send) -> {
+      use reply <- result.try(jev_client.ask(
+        send,
+        token,
+        endpoint,
+        classify_state.build(mail),
+        schema.mail_1(),
+      ))
+      Ok(render.classify(id: mail.id, cursor: mail.cursor, reply: reply))
+    }
+  }
+}
+
+/// The joined stdout, or nothing when no document was printed: no document
+/// prints nothing — stdout `None`, as a selection that selected nothing (C4);
+/// empty stdin is the classify case.
+fn joined(documents: List(String)) -> Option(String) {
+  case documents {
+    [] -> None
+    _ -> Some(string.join(documents, "\n"))
+  }
+}
+
+/// The one stderr line: with the decoded line's cursor, or the plain line when
+/// the line did not decode (EX-8).
+fn line_at(error: Error, cursor: Option(String)) -> String {
+  case cursor {
+    None -> error.to_json_line(error)
+    Some(cursor) -> error.to_json_line_at(error, cursor)
+  }
+}
+
 // ---------------------------------------------------------------- outcome
+
+/// The one translation the existing verbs share: `Ok` is exit 0 with its
+/// stdout and warnings, `Error` the plain failure line.
+fn outcome(result: Result(#(Option(String), List(String)), Error)) -> Outcome {
+  case result {
+    Ok(#(stdout, warnings)) -> Outcome(stdout, warnings, 0)
+    Error(error) -> failure(error)
+  }
+}
 
 fn failure(error: Error) -> Outcome {
   Outcome(None, [error.to_json_line(error)], error.exit_code(error))

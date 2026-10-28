@@ -17,7 +17,9 @@ import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
+import screwtape/classify/schema
 import screwtape/cursor
+import screwtape/jev
 import screwtape/model.{
   type Address, type AddressField, type Attachment, type Body, type Mailbox,
   type Message, type MessageSummary, type Source, type TruncatedBy, type UtcDate,
@@ -26,6 +28,7 @@ import screwtape/model.{
   ThreadPage, To, UtcDate,
 }
 import screwtape/render
+import support/cli_fixture
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -903,4 +906,76 @@ pub fn thread_page_shorter_than_total_is_truncated_test() {
       ),
     ]),
   ))
+}
+
+// ---------------------------------------------------------------------------
+// classify and classify_state (PHASE-13 T3; EX-6, VT-5)
+// ---------------------------------------------------------------------------
+
+/// The contract reply of EX-6: one choice, one noul and one score.
+fn contract_reply() -> jev.Reply {
+  jev.Reply("jev-1.14.0", [
+    #(
+      jev.Choice("a", "i", [#("x", "dx"), #("y", "dy")]),
+      jev.ChoiceAnswer("y", 0.7, [#("x", 0.3), #("y", 0.7)]),
+    ),
+    #(jev.Noul("n", "i"), jev.NoulAnswer(0.25)),
+    #(
+      jev.Score("s", "i", ["l0", "l1", "l2"]),
+      jev.ScoreAnswer(1.5, 0.5, [0.1, 0.5, 0.4]),
+    ),
+  ])
+}
+
+/// Byte for byte: the keys in the documented order, the answers in the reply's.
+pub fn classify_contract_test() {
+  render.classify(id: "M1", cursor: "C1", reply: contract_reply())
+  |> should.equal(
+    "{\"version\":1,\"kind\":\"classify\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-1\",\"model\":\"jev-1.14.0\",\"answers\":{\"a\":{\"choice\":\"y\",\"confidence\":0.7,\"probabilities\":{\"x\":0.3,\"y\":0.7}},\"n\":{\"noul\":0.25},\"s\":{\"score\":1.5,\"confidence\":0.5,\"probabilities\":{\"0\":0.1,\"1\":0.5,\"2\":0.4}}}}}",
+  )
+}
+
+pub fn classify_state_contract_test() {
+  render.classify_state(
+    id: "M1",
+    cursor: "C1",
+    state: json.object([#("subject", json.null())]),
+  )
+  |> should.equal(
+    "{\"version\":1,\"kind\":\"classify_state\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-1\",\"state\":{\"subject\":null}}}",
+  )
+}
+
+/// True when every `"<name>":{` occurs after the previous one: the answers
+/// object's keys are in the given order.
+fn keys_in_order(text: String, names: List(String)) -> Bool {
+  case names {
+    [] -> True
+    [name, ..rest] ->
+      case string.split_once(text, "\"" <> name <> "\":{") {
+        Ok(#(_, after)) -> keys_in_order(after, rest)
+        Error(Nil) -> False
+      }
+  }
+}
+
+/// The stored `mail-1` reply renders its answers by question name, in schema
+/// order (VT-5).
+pub fn classify_fixture_answers_are_in_question_order_test() {
+  let reply_text = cli_fixture.jev_reply("mail-1-reply.json")
+  let assert Ok(reply) = jev.reply(reply_text, schema.mail_1(), "jev-1.14.0")
+  let names = list.map(schema.mail_1(), jev.question_name)
+  let document = render.classify(id: "M1", cursor: "C1", reply: reply)
+
+  keys_in_order(document, names) |> should.be_true
+  parse(document)
+  |> at_field("data")
+  |> at_field("answers")
+  |> fn(answers) {
+    let assert VObject(fields) = answers
+    fields
+    |> list.map(fn(field) { field.0 })
+    // Completeness: every question is answered, not merely in order.
+    |> should.equal(list.sort(names, string.compare))
+  }
 }

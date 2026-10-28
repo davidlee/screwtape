@@ -1,4 +1,5 @@
-//// The configuration document (PHASE-10; design § 5.2, DEC-009).
+//// The configuration document (PHASE-10, PHASE-13; design § 5.2, DEC-009,
+//// DEC-033).
 ////
 //// `parse` is total over its input: a document that does not decode and a
 //// document that decodes but breaks a rule both come back as
@@ -25,6 +26,12 @@ pub type Window {
   )
 }
 
+/// The classifier endpoint the `classify` verb asks (EX-2): the base URL, the
+/// credential its token comes from, and the model it names.
+pub type Jev {
+  Jev(base_url: String, credential_name: String, model: String)
+}
+
 pub type Config {
   Config(
     session_url: String,
@@ -36,6 +43,7 @@ pub type Config {
     max_total_bytes: Int,
     request_timeout_ms: Int,
     ca_file: Option(String),
+    jev: Option(Jev),
   )
 }
 
@@ -62,6 +70,7 @@ fn decoder() -> decode.Decoder(Config) {
     None,
     decode.optional(decode.string),
   )
+  use jev <- decode.optional_field("jev", None, decode.optional(jev_decoder()))
   decode.success(Config(
     session_url:,
     credential_name:,
@@ -72,7 +81,15 @@ fn decoder() -> decode.Decoder(Config) {
     max_total_bytes:,
     request_timeout_ms:,
     ca_file:,
+    jev:,
   ))
+}
+
+fn jev_decoder() -> decode.Decoder(Jev) {
+  use base_url <- decode.field("base_url", decode.string)
+  use credential_name <- decode.field("credential_name", decode.string)
+  use model <- decode.field("model", decode.string)
+  decode.success(Jev(base_url:, credential_name:, model:))
 }
 
 /// The window as JSON, for the `sync` row's provenance (`window_json`).
@@ -144,6 +161,7 @@ fn validate(config: Config) -> Result(Config, Error) {
     "non_https:session_url",
   ))
   use _ <- result.try(check_ca_file(config.ca_file))
+  use _ <- result.try(check_jev(config.jev))
   Ok(config)
 }
 
@@ -165,6 +183,57 @@ fn positive_if_set(value: Option(Int), field: String) -> Result(Nil, Error) {
     None -> Ok(Nil)
     Some(number) -> positive(number, field)
   }
+}
+
+/// The optional `jev` block, checked only when present (EX-2, DEC-033): the
+/// first failing rule is the reason, and none of them quotes a value.
+fn check_jev(jev: Option(Jev)) -> Result(Nil, Error) {
+  case jev {
+    None -> Ok(Nil)
+    Some(jev) -> {
+      use _ <- result.try(check(
+        is_jev_url(jev.base_url),
+        "non_https:jev.base_url",
+      ))
+      use _ <- result.try(check(
+        !string.ends_with(jev.base_url, "/"),
+        "trailing_slash:jev.base_url",
+      ))
+      use _ <- result.try(check(
+        !string.is_empty(jev.credential_name),
+        "empty:jev.credential_name",
+      ))
+      use _ <- result.try(check(
+        !string.contains(jev.credential_name, "/"),
+        "invalid:jev.credential_name",
+      ))
+      check(!string.is_empty(jev.model), "empty:jev.model")
+    }
+  }
+}
+
+/// The classifier is reached over TLS, or over plain HTTP only on loopback with
+/// a numeric port and no path (DEC-033).
+fn is_jev_url(url: String) -> Bool {
+  string.starts_with(url, "https://")
+  || url == "http://127.0.0.1"
+  || is_loopback_port(url)
+}
+
+fn is_loopback_port(url: String) -> Bool {
+  let prefix = "http://127.0.0.1:"
+  case string.starts_with(url, prefix) {
+    False -> False
+    True -> {
+      let port = string.drop_start(from: url, up_to: string.length(prefix))
+      !string.is_empty(port)
+      && port |> string.to_graphemes |> list.all(is_ascii_digit)
+    }
+  }
+}
+
+fn is_ascii_digit(grapheme: String) -> Bool {
+  string.contains("0123456789", grapheme)
 }
 
 /// A `ca_file` is optional, but when given it is trusted instead of the system
