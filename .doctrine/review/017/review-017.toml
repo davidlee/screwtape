@@ -1,0 +1,24 @@
+id    = 17
+slug  = "design-review-of-sl-004"
+title = "design review of SL-004"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Adversarial pass (quotient pi reviewer, review profile, run run-20261028T102248308Z-5-05ebd2c7ea88) over the run rev 38 delta: the eval moved out of sec-01, sec-03, sec-05-3, sec-05-4, sec-06, sec-08, sec-09, sec-10 into IMP-003. Probed dangling eval references, content SL-004 still needs, cross-section consistency, and whether IMP-003 holds the eval design completely. No design findings. Five out-of-design items were fixed directly (plan PHASE-10/11 superseded, eval selectors removed, IMP-003 provenance and read-envelope note) or surfaced to the operator (POL-002 '(SL-004)' attribution)."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-004"
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

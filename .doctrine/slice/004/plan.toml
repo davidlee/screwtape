@@ -29,7 +29,7 @@ id        = "PHASE-01"
 name      = "HTTP seam lift"
 objective = "Move Send, HttpFailure, the status mapping and the transport-failure mapping out of jmap/client into the new pure module screwtape/http (design § 5.2 screwtape/http), as a pure move behind the existing tests (design § 8). jmap/client keeps its budget and problem-document branch."
 entrance_criteria = [
-  { id = "EN-1", text = "SL-004 design is locked (run dr-01a181a1, rev 36)." },
+  { id = "EN-1", text = "SL-004 design is locked (run dr-01a181a1), with the eval moved to IMP-003." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "src/screwtape/http.gleam defines HttpFailure, Send, status/1 (2xx Ok; 401/403 Auth; 429 RateLimited; other Http(\"status_<n>\")) and failure/2 (TooLarge → LimitExceeded(bound))." },
@@ -42,221 +42,114 @@ verification = [
   { id = "VT-1", expects = "transport tests exercise the lifted types", test_file = "test/screwtape/transport_test.gleam", keywords = ["http.TooLarge", "http.HttpFailure"], waived = false },
   { id = "VT-2", expects = "http is listed as a governed pure module", test_file = "test/check_imports.gleam", keywords = ["src/screwtape/http.gleam"], waived = false },
   { id = "VA-1", text = "grep finds no client.Send, client.HttpFailure or duplicate status mapping in src or test." },
+  { id = "VA-2", text = "Phase review (code-review, quotient pi reviewer) confirms a pure move: no behaviour change in jmap/client; findings disposed before the next phase." },
 ]
 specs        = []
 requirements = []
 
-[[phase]]
-id        = "PHASE-02"
-name      = "Jev reply-shape probe (A1)"
-objective = "Settle assumption A1 before the codec is built: with the interim TypeSafe key, make live Jev requests with a synthetic state and the mail-1 questions, and with a synthetic oversized state, and record the reply and error shapes as committed fixtures. Settles the reply keys, the F-9 tolerances (RV-016 F-9) and where max_tokens_exceeded sits in a 400 body (design § 5.2 jev/client)."
-entrance_criteria = [
-  { id = "EN-1", text = "PHASE-01 is complete." },
-  { id = "EN-2", text = "The operator has stored the interim key exactly as screwtape-provision will (systemd-creds encrypt --user --name=jev - ~/.config/credstore.encrypted/screwtape.jev), so the same file serves the wrapper later; the agent never sees the key." },
-]
-exit_criteria = [
-  { id = "EX-1", text = "The probe runs under systemd-run --user --pipe with LoadCredentialEncrypted=jev:…; the key reaches the HTTP client only through a shell builtin, never through any process argv, environment, file outside the unit, output or the transcript (I1)." },
-  { id = "EX-2", text = "test/fixtures/jev/ holds a recorded mail-1 reply and a recorded max_tokens_exceeded 400 body, from synthetic state only (no mail, no key), with a PROVENANCE.md giving date, model id and request shape." },
-  { id = "EX-3", text = "The slice notes record, per question type: the reply keys, whether probabilities sum to 1 and how far, whether choice is the argmax, and score vs Σ i·pᵢ; plus the reported model string and the 400 error-code path." },
-  { id = "EX-4", text = "Any divergence from design § 5.2 (keys, tolerances, model equality rule, error-code location) goes to /consult and, if needed, a design revision before PHASE-05." },
-]
-verification = [
-  { id = "VH-1", text = "Operator confirms the probe ran with their key and that nothing secret was printed." },
-  { id = "VA-1", text = "Fixtures contain no key bytes and no real mail; their shape matches what the notes record." },
-]
-specs        = []
-requirements = []
 
 [[phase]]
-id        = "PHASE-03"
-name      = "pii strip"
-objective = "Build the self-contained strip (design § 5.2 screwtape/pii; DEC-034): strip(String) -> String over Erlang re through a separate screwtape_pii_ffi.erl, rules as pattern/replacement constants in order, with whole-token date, time and date-with-time protection."
+id        = "PHASE-12"
+name      = "Pure core: pii, input, state, Jev codec, schema, client"
+objective = "Build every pure module classify needs, tested against spec-based fixtures: the self-contained strip (design § 5.2 screwtape/pii; DEC-034), the read-line decoder and bounded state builder (classify/input, classify/state; DEC-034 as amended), the Jev codec with the RV-016 F-1 and F-9 checks (screwtape/jev), the mail-1 schema (classify/schema; DEC-035) and the one-POST exchange (jev/client). Jev fixtures follow the OpenAPI spec (research Thread 3); PHASE-14's live check confirms them (A1). Supersedes draft PHASE-03, -04 and -05."
 entrance_criteria = [
   { id = "EN-1", text = "PHASE-01 is complete." },
 ]
 exit_criteria = [
-  { id = "EX-1", text = "Rules 1–5 apply in order: [email]; scheme://host plus /[…] when a path, query or fragment was dropped (no port, no userinfo); [ip]; protected dates and times; [number] for 8+ digits with single space, dash or dot separators." },
+  { id = "EX-1", text = "pii rules 1–5 apply in order: [email]; scheme://host plus /[…] when a path, query or fragment was dropped (no port, no userinfo); [ip]; protected dates and times; [number] for 8+ digits with single space, dash or dot separators." },
   { id = "EX-2", text = "Date protection: day 1–31, month 1–12 (leading zero allowed), year 2 or 4 digits (4 in y/m/d); a date followed by a single space and a time is one shape; nothing rule 5 would join may touch either end (RV-016 F-2)." },
   { id = "EX-3", text = "pii imports only gleam_stdlib and its FFI; screwtape_pii_ffi exports only replace/3 calling re:replace/4 with [global, unicode, caseless, {return, binary}]." },
   { id = "EX-4", text = "check_imports holds Rule(src/screwtape/pii.gleam, [], [gleam_stdlib], FfiOnly) and the FFI beam-import allowlist (re:replace/4, erlang:get_module_info/1,2)." },
-  { id = "EX-5", text = "just check is clean." },
+  { id = "EX-5", text = "input.line accepts only version 1 kind read (else Decode(\"version\") / Decode(\"kind\")); missing or mistyped fields give Decode(path) with only our field names; unlisted fields are ignored; blank lines skipped; Mail carries output_truncated." },
+  { id = "EX-6", text = "state.build emits subject, sender_domains, sender_domains_omitted, bodies, bodies_omitted, attachments, attachments_omitted and nothing else (I3): no display names, local parts, header ids or provenance." },
+  { id = "EX-7", text = "Bounds: body texts 16,384 bytes total in body order; 10 bodies; subject 512 B; 10 domains of ≤253 B; 20 attachments; type and name 128 B each; all cuts on a codepoint via utf8.prefix." },
+  { id = "EX-8", text = "Control characters other than tab, LF, CR are removed, then pii.strip, then the cut; a body cut here is is_truncated true (RV-016 F-3, F-4)." },
+  { id = "EX-9", text = "Cut on arrival: is_truncated, or output_truncated for the last body with text and every later body (every body if none has text); such a body loses its last partial word before stripping and is sent is_truncated true (RV-016 F-3, F-12)." },
+  { id = "EX-10", text = "Scrubbed malebolge fixtures (~/dev/malebolge/test/mail/fixtures/real/) are copied to test/fixtures/mail/ with PROVENANCE.md citing malebolge SOURCE.md and SCRUB.md." },
+  { id = "EX-11", text = "request_body gives {model, state, questions: {name: {type, instructions, criteria?}}}; choice criteria are a label→description object; score levels an ordered array." },
+  { id = "EX-12", text = "reply decodes with decode.at per known question, never decode.dict; checks type, choice in labels and argmax (ties allowed), probabilities with exactly our keys in [0,1] summing to 1 within the tolerance, confidence and noul in [0,1], score in [0,n-1] and within tolerance of Σ i·pᵢ, and model equal to the configured model or its text after the last '/' (RV-016 F-1, F-9). The two tolerances are named constants, so PHASE-14 can adjust them." },
+  { id = "EX-13", text = "Every codec failure is Decode(path) with only our names and labels; extra answers or keys are ignored." },
+  { id = "EX-14", text = "schema.id is mail-1; mail_1() holds the DEC-035 questions, each instructions prefixed with the preamble, text verbatim from DEC-035." },
+  { id = "EX-15", text = "client.ask POSTs once to base_url/v1/systemone with bearer, content-type and accept headers; response cap 65,536 → LimitExceeded(\"jev_response_bytes\"); 401 Auth, 429 RateLimited, 529 Http(\"status_529\"); 400 with max_tokens_exceeded (compared, never printed) and 413 → LimitExceeded(\"jev_context\"); other 400 Http(\"status_400\"); no non-2xx body printed." },
+  { id = "EX-16", text = "test/fixtures/jev/ holds a mail-1 reply and a max_tokens_exceeded 400 body modelled on the OpenAPI spec, with a PROVENANCE.md marking them spec-derived and pending A1 (PHASE-14)." },
+  { id = "EX-17", text = "check_imports holds classify/input, classify/state, classify/schema, jev and jev/client as pure; just check is clean." },
 ]
 verification = [
   { id = "VT-1", expects = "table of #(input, expected): each rule; protected dates and times; must-strip near-dates 0412.345.678, a grouped card number, 12.12.2026 3456; surviving 12.12.2026 14:00; mixed text", test_file = "test/screwtape/pii_test.gleam", keywords = ["pii.strip", "0412.345.678", "12.12.2026 3456", "12.12.2026 14:00", "[email]", "[number]", "[ip]"], waived = false },
-  { id = "VT-2", expects = "pii is held self-contained and its FFI allowlisted", test_file = "test/check_imports.gleam", keywords = ["src/screwtape/pii.gleam", "screwtape_pii_ffi", "re:replace/4"], waived = false },
-  { id = "VA-1", text = "Phase review (code-review, Opus subagent) probing the pii regexes against the design § 9 near-date table and the whole-token boundary; findings disposed before the next phase." },
+  { id = "VT-2", expects = "pii is held self-contained and its FFI allowlisted; the other new modules are pure", test_file = "test/check_imports.gleam", keywords = ["src/screwtape/pii.gleam", "screwtape_pii_ffi", "re:replace/4", "src/screwtape/jev.gleam", "src/screwtape/classify/state.gleam"], waived = false },
+  { id = "VT-3", expects = "input: scrubbed fixtures decode; wrong version or kind; missing field; error path holds no input keys", test_file = "test/screwtape/classify_input_test.gleam", keywords = ["input.line", "Decode(\"version\")", "Decode(\"kind\")", "output_truncated"], waived = false },
+  { id = "VT-4", expects = "state: each bound and _omitted count; control chars removed; many short URLs still fit 16,384 B after strip; cut-on-arrival from real render.read output ending mid-address, and € with max_bytes 1; field set; strip everywhere", test_file = "test/screwtape/classify_state_test.gleam", keywords = ["state.build", "render.read", "bodies_omitted", "attachments_omitted", "sender_domains_omitted", "16_384"], waived = false },
+  { id = "VT-5", expects = "codec: request shape per question type; spec-based reply decodes; hostile replies (wrong type, unknown choice, out-of-range or extra/missing or non-normalised probabilities, non-argmax choice, inconsistent score, other model, lowercase key-shaped model, non-object) give Decode with only our names", test_file = "test/screwtape/jev_test.gleam", keywords = ["jev.request_body", "jev.reply", "Decode(", "test/fixtures/jev"], waived = false },
+  { id = "VT-6", expects = "client through fixture_send: URL and headers, 401, 429, 529, TooLarge, 400 max_tokens_exceeded and 413 → jev_context, other 400 → status_400", test_file = "test/screwtape/jev_client_test.gleam", keywords = ["client.ask", "jev_context", "status_400", "jev_response_bytes"], waived = false },
+  { id = "VA-1", text = "Phase review (code-review, quotient pi reviewer) of all six modules against design § 5.2 and § 9; findings disposed before the next phase." },
+  { id = "VA-2", text = "Correctness-critical review (Codex gpt-6.1-sol): the pii regexes against the design § 9 near-date table and the whole-token boundary, and the reply decoder against DEC-012 and DEC-014 (no server text reaches an Error, no decode.dict); findings disposed before the next phase." },
 ]
 specs        = []
 requirements = []
 
 [[phase]]
-id        = "PHASE-04"
-name      = "classify input and state"
-objective = "Decode one v1 read line into Mail (design § 5.2 classify/input) and build the bounded, stripped state (classify/state; DEC-034 as amended): field set, per-field bounds and _omitted counts, control-character removal, strip then cut, cut-on-arrival handling of output_truncated."
+id        = "PHASE-13"
+name      = "classify verb"
+objective = "Wire and complete the classify verb (design § 5.2 argv and cli, config, the edge, render): argv Classify(state_only), the optional jev config block, cli.run_piped with a typed read_stdin, dispatch returning Outcome, the edge stdin reader, the classify and classify_state envelopes, and the loop: credential (skipped for --state), production_send, per line input → state → jev/client.ask → render.classify, stopping at the first failure with the prefix kept and the cursor on the error line (DEC-037). Extend the token-leak suite. Supersedes draft PHASE-06 and -07."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-03 is complete." },
-]
-exit_criteria = [
-  { id = "EX-1", text = "input.line accepts only version 1 kind read (else Decode(\"version\") / Decode(\"kind\")); missing or mistyped fields give Decode(path) with only our field names; unlisted fields are ignored; Mail carries output_truncated." },
-  { id = "EX-2", text = "state.build emits subject, sender_domains, sender_domains_omitted, bodies, bodies_omitted, attachments, attachments_omitted and nothing else (I3): no display names, local parts, header ids or provenance." },
-  { id = "EX-3", text = "Bounds: body texts 16,384 bytes total in body order; 10 bodies; subject 512 B; 10 domains of ≤253 B; 20 attachments; type and name 128 B each; all cuts on a codepoint via utf8.prefix." },
-  { id = "EX-4", text = "Control characters other than tab, LF, CR are removed, then pii.strip, then the cut; a body cut here is is_truncated true (RV-016 F-3, F-4)." },
-  { id = "EX-5", text = "Cut on arrival: is_truncated, or output_truncated for the last body with text and every later body (every body if none has text); such a body loses its last partial word before stripping and is sent is_truncated true (RV-016 F-3, F-12)." },
-  { id = "EX-6", text = "Scrubbed malebolge fixtures are copied to test/fixtures/mail/ with PROVENANCE.md citing malebolge SOURCE.md and SCRUB.md; check_imports holds input and state as pure." },
-  { id = "EX-7", text = "just check is clean." },
-]
-verification = [
-  { id = "VT-1", expects = "input: scrubbed fixtures decode; wrong version or kind; missing field; error path holds no input keys", test_file = "test/screwtape/classify_input_test.gleam", keywords = ["input.line", "Decode(\"version\")", "Decode(\"kind\")", "output_truncated"], waived = false },
-  { id = "VT-2", expects = "state: each bound and _omitted count; control chars removed; many short URLs still fit 16,384 B after strip; cut-on-arrival from real render.read output ending mid-address, and € with max_bytes 1; field set; strip everywhere", test_file = "test/screwtape/classify_state_test.gleam", keywords = ["state.build", "render.read", "bodies_omitted", "attachments_omitted", "sender_domains_omitted", "16_384"], waived = false },
-  { id = "VA-1", text = "Phase review (code-review, Opus subagent) probing the bounds, strip-then-cut order and cut-on-arrival rule against RV-016 F-3, F-4, F-12; findings disposed before the next phase." },
-]
-specs        = []
-requirements = []
-
-[[phase]]
-id        = "PHASE-05"
-name      = "Jev codec, mail-1 schema, client"
-objective = "Build screwtape/jev (types, request_body, reply with the RV-016 F-1 and F-9 checks), classify/schema (mail_1 from DEC-035 with its preamble) and jev/client (one POST, 64 KiB cap, status and jev_context mapping), against the PHASE-02 recorded fixtures."
-entrance_criteria = [
-  { id = "EN-1", text = "PHASE-02 is complete and any design divergence it found is resolved." },
-]
-exit_criteria = [
-  { id = "EX-1", text = "request_body gives {model, state, questions: {name: {type, instructions, criteria?}}}; choice criteria are a label→description object; score levels an ordered array." },
-  { id = "EX-2", text = "reply decodes with decode.at per known question, never decode.dict; checks type, choice in labels and argmax (ties allowed), probabilities with exactly our keys in [0,1] summing to 1 within the tolerance, confidence and noul in [0,1], score in [0,n-1] and within tolerance of Σ i·pᵢ, and model equal to the configured model or its text after the last '/' (RV-016 F-1, F-9)." },
-  { id = "EX-3", text = "Every failure is Decode(path) with only our names and labels; extra answers or keys are ignored." },
-  { id = "EX-4", text = "schema.id is mail-1; mail_1() holds the DEC-035 questions, each instructions prefixed with the preamble, text verbatim from DEC-035." },
-  { id = "EX-5", text = "client.ask POSTs once to base_url/v1/systemone with bearer, content-type and accept headers; response cap 65,536 → LimitExceeded(\"jev_response_bytes\"); 401 Auth, 429 RateLimited, 529 Http(\"status_529\"); 400 with max_tokens_exceeded (compared, never printed) and 413 → LimitExceeded(\"jev_context\"); other 400 Http(\"status_400\"); no non-2xx body printed." },
-  { id = "EX-6", text = "check_imports holds jev, jev/client and classify/schema as pure; just check is clean." },
-]
-verification = [
-  { id = "VT-1", expects = "codec: request shape per question type; recorded reply decodes; hostile replies (wrong type, unknown choice, out-of-range or extra/missing or non-normalised probabilities, non-argmax choice, inconsistent score, other model, lowercase key-shaped model, non-object) give Decode with only our names", test_file = "test/screwtape/jev_test.gleam", keywords = ["jev.request_body", "jev.reply", "Decode(", "test/fixtures/jev"], waived = false },
-  { id = "VT-2", expects = "client through fixture_send: URL and headers, 401, 429, 529, TooLarge, 400 max_tokens_exceeded and 413 → jev_context, other 400 → status_400", test_file = "test/screwtape/jev_client_test.gleam", keywords = ["client.ask", "jev_context", "status_400", "jev_response_bytes"], waived = false },
-  { id = "VA-1", text = "Phase review (code-review, Opus subagent) probing that no server text reaches an Error and that decode never uses decode.dict (DEC-012, DEC-014); findings disposed before the next phase." },
-]
-specs        = []
-requirements = []
-
-[[phase]]
-id        = "PHASE-06"
-name      = "classify verb plumbing and --state"
-objective = "Wire the classify verb up to the point of calling Jev: argv Classify(state_only), the optional jev config block and its validation, cli.run_piped with a typed read_stdin, dispatch returning Outcome, the edge stdin reader, and the classify_state envelope — so classify --state works end to end."
-entrance_criteria = [
-  { id = "EN-1", text = "PHASE-04 is complete." },
+  { id = "EN-1", text = "PHASE-12 is complete." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "argv accepts classify and classify --state; anything else is Usage(...) under the existing reasons." },
   { id = "EX-2", text = "config parses the optional jev {base_url, credential_name, model} block with the five validation reasons, including DEC-033's http://127.0.0.1[:port] exception; classify without --state and without the block is Config(\"no_jev\"), exit 2." },
   { id = "EX-3", text = "cli.run keeps its signature for every caller and delegates to run_piped(args, env, read_stdin: fn() -> Result(String, Error)) answering Error(Usage(\"no_stdin\")) (RV-016 F-10); dispatch returns Outcome through one outcome helper." },
   { id = "EX-4", text = "screwtape_ffi:read_stdin/0 returns {ok, Binary} or {error, too_large | bad_utf8 | read_failed}; main maps them to LimitExceeded(\"stdin_bytes\"), Decode(\"stdin_utf8\"), Decode(\"stdin\") and calls it only for classify." },
-  { id = "EX-5", text = "classify --state prints one classify_state envelope per input line, in order, without reading a credential; blank lines skipped; empty stdin gives empty stdout, exit 0." },
-  { id = "EX-6", text = "just check is clean." },
+  { id = "EX-5", text = "classify --state prints one classify_state envelope per input line, in order, without reading a credential; empty stdin gives empty stdout, exit 0." },
+  { id = "EX-6", text = "render.classify prints {version 1, kind classify, data {id, cursor, schema, model, answers}} with keys in question then label or level order (DEC-036)." },
+  { id = "EX-7", text = "Success is Outcome(Some(lines), [], 0); a failure at message k > 0 keeps lines before k plus one error line; k = 0 has stdout None; exit 1 (2 for usage or config)." },
+  { id = "EX-8", text = "Once a line has decoded, its failure's error line carries that message's cursor, e.g. {level error, error limit_exceeded, bound jev_context, cursor …}." },
+  { id = "EX-9", text = "token_leak runs classify over the loopback TLS server with the sentinel key, and the server reflects a lowercase, model-shaped sentinel in model; no sentinel byte reaches stdout, stderr or an Error (I1, RV-016 F-1)." },
+  { id = "EX-10", text = "just check is clean." },
 ]
 verification = [
   { id = "VT-1", expects = "run_piped with fixture stdin: --state output, empty stdin, no_stdin, no_jev, config reasons incl. loopback cases", test_file = "test/screwtape/cli_test.gleam", keywords = ["run_piped", "classify_state", "no_stdin", "no_jev"], waived = false },
   { id = "VT-2", expects = "jev block validation reasons", test_file = "test/screwtape/config_test.gleam", keywords = ["non_https:jev.base_url", "trailing_slash:jev.base_url", "invalid:jev.credential_name", "empty:jev.model"], waived = false },
   { id = "VT-3", expects = "real edge: a subprocess piping 16 MiB + 1 bytes gets stdin_bytes, exit 1", test_file = "test/screwtape/ffi_test.gleam", keywords = ["stdin_bytes", "read_stdin"], waived = false },
+  { id = "VT-4", expects = "classify success through fixture_send; failure at message k keeps k lines and names message k's cursor; jev_context error line", test_file = "test/screwtape/cli_test.gleam", keywords = ["jev_context", "\"cursor\"", "fixture_send"], waived = false },
+  { id = "VT-5", expects = "classify envelope shape and key order", test_file = "test/screwtape/render_test.gleam", keywords = ["render.classify", "\"kind\":\"classify\""], waived = false },
+  { id = "VT-6", expects = "sentinel suite covers classify, including a reflected lowercase sentinel model", test_file = "test/screwtape/token_leak_test.gleam", keywords = ["classify", "model"], waived = false },
+  { id = "VA-1", text = "Phase review (code-review, quotient pi reviewer) of the verb, the classify loop, Outcome and the error line against DEC-037 and I1–I5; findings disposed before the next phase." },
 ]
 specs        = []
 requirements = []
 
 [[phase]]
-id        = "PHASE-07"
-name      = "classify against Jev"
-objective = "Complete the classify loop: credential (skipped for --state), production_send, per line input → state → jev/client.ask → render.classify; stop at the first failure keeping the prefix (DEC-037), with the failing message's cursor on the error line; extend the token-leak suite."
+id        = "PHASE-14"
+name      = "Ingress, docs and live check"
+objective = "Ship the key ingress (DEC-038): services.screwtape.jev options, the systemd-run --user --pipe wrapper branch with crash-dump settings shared with screwtape.service (RV-016 F-5), and screwtape-provision generalised to a credential name and --from-file; the POL-002 guard and folder notes; the README contract (design § 5.2 published contract). Then the live check (design § 5.4): classify through the deployed wrapper on the scrubbed fixtures, plus one synthetic oversized probe, confirming A1, the F-9 tolerances and where max_tokens_exceeded sits, and fixing the codec if they differ. Supersedes draft PHASE-02, -08 and -09."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-05 and PHASE-06 are complete." },
-]
-exit_criteria = [
-  { id = "EX-1", text = "render.classify prints {version 1, kind classify, data {id, cursor, schema, model, answers}} with keys in question then label or level order (DEC-036)." },
-  { id = "EX-2", text = "Success is Outcome(Some(lines), [], 0); a failure at message k > 0 keeps lines before k plus one error line; k = 0 has stdout None; exit 1 (2 for usage or config)." },
-  { id = "EX-3", text = "Once a line has decoded, its failure's error line carries that message's cursor, e.g. {level error, error limit_exceeded, bound jev_context, cursor …}." },
-  { id = "EX-4", text = "token_leak runs classify over the loopback TLS server with the sentinel key, and the server reflects a lowercase, model-shaped sentinel in model; no sentinel byte reaches stdout, stderr or an Error (I1, RV-016 F-1)." },
-  { id = "EX-5", text = "just check is clean." },
-]
-verification = [
-  { id = "VT-1", expects = "classify success through fixture_send; failure at message k keeps k lines and names message k's cursor; jev_context error line", test_file = "test/screwtape/cli_test.gleam", keywords = ["jev_context", "\"cursor\"", "fixture_send"], waived = false },
-  { id = "VT-2", expects = "classify envelope shape and key order", test_file = "test/screwtape/render_test.gleam", keywords = ["render.classify", "\"kind\":\"classify\""], waived = false },
-  { id = "VT-3", expects = "sentinel suite covers classify, including a reflected lowercase sentinel model", test_file = "test/screwtape/token_leak_test.gleam", keywords = ["classify", "model"], waived = false },
-  { id = "VA-1", text = "Phase review (code-review, Opus subagent) of the classify loop, Outcome and error line against DEC-037 and I1–I5; findings disposed before the next phase." },
-]
-specs        = []
-requirements = []
-
-[[phase]]
-id        = "PHASE-08"
-name      = "Nix ingress and POL-002 guard"
-objective = "Ship the key ingress (DEC-038): services.screwtape.jev options writing the config block, the systemd-run --user --pipe wrapper branch for classify with crash-dump settings shared with screwtape.service (RV-016 F-5), and screwtape-provision generalised to a credential name and --from-file. Add the POL-002 gitignore guard and folder notes."
-entrance_criteria = [
-  { id = "EN-1", text = "PHASE-07 is complete." },
+  { id = "EN-1", text = "PHASE-13 is complete." },
+  { id = "EN-2", text = "Before the live check (EX-7 onward): the operator has stored the interim key exactly as screwtape-provision will (systemd-creds encrypt --user --name=jev - ~/.config/credstore.encrypted/screwtape.jev) and deployed EX-1–EX-6 to their Home Manager profile (the screwtape input bump in ~/flakes is the operator's act; flakes:IMP-054 is not touched). The agent never sees the key." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "With jev set, the wrapper runs classify (not classify --state) as systemd-run --user --pipe --quiet --wait --collect -p LoadCredentialEncrypted=jev:… -p LimitCORE=0 -E ERL_CRASH_DUMP_SECONDS=0; other verbs run directly; with jev unset the wrapper is unchanged." },
   { id = "EX-2", text = "LimitCORE=0 and ERL_CRASH_DUMP_SECONDS=0 come from one Nix definition used by both the wrapper and screwtape.service (POL-001)." },
   { id = "EX-3", text = "screwtape-provision takes fastmail (default) or jev and optional --from-file; staging and atomic move unchanged; a --from-file source is removed after a successful move; only fastmail restarts screwtape.service." },
   { id = "EX-4", text = ".gitignore ignores /PII_hidden_fixtures.local/* and negates only its CLAUDE.md and AGENTS.md, which state POL-002." },
+  { id = "EX-5", text = "README gains classify and classify_state field tables, the mail-1 question table, the PII caveat (names, postal addresses, short numbers leak), the resume rule, the jev_context skip rule, provisioning, and the systemd-run note." },
+  { id = "EX-6", text = "A test checks the README mail-1 table names against schema.mail_1()." },
+  { id = "EX-7", text = "screwtape classify via the wrapper over test/fixtures/mail/ prints one valid classify line per input, with the pinned model." },
+  { id = "EX-8", text = "One probe with a synthetic oversized state runs under systemd-run --user --pipe with LoadCredentialEncrypted=jev:…; the key reaches the HTTP client only through a shell builtin, never through any process argv, environment, file outside the unit, output or the transcript (I1)." },
+  { id = "EX-9", text = "test/fixtures/jev/ holds a recorded mail-1 reply and a recorded max_tokens_exceeded 400 body in place of the spec-derived ones, holding no key bytes and no mail text, with PROVENANCE.md giving date, model id and request shape." },
+  { id = "EX-10", text = "The slice notes record, per question type: the reply keys, whether probabilities sum to 1 and how far, whether choice is the argmax, and score vs Σ i·pᵢ; plus the reported model string and the 400 error-code path." },
+  { id = "EX-11", text = "A divergence within § 5.2's contract (key location, tolerance values) is fixed in the codec under test against the recorded fixtures; a divergence that changes a § 5.2 contract goes to /consult and a design revision first." },
+  { id = "EX-12", text = "just check is clean." },
 ]
 verification = [
   { id = "VT-1", expects = "module-eval: jev options produce the config block and wrapper branch; wrapper and service carry the same crash-dump settings; jev unset leaves the wrapper unchanged", test_file = "nix/module-eval.nix", keywords = ["jev", "LimitCORE", "ERL_CRASH_DUMP_SECONDS", "systemd-run"], waived = false },
   { id = "VT-2", expects = "gitignore holds the POL-002 rule with only the two notes negated, and git check-ignore ignores a probe path", test_file = "test/screwtape/pol002_test.gleam", keywords = ["PII_hidden_fixtures.local", "check-ignore"], waived = false },
-  { id = "VA-1", text = "Phase review (code-review, Opus subagent) of the generated wrapper and provision scripts: key never in argv or env, crash-dump settings applied; findings disposed before the next phase." },
-]
-specs        = []
-requirements = []
-
-[[phase]]
-id        = "PHASE-09"
-name      = "README contract and live deploy check"
-objective = "Document classify (design § 5.2 published contract) and confirm the deployed path live: the operator provisions the key, and classify runs through the Home Manager wrapper on the scrubbed fixtures."
-entrance_criteria = [
-  { id = "EN-1", text = "PHASE-08 is complete, and the operator has deployed it to their Home Manager profile (the screwtape input bump in ~/flakes is the operator's act; flakes:IMP-054 is not touched)." },
-]
-exit_criteria = [
-  { id = "EX-1", text = "README gains classify and classify_state field tables, the mail-1 question table, the PII caveat (names, postal addresses, short numbers leak), the resume rule, the jev_context skip rule, provisioning, and the systemd-run note." },
-  { id = "EX-2", text = "A test checks the README mail-1 table names against schema.mail_1()." },
-  { id = "EX-3", text = "screwtape classify via the wrapper over test/fixtures/mail/ prints one valid classify line per input, with the pinned model; any decode failure is diagnosed against PHASE-02's fixtures." },
-]
-verification = [
-  { id = "VT-1", expects = "README mail-1 table matches mail_1() names", test_file = "test/screwtape/docs_test.gleam", keywords = ["README.md", "mail_1"], waived = false },
-  { id = "VH-1", text = "Operator runs the wrapper over the scrubbed fixtures and sees classify output." },
-]
-specs        = []
-requirements = []
-
-[[phase]]
-id        = "PHASE-10"
-name      = "Evaluation harness"
-objective = "Build the eval after deploy (operator direction; design § 5.4): the tagging brief, gleam run -m eval with the sample-bound join, Brier scores and coverage, the insufficient-evidence rule, and committed synthetic adversarial mails."
-entrance_criteria = [
-  { id = "EN-1", text = "PHASE-09 is complete." },
-]
-exit_criteria = [
-  { id = "EX-1", text = "test/eval/tagging.md drives an LLM tagging pass over states.jsonl into labels.jsonl for operator confirmation." },
-  { id = "EX-2", text = "eval takes sample.jsonl ids as the expected set and fails on a missing, repeated or extra id in states, labels or classify, on differing schemas, or on more than one model (RV-016 F-6, F-11)." },
-  { id = "EX-3", text = "It prints aggregates only, per question: label, level and positive counts; Brier score; primary_purpose agreement and confusion counts; noul hits and misses at 0.3/0.7 with an uncertain band; rounded score agreement; fewer than 5 positives reported as insufficient evidence (RV-016 F-7)." },
-  { id = "EX-4", text = "test/fixtures/mail/adversarial/ holds a few synthetic mails aimed at deception_cues and agent_directive, including instructions to the classifier; just eval is a justfile recipe." },
-  { id = "EX-5", text = "just check is clean." },
-]
-verification = [
-  { id = "VT-1", expects = "join failures (shared missing suffix, extra id, repeat, two models under one schema) and Brier/coverage arithmetic on synthetic rows", test_file = "test/eval_test.gleam", keywords = ["sample.jsonl", "brier", "insufficient"], waived = false },
-  { id = "VA-1", text = "Eval output contains no message text, id or subject: aggregates only (POL-002)." },
-]
-specs        = []
-requirements = []
-
-[[phase]]
-id        = "PHASE-11"
-name      = "First evaluation run"
-objective = "Run the eval on real mail inside PII_hidden_fixtures.local/ and the adversarial fixtures, and record what it shows about substance and calibration (design § 6) before consumers rely on mail-1."
-entrance_criteria = [
-  { id = "EN-1", text = "PHASE-10 is complete." },
-]
-exit_criteria = [
-  { id = "EX-1", text = "sample, states, labels and classify files exist only in PII_hidden_fixtures.local/; nothing from them is committed or quoted (POL-002)." },
-  { id = "EX-2", text = "The aggregate report is recorded in the slice notes, with the operator's call on substance and any threshold guidance, framed as first evidence, not established calibration." },
-]
-verification = [
-  { id = "VH-1", text = "Operator confirms the labels and accepts the aggregate report." },
-  { id = "VA-1", text = "git status shows nothing under PII_hidden_fixtures.local/ except the two notes." },
+  { id = "VT-3", expects = "README mail-1 table matches mail_1() names", test_file = "test/screwtape/docs_test.gleam", keywords = ["README.md", "mail_1"], waived = false },
+  { id = "VT-4", expects = "the codec decodes the recorded live reply and maps the recorded 400 to jev_context", test_file = "test/screwtape/jev_test.gleam", keywords = ["test/fixtures/jev", "jev.reply"], waived = false },
+  { id = "VA-1", text = "Recorded fixtures contain no key bytes and no real mail; their shape matches what the notes record." },
+  { id = "VA-2", text = "Phase review (code-review, quotient pi reviewer) of the nix module, README and any codec fix; findings disposed before audit." },
+  { id = "VA-3", text = "Correctness-critical review (Codex gpt-6.1-sol) of the generated wrapper and provision scripts: key never in argv or env, crash-dump settings applied; findings disposed before audit." },
+  { id = "VH-1", text = "Operator confirms the probe ran with their key and that nothing secret was printed." },
+  { id = "VH-2", text = "Operator runs the wrapper over the scrubbed fixtures and sees classify output." },
 ]
 specs        = []
 requirements = []

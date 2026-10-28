@@ -1,7 +1,7 @@
 id = 4
 slug = "jev-classifier"
 title = "Jev mail classifier verb over PII-stripped read output"
-status = "ready"
+status = "started"
 created = "2026-10-28"
 updated = "2026-10-28"
 tags = []
@@ -87,10 +87,6 @@ selector = "PII_hidden_fixtures.local/*.md"
 intent = "scope-relevant"
 
 [[selector]]
-selector = "justfile"
-intent = "design-target"
-
-[[selector]]
 selector = "src/screwtape/pii.gleam"
 intent = "design-target"
 
@@ -124,14 +120,6 @@ intent = "design-target"
 
 [[selector]]
 selector = "test/fixtures/mail/**"
-intent = "design-target"
-
-[[selector]]
-selector = "test/eval.gleam"
-intent = "design-target"
-
-[[selector]]
-selector = "test/eval/**"
 intent = "design-target"
 
 [[selector]]

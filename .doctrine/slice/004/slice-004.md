@@ -63,14 +63,10 @@ bearer key.
      suppression as `screwtape.service`.
    - `screwtape-provision` is generalised to a credential name plus an
      `op://` reference or a key-file source.
-7. **Evaluation (POL-002).**
+7. **Real-mail guard (POL-002).** The evaluation itself moved to IMP-003
+   (operator, 2026-10-28).
    - `PII_hidden_fixtures.local/` is gitignored, with a test asserting it,
      and holds CLAUDE.md and AGENTS.md notes.
-   - Flow: one saved `read` sample → `classify --state` → an LLM tagging
-     pass → operator confirmation → `classify` on the same sample → a
-     `just eval` report of aggregate agreement, label coverage and Brier
-     scores, run before consumers rely on `mail-1`.
-   - Built after `classify` is deployed.
    - Scrubbed malebolge fixtures (`test/mail/fixtures/real/`) are copied
      into `test/` for the decode and state tests.
 8. **Document it.** The README covers `classify`, `classify_state`, the
@@ -86,6 +82,7 @@ bearer key.
 - Persisting classifications (DEC-008), classifying inside `sync`, and
   SATAN-side triage (M3).
 - Retries (DEC-037).
+- The evaluation on real mail (IMP-003).
 
 ## Affected surface
 
@@ -101,14 +98,14 @@ bearer key.
 - `nix/module.nix`, `nix/module-eval.nix`: jev options, the wrapper branch
   and the generalised provision.
 - `test/`: support helpers, the copied fixtures and the gitignore test.
-- `.gitignore`, `PII_hidden_fixtures.local/{CLAUDE,AGENTS}.md`, the
-  `justfile` eval recipe, and `README.md`.
+- `.gitignore`, `PII_hidden_fixtures.local/{CLAUDE,AGENTS}.md` and
+  `README.md`.
 
 ## Risks, assumptions, open questions
 
-- `substance` may carry no signal; the eval decides whether it stays.
+- `substance` may carry no signal; IMP-003's eval decides whether it stays.
 - The calibration of Jev's probabilities on this mail is unknown, so
-  thresholds belong to consumers. The eval gives first evidence, not an
+  thresholds belong to consumers. IMP-003's eval gives first evidence, not an
   established calibration.
 - Token usage is not recorded by Screwtape; llm-gateway accounting is
   expected to show it (unverified).
@@ -127,8 +124,8 @@ bearer key.
 - The token-leak sentinel suite covers `classify`. The gitignore test covers
   `PII_hidden_fixtures.local/`.
 - Module evaluation checks for the wrapper and provision.
-- A manual live run on the scrubbed fixtures, then the eval on real mail
-  (aggregates only, POL-002).
+- A manual live run on the scrubbed fixtures with the interim key, which
+  confirms A1 (Jev's reply shape). The eval on real mail is IMP-003.
 
 ## Summary
 
