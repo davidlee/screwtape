@@ -1,0 +1,39 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 38
+slug = "classify-jev-config-and-key-ingress"
+title = "classify reads its Jev key through a systemd-run --pipe wrapper; config gains an optional jev block"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-28"
+updated = "2026-10-28"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-012 reads keys from $CREDENTIALS_DIRECTORY, which only systemd provides; classify runs in a shell pipeline. Interim: a direct TypeSafe key. Later: an LLM gateway client key (flakes:IMP-054), whose relay is http://127.0.0.1 (DEC-033)."
+choice = 'Config gains an optional jev block {base_url, credential_name, model}; classify without it is Config("no_jev"). request_timeout_ms and ca_file are shared with sync. base_url follows DEC-033. The Home Manager wrapper runs classify as systemd-run --user --pipe --quiet --wait -p LoadCredentialEncrypted=jev:<credstore path> screwtape --config <file> classify. screwtape-provision is generalised to a credential name and a source (an op:// reference, or a key file such as llm-gateway issue --out writes, deleted after encryption). Moving from TypeSafe to the gateway is a config change plus re-provisioning.'
+alternatives = ["CREDENTIALS_DIRECTORY pointed at a plaintext key file", "a new non-systemd ingress path", "a separate classify timeout and CA file"]
+rationale = "Same custody as the mail token (DEC-001, DEC-016), with no change to credential.gleam; the spike (research.md, finding A) showed stdin, stdout and the exit code pass through systemd-run --pipe."
+consequences = ["nix/module.nix gains jev options, the wrapper branch and the generalised provision", "DEC-016's accepted exposure extends to the Jev key and to mail text in flight"]
+decided_by = "agent proposal; operator choice (david)"
+decided_on = "2026-10-28"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "base_url scheme rule"
+target = "DEC-033"
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

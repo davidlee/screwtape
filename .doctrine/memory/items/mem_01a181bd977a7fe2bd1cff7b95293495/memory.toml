@@ -1,0 +1,42 @@
+memory_uid = "mem_01a181bd977a7fe2bd1cff7b95293495"
+memory_key = "mem.fact.jev.reply-shape"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "Jev (TypeSafe) /v1/systemone request and reply shape"
+summary = 'Answers keyed by our question names; choice probabilities keyed by label, score probabilities and legend keyed "0".."n-1"; noul has no confidence; model is the versioned id'
+created = "2026-10-28"
+updated = "2026-10-28"
+
+[scope]
+paths = []
+globs = ["src/screwtape/jev*", "src/screwtape/jev/**"]
+commands = []
+tags = ["jev", "http"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "c9ebb7239185773e6e383a7437ddd45b18dd94cb"
+ref_name = "refs/heads/main"
+checkout_state_id = "0340614038fd8a1f92f3b9da9f8575f3456f0a3c87abeabda65347ea4df4b33a"
+base_commit = "90c36994eaeab41cfe8b63240f5c802b7ca050b1"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+

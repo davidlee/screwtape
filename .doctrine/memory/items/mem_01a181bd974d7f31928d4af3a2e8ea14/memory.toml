@@ -1,0 +1,42 @@
+memory_uid = "mem_01a181bd974d7f31928d4af3a2e8ea14"
+memory_key = "mem.fact.systemd.run-pipe-credentials"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "systemd-run --user --pipe carries a pipeline and a loaded credential"
+summary = "A shell verb can get $CREDENTIALS_DIRECTORY via systemd-run --user --pipe -p LoadCredential(Encrypted)=; stdin, stdout and the exit code pass through"
+created = "2026-10-28"
+updated = "2026-10-28"
+
+[scope]
+paths = ["nix/module.nix"]
+globs = []
+commands = []
+tags = ["systemd", "credentials"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "c9ebb7239185773e6e383a7437ddd45b18dd94cb"
+ref_name = "refs/heads/main"
+checkout_state_id = "3599a32e5458f67af68bd90b50afe67298960158ce3c42799767e478435e3fc2"
+base_commit = "90c36994eaeab41cfe8b63240f5c802b7ca050b1"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "none"
+weight = 0
+

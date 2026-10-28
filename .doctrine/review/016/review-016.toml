@@ -1,0 +1,617 @@
+id    = 16
+slug  = "design-review-of-sl-004"
+title = "design review of SL-004"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "codex"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Codex completed a hostile design pass over SL-004 at design-run revision 24, materialised design.md sections 1-10 (all 14 section fragments). Examined the existing RV-016 brief first; canonical SL-004 scope; notes Harvest, including deferred inq-9, A1 and section 6; research/research.md and raw governance/codemap threads; accepted DEC-033 through DEC-038; POL-001/POL-002; relevant earlier credential/runtime decisions and IMP-002. Cross-checked the existing CLI/argv/config, credential and guard code, JMAP codec/client, HTTP transport, read renderer, shared test support and token-leak tests, Nix package/module/module-eval and justfile. Read malebolge's test/mail/fixtures/SOURCE.md and real/SCRUB.md and checked scrubbed envelope shapes/counts read-only. Checked the local TypeSafe JS SDK and current primary OpenAPI/confidence documentation, plus OTP crash-dump documentation.
+
+Raised F-1 through F-10: seven major and three minor; no blockers or nits. Counterexamples use synthetic strings and in-memory byte/shape/arithmetic checks, not private mail. Details distinguish verified source/interface contradictions from inferred runtime consequences. The findings target key reflection, overbroad date protection, post-cap expansion, metadata/request bounds, transient-unit dump protection, evaluation sample identity/calibration, usage plumbing, response consistency and stdin failure typing. The HTTP-seam lift, reuse of credential/render/test support, no-persistence boundary, accepted loopback ingress decision and deferred cross-repo governance item were examined; no separate finding is raised merely for those accepted choices.
+
+This is a concluded raiser pass, not responder disposition or design approval. No live Jev call, credential access, private-fixture inspection, provisioning, systemd unit execution, build, implementation tests or activation was performed. No reviewer cache or design-run attestations were written because the user authorised changes only to RV-016. Only the existing RV-016 ledger was edited, including its codex raiser label and brief; no commit was made. All ten findings await the responder."""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Codex round 2, against the materialised/re-adopted SL-004 design-run revision 25. Read each current F-1 through F-10 response individually through doctrine review show RV-016 -f F-n; checked each against the revised design, canonical SL-004 scope, amended accepted DEC-034/DEC-037 and the original complaint. Applied the existing review-ledger workflow and code-review/feedback lenses. No new RV, responder disposition, design attestation or lifecycle transition was made.
+
+Verified F-1, F-5, F-6, F-7, F-8, F-9 and F-10 as design/prose repairs. These verdicts accept the operator's recorded bounded-eval, delivery-order and token-usage choices; they do not claim implementation or live compatibility. Contested F-2, F-3 and F-4 as partly repaired, with exact revised-file/source citations: date protection still exempts a prefix of a space-separated long-number run; partial-word handling ignores read's actual top-level output_truncated signal; domain lengths/body cardinality/JSON-encoding overhead still defeat the claimed 25 KB worst case. Raised one new minor, F-11, for an eval join that can accept a common incomplete prefix and pool different model versions. The original frozen-mailbox-snapshot defect remains verified rather than re-raised.
+
+Verification included fresh source reads of render.read/body_json/print_bodies, model and shared synthetic-fixture layouts, error exit-code mapping and the revised validation tests. Executed the existing compiled renderer read-only with a synthetic body: at max_bytes=16384 it emitted output_truncated=true, body is_truncated=false and an alice@ suffix, matching the inspected source. In-memory checks covered the mixed dot/space date/number counterexample, JSON byte counts for one long domain, 20,000 empty bodies and a control-byte body, original reply-consistency counterexamples under the new tolerances, and eval ID-set/model-cohort conditions. No real mail or credential was read; no network/service call, provisioning, systemd execution, build, new implementation tests or activation was performed. Jev token counts, A1 tolerance compatibility and runtime hardening remain unverified, explicitly distinguished from observed source/design contradictions.
+
+Only RV-016's ledger was changed; no commit. All ten prior findings received an explicit raiser act. After this pass, seven findings are verified, three major findings are contested and one new minor is open, awaiting the responder. This conclusion records completion of the raiser pass, not approval of the design or closure of the ledger."""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Codex round 3 against the re-adopted SL-004 design-run revision 26. Read the latest responses and history for F-2, F-3, F-4 and F-11, checked the actual changed pii/state text in sec-05-2, eval step 5 in sec-05-4 and sec-09, and checked amended DEC-034 plus reconciled SL-004 objective 3 for repair consistency. Regression attack was limited to these newly changed passages; no settled model schema, ingress, reply-tolerance, delivery-order, calibration or custody point was re-raised.
+
+Verified all four returned findings. The date boundary now covers space-separated numeric continuations while treating date-with-time as one shape. Mail now carries read.output_truncated and the arrival-cut rule handles the previously reproduced nonempty address suffix. Body cardinality and domain-length bounds plus control-character removal replace the false 25 KB/unconditional-context claim; token fit is explicitly unmeasured. The eval join now checks derived IDs against sample.jsonl and rejects mixed result models.
+
+Checks used only synthetic data and read-only source/runtime inspection. An in-memory model of the changed date boundary rejected both directions of the mixed dot/space identifier and preserved the specified combined date/time. A capped compact-JSON stress state occupied 50,273 bytes, consistent with the revised approximately 51 KB estimate; no Jev token measurement was inferred. Synthetic join checks rejected the former shared-prefix and mixed-model examples and accepted a complete homogeneous cohort. Fresh renderer and argv source reads plus execution of the existing compiled pure renderer reproduced the new heuristic's empty-anchor case: U+20AC at max_bytes=1 emits output_truncated=true, an empty text and false per-body flag, leaving no last nonempty body. A two-body codepoint-boundary case also demonstrated that the heuristic is conservative, not exact.
+
+Raised only F-12, minor, for the newly introduced arrival-cut predicate's undefined all-empty case and the missing corresponding validation case. F-3's original address/budget repair remains verified; the smaller new issue was not used to retain an obsolete major status. After this pass F-1 through F-11 are verified and F-12 alone awaits the responder. This concludes the raiser pass, not the ledger or design lifecycle.
+
+Only RV-016 was changed; no commit, reviewer-cache priming, design attestations or other repository writes. No real mail, credentials, network/service calls, new implementation tests, build, provisioning, systemd execution or activation were involved. New classifier/eval behaviour and Jev token-fit claims remain unverified runtime inferences; ledger notes distinguish them from the synthetic checks and observed existing-renderer output."""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Codex round 4, limited to F-12 and its repair at re-adopted SL-004 design revision 27. Read F-12's latest response and checked .doctrine/slice/004/design.md section 5.2 classify/state, lines 265-273, and section 9, lines 627-631. The explicit every-body fallback resolves the no-last-nonempty anchor case, and the prose now acknowledges the conservative heuristic. Five synthetic in-memory predicate cases passed. Verified F-12; no new defect was found in the repair, no new finding was raised, and no settled finding was revisited. No classifier/state implementation, build, live service, real mail or credential was exercised. Only RV-016's ledger acts were written; no commit or external artifact changes. This is a fresh round-4 examination basis and concludes the raiser pass; it does not approve or advance the design lifecycle."
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Codex round 5, limited to the supplied /tmp/claude-1000/-home-david-dev-screwtape/88e0f0db-5c85-48ea-b785-31a5c267c236/scratchpad/f4-error.diff and its revision-32 materialisation in design sections 5.2, 5.5 and 9. Read the current RV-016 index and canonical DEC-012, DEC-014 and DEC-037. Checked the changed status mapping, cursor-bearing error example, README resume/skip statements and new client/CLI test requirements, using adjacent existing input/cursor and Error definitions only to assess this delta.
+
+The operator's retained 16 KiB body bound and clear-context-error direction were treated as constraints. The 400 code comparison emits only the fixed jev_context bound, unrelated 400s retain status_400, and 413 maps to the same fixed bound; the design does not authorise printing the server code/body. The new cursor comes from the already-decoded input rather than the Jev response. DEC-037's stop-at-first-failure, successful stdout prefix and no retry remain intact, with an explicit context-error skip instruction. The error-code body location is still an A1 confirmation obligation; no live schema confirmation is claimed.
+
+Raised only F-13, minor: the new JSON example uses the constructor spelling LimitExceeded instead of the shared renderer's fixed limit_exceeded tag. Source inspection and a read-only synthetic call to the existing compiled error renderer confirmed the mismatch. No other finding was warranted by this narrowly scoped pass. Previously verified findings and settled decisions were not reopened.
+
+This is a fresh round-5 raiser conclusion, not implementation approval or lifecycle advancement. Only RV-016's ledger was changed, with no commit, cache priming or design attestations. No network/service call, credential access, real mail, build, provisioning, activation or new classify implementation test was performed. F-13 awaits the responder; all earlier findings remain verified."""
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Fresh raiser pass limited to F-13's revision-33 repair. Read the current response, inspected .doctrine/slice/004/design.md section 5.2 error-line example at lines 402-411, and compared its limit_exceeded wire tag with src/screwtape/error.gleam:95. Verified F-13; no other finding or settled issue was examined or changed. Only RV-016's ledger acts were written; no commit, build, implementation tests, service calls or lifecycle advancement. All thirteen findings are now verified; this concludes the pass with no outstanding findings."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-004"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "major"
+title = "The model allowlist admits a valid credential and can echo it to stdout"
+detail = """
+Expected: SL-004 §5.5 I1 and DEC-012 require that the Jev key never appears on stdout, including when server-controlled reply text is hostile.
+
+Observed: .doctrine/slice/004/design.md:261-272 accepts any model matching ^[a-z0-9][a-z0-9._/-]{0,63}$ and :363-364 prints that string. The current credential reader accepts every nonempty trimmed string without control bytes (src/screwtape/credential.gleam:43-57). There is no comparison with the configured/pinned model.
+
+Synthetic counterexample, checked in memory: sentinel-jev-key-9f3c1d7a4b2e5068 is both an accepted credential and an accepted model. An otherwise valid reply containing this credential as model therefore passes the specified validator and is printed. This defeats the very response-reflection case the existing sentinel suite tests for JMAP (test/screwtape/token_leak_test.gleam:26-31); its existing uppercase sentinel at :77 would be rejected by the model regex and can mask this hole.
+
+Inference: a broken or hostile Jev/gateway response can expose the key through the permitted string field. This is a constructive design counterexample, not a reproduced live leak; no key was read or service called.
+
+Repair: validate the reported model against an explicit expected pinned model identity (with a defined provider-prefix mapping if needed), rather than only its character shape. Preserve DEC-036's reported-model field after validation. Test a lowercase, shape-valid sentinel reflected in model, alongside mismatched model identities."""
+disposition = "fix-now"
+route = "review"
+response = """
+Verified: credential.gleam token accepts any nonempty trimmed string without control bytes, and the I1 sentinel in token_leak_test is uppercase, so it cannot exercise this. Repaired in design 5.2 (jev): reply takes the configured model and requires the reported model to equal it, or equal it after its last slash (gateway provider prefix); anything else is Decode model. Principle 2 and I2 now say equality, not shape. Section 9: token_leak server reflects a lowercase, model-shaped sentinel in model; jev hostile replies include a model other than the configured one. DEC-036 unchanged: model is still the id Jev reports, now also checked against config.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Verified: credential.gleam token accepts any nonempty trimmed string without control bytes, and the I1 sentinel in token_leak_test is uppercase, so it cannot exercise this. Repaired in design 5.2 (jev): reply takes the configured model and requires the reported model to equal it, or equal it after its last slash (gateway provider prefix); anything else is Decode model. Principle 2 and I2 now say equality, not shape. Section 9: token_leak server reflects a lowercase, model-shaped sentinel in model; jev hostile replies include a model other than the configured one. DEC-036 unchanged: model is still the id Jev reports, now also checked against config.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — resolved in the revised design, not runtime-proven. .doctrine/slice/004/design.md:280,286-303 now passes the configured model into reply and accepts only that identity or its explicitly described provider-prefix-free form. A reflected lowercase credential that differs from those fixed expected identities is rejected, closing the original shape-only counterexample. The sentinel test at :630-633 now exercises exactly the previously missed shape. The server's reported id is still emitted only after validation, preserving DEC-036. No live request or credential was used."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "major"
+title = "Date protection exempts dotted phone numbers from the required number stripping"
+detail = """
+Expected: DEC-034's number rule strips phone/account-like runs of at least eight digits while preserving actual dates.
+
+Observed: .doctrine/slice/004/design.md:177-182 first protects d.m.y with 1-4-digit parts, then strips long digit runs allowing dots. The synthetic ten-digit phone 0412.345.678 matches that protected shape in full; it is not an IPv4 dotted quad. It also matches the specified long-number rule, but that rule never sees it while masked, and unmasking restores it unchanged. The in-memory shape check confirmed both matches. No calendar ranges or boundaries preventing partial date matches inside longer numbers are specified.
+
+Inference: the prescribed implementation sends ordinary dotted phone numbers unchanged, beyond the expressly accepted residual leaks of names, postal addresses and short numbers. This is a design-rule counterexample, not execution of an implemented pii module.
+
+Repair: specify a bounded, calendar-plausible date grammar and whole-token boundaries, including precedence when a putative date is part of a longer identifier. Add negative protection cases for dotted phones and grouped account/card numbers, alongside genuine dates. Preserve the accepted date-protection decision; fix its overbroad realisation."""
+disposition = "fix-now"
+route = "review"
+response = """
+Contest accepted: a single space is a rule 5 separator, so 12.12.2026 3456 escaped. Repaired in 5.2 (pii): the whole-token boundary now forbids anything rule 5 would join, i.e. a digit, or a space, dot, slash or dash followed by a digit, at either end. A date followed by a single space and a time is one protected shape, so 12.12.2026 14:00 survives while 12.12.2026 3456 is stripped. Section 9 adds both cases. DEC-034 choice amended.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Verified: 0412.345.678 fits d.m.y with 1-4 digit parts. Repaired in design 5.2 (pii) without changing DEC-034's intent: day 1-31 and month 1-12 (leading zero allowed), year 2 or 4 digits (4 in y/m/d), protected only as a whole token (no digit, and no dot, slash or dash followed by a digit, touching either end). Section 9 adds must-strip near-dates: dotted phone, grouped card number, a date run into further digits. Per operator, the pii module is now stated as self-contained for reuse or porting (imports only gleam_stdlib and its FFI, enforced by its check_imports rule). DEC-034 choice text amended to match.
+"""
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = """
+CONTEST — partly repaired. The narrower day/month grammar rejects the original 0412.345.678 example, but the new whole-token boundary at .doctrine/slice/004/design.md:181-193 omits a separator that the number rule explicitly accepts: a single space.
+
+Synthetic counterexample: 12.12.2026 3456 is one twelve-digit run under rule 5. Its leading 12.12.2026 is a calendar-plausible date and is followed by a space, so none of the stated disallowed adjacencies prevents its protection. Mask that date, apply the eight-digit rule to the remaining four digits, then unmask: the entire twelve-digit run survives. The boundary/rule arithmetic was checked in memory; it is a design counterexample, not execution of an implemented pii module. The protected prefix can occur at either end of a grouped identifier.
+
+DEC-034's amended whole-token intent is therefore only partly realised. Specify precedence over the complete long-number grammar, including space-separated continuations, and how genuine dates followed by times/numbers are distinguished or conservatively treated. Add a mixed dot/space must-strip case. This preserves date protection and the operator's self-contained module decision; it does not reopen the accepted residual leaks of short numbers or names."""
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Contest accepted: a single space is a rule 5 separator, so 12.12.2026 3456 escaped. Repaired in 5.2 (pii): the whole-token boundary now forbids anything rule 5 would join, i.e. a digit, or a space, dot, slash or dash followed by a digit, at either end. A date followed by a single space and a time is one protected shape, so 12.12.2026 14:00 survives while 12.12.2026 3456 is stripped. Section 9 adds both cases. DEC-034 choice amended.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — resolved in revision 26's prose. .doctrine/slice/004/design.md:181-195 now excludes every long-number continuation, including a single space, from protected date/time boundaries, and treats date plus space plus time as one protected shape. The prior 0412.345.678 and 12.12.2026 3456 counterexamples are therefore unprotected numeric runs, while 12.12.2026 14:00 remains protected. A synthetic in-memory model of the specified dotted-date boundary also rejected the reverse adjacency 3456 12.12.2026. Section 9 at :611-614 names the regression cases; amended DEC-034 carries the same whole-token intent. This verifies the design rules, not the not-yet-implemented regex or live classifier behaviour. No settled PII residual or schema decision is reopened."
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "major"
+title = "Redaction can expand text after the body cap, violating the 16 KiB state bound"
+detail = """
+Expected: DEC-034 and classify/state.build keep transmitted body texts within 16,384 bytes total.
+
+Observed: .doctrine/slice/004/design.md:230-237 caps the original text before stripping and asserts that stripping never lengthens it. The URL rule at :174-176 contradicts this: https://example.com/a is 21 UTF-8 bytes, whereas https://example.com/[…] is 25. A synthetic 16,384-byte body made from 744 repetitions of the original URL plus a space and final padding becomes 19,360 bytes under the specified rule. These byte counts were reproduced in memory. Section 9 (:534-538) proposes a universal never-lengthens test that the required transformation cannot satisfy.
+
+The order also cuts recognisable PII before matching: ('x ' repeated 8189 times) followed by alice@example.com is truncated to an alice@ suffix at byte 16,384, defeating a complete-email rule.
+
+Inference: a conforming implementation either violates the body bound or changes the accepted redaction output to satisfy an impossible test. This is a verified specification contradiction; no classifier implementation exists yet.
+
+Repair: apply redaction before enforcing the final output-byte budget, or otherwise account explicitly for expansion, with consistent truncation flags and codepoint boundaries. Define treatment of already-truncated input fragments. Replace the false monotonic-length property with tests of the actual final aggregate byte bound and short-URL/cutoff cases."""
+disposition = "fix-now"
+route = "review"
+response = """
+Contest accepted; verified in src/screwtape/render.gleam: read reports its max-bytes cut only in data.output_truncated, and body_json passes the stored per-body flag unchanged. Repaired in 5.2: Mail carries output_truncated. A body is cut on arrival when its is_truncated is true, or output_truncated is true and it is the last body with text or any body after it (print_bodies cuts in body order, so that is the body it cut). Such a body loses its last partial word before stripping and is sent with is_truncated true. Section 9 tests this from real render.read output with max_bytes ending mid-address. DEC-034 amended.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Verified, with a sibling: [email] (7 bytes) is longer than a@b.c (5 bytes), so the never-lengthens claim was false for two rules. Repaired in design 5.2 (classify/state): strip first, then cut each text to its bound with utf8.prefix, so the bound holds for what is sent. A body read already truncated loses its last partial word before stripping, so a cut-off address is not sent half-recognised. Section 9 drops the never-lengthens property and tests strip-then-cut with expanding input and the partial-word drop. DEC-034 amended.
+"""
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = """
+CONTEST — the strip-then-cut body bound is repaired, but the claimed repair for read-cut PII is not wired to the actual input contract.
+
+The new rule at .doctrine/slice/004/design.md:257-259 removes a partial word only when the input body's is_truncated is true. Current read --max-bytes instead reports its own truncation in data.output_truncated (src/screwtape/render.gleam:83,112,261-281), while body_json prints the stored body's original flag unchanged (:223-231). The proposed Mail/input contract at design.md:210-224 ignores output_truncated.
+
+Read-only reproduction against the existing compiled renderer, using only synthetic data: render a nontruncated stored body consisting of ('x ' repeated 8189 times) followed by alice@example.com with max_bytes=16384. Observed: rendered_bytes=16384, output_truncated=true, body_is_truncated=false, final six bytes=alice@. This matches the inspected renderer source. The planned state builder sees no per-body truncation flag; its input already fits the new budget, so it neither drops that suffix nor recognises a complete email.
+
+Inference: the revised classifier still forwards this partial local part and describes the body as untruncated. Define handling of the published top-level output_truncated flag (or another justified contract-compatible way to identify read-shortened bodies), preserve honest partial-evidence flags, and test with actual render.read output rather than a handcrafted body flag. The new order and expansion tests are accepted; the remaining counterexample is the cutoff half of the original finding."""
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Contest accepted; verified in src/screwtape/render.gleam: read reports its max-bytes cut only in data.output_truncated, and body_json passes the stored per-body flag unchanged. Repaired in 5.2: Mail carries output_truncated. A body is cut on arrival when its is_truncated is true, or output_truncated is true and it is the last body with text or any body after it (print_bodies cuts in body order, so that is the body it cut). Such a body loses its last partial word before stripping and is sent with is_truncated true. Section 9 tests this from real render.read output with max_bytes ending mid-address. DEC-034 amended.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — the original post-strip expansion and cut-off-address counterexamples are resolved in revision 26. .doctrine/slice/004/design.md:213-217 now carries output_truncated into Mail. The state rule at :260-272 preserves strip-before-cap and uses that top-level signal to remove the trailing word and mark the last nonempty body/following bodies truncated. This covers the previously reproduced alice@ case even when its stored per-body flag is false. Section 9 at :625-627 requires a regression built from real render.read output. Amended DEC-034 agrees. This accepts the original repair as a design change; a separate newly introduced zero-surviving-codepoint edge in the last-nonempty-body heuristic is recorded as a minor finding, rather than preserving a major status for that smaller defect."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "major"
+title = "The body-only cap leaves attacker-controlled metadata able to block the classification stream"
+detail = """
+Expected: the design's stated mitigation prevents a single mail from exceeding Jev's context and blocking the stream (DEC-037; .doctrine/slice/004/design.md:471-473).
+
+Observed: classify/state caps only body text (:215-237). Subject bytes, sender-domain count/length, attachment count, attachment type and attachment-name bytes remain unbounded. The only other input bound is 16 MiB over the entire invocation (:354-358), far above the cited 32k-token per-state/question limit (:91-94). Current JMAP decoding accepts arbitrary strings and unbounded lists (src/screwtape/jmap/decode.gleam:433-487, :543-550, :553-584), and render.print_bodies caps only bodies (src/screwtape/render.gleam:261-281). IMP-002 explicitly documents the producer's unbounded metadata; it is open, not an implemented safeguard.
+
+Counterexample: a small-body read envelope with tens of thousands of attachments/long filenames can fit below 16 MiB while sending far more state than the 16 KiB rationale budgets. On an upstream context rejection, DEC-037 stops at that mail, and read --after the last successful cursor feeds the same oversized mail again.
+
+Inference: exact token counts depend on Jev's tokenizer, but the absence of any metadata/request bound is verified. The claimed anti-blocking guarantee does not follow from a body-only cap.
+
+Repair: define an independent total classifier-state/request budget covering every retained field and container, with deterministic reductions and honest partial-evidence indicators, or an explicit oversized-message recovery procedure. This need not implement or change the deferred producer-contract work in IMP-002. Test large subjects, many senders and many attachment names, including recovery."""
+disposition = "fix-now"
+route = "review"
+response = """
+Contest accepted; the 25 KB claim was false. Bound completed in 5.2: at most 10 bodies (bodies_omitted), sender domains at most 253 bytes (longer ones dropped and counted), control characters other than tab, LF and CR removed before stripping. Worst case recomputed as about 51 KB encoded (quote and backslash escape to two bytes). The hard guarantee is withdrawn: whether a worst case fits the 32k token limit is stated as unmeasured, and the cursor skip procedure (5.5) covers a message that does not. Design, DEC-034 and slice scope objective 3 now consistently say unlikely, matching DEC-037.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Verified: only body text was bounded. Repaired with operator assent, reopening DEC-034's field set: subject 512 bytes, at most 10 sender domains and 20 attachments (overflow counted in new sender_domains_omitted and attachments_omitted fields), attachment type and name 128 bytes each. Worst case about 25 KB of state, stated as inference against the 32k token limit. Recovery for a message that still fails every run: classify --state shows its cursor and read --after that cursor skips it; README documents it (5.5, risk table). DEC-034 choice and DEC-037 rationale amended. IMP-002 producer-side bounds stay separate.
+"""
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = """
+CONTEST — partly repaired. Subject/attachment caps, omitted counters and the explicit manual skip procedure are useful, but the new bounded-state claim and worst-case arithmetic are false.
+
+At .doctrine/slice/004/design.md:239-262, sender_domains is limited to ten entries without a per-domain byte/grammar bound, and bodies has a byte bound only on texts, with no entry-count bound. Neither lowercasing/deduplication nor utf8.prefix on texts bounds those containers. Synthetic compact-JSON checks: one 65,544-byte domain produces a 65,662-byte state; 20,000 empty body records produce a 1,180,115-byte state while using zero of the text budget. Both fit under the 16 MiB invocation bound. Even one 16,384-byte body of U+0001 serialises as a 98,478-byte state because JSON escapes each control character. These are standard encoding/count counterexamples, not measured Jev token counts.
+
+Consequently the claimed approximately 25 KB worst case and cannot-exceed-context guarantee at :239-240,260-262 do not follow. The same every-field-bounded claim remains in amended DEC-034 and SL-004 scope objective 3; DEC-037 now appropriately says unlikely, which conflicts with the stronger design/scope wording.
+
+Complete the total-state bound, including domain length, body container cardinality, encoded overhead and truncation/omission signals, or consistently withdraw the hard bound and document the remaining unbounded cases/recovery. A per-input 16 MiB cap and an operator skip recipe do not make a 25 KB worst-case assertion true. Exact tokenizer behaviour remains inference/unmeasured; the byte-bound failures are verified."""
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Contest accepted; the 25 KB claim was false. Bound completed in 5.2: at most 10 bodies (bodies_omitted), sender domains at most 253 bytes (longer ones dropped and counted), control characters other than tab, LF and CR removed before stripping. Worst case recomputed as about 51 KB encoded (quote and backslash escape to two bytes). The hard guarantee is withdrawn: whether a worst case fits the 32k token limit is stated as unmeasured, and the cursor skip procedure (5.5) covers a message that does not. Design, DEC-034 and slice scope objective 3 now consistently say unlikely, matching DEC-037.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — resolved at design level. .doctrine/slice/004/design.md:243-276 adds a ten-body limit and bodies_omitted, a 253-byte domain bound with drop/count behaviour, and control-character removal before stripping. The former unbounded-domain/body-container counterexamples are no longer admitted unchanged. With at most two encoded bytes per remaining ASCII byte, the capped text fields total at most 24,546 bytes before escaping, plus bounded containers/counters; an in-memory compact-JSON stress case filling all string caps and all ten/twenty-entry lists used 50,273 bytes, consistent with the approximate 51 KB estimate. The 25 KB and cannot-exceed-context claims are withdrawn: actual token fit is explicitly unmeasured and the existing skip procedure remains the recovery path. Amended DEC-034 and canonical SL-004 objective 3 now match that limitation. No tokenizer, request-cost or live-service guarantee is inferred from the byte arithmetic."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "major"
+title = "The new transient unit drops the existing protections against credential and mail crash dumps"
+detail = """
+Expected: DEC-012, POL-002 and SL-004 §5.5 I1/I5 preserve the key/output boundary and avoid writing mail into incidental files.
+
+Observed: the wrapper specified at .doctrine/slice/004/design.md:419-429 creates a new systemd transient service with only LoadCredentialEncrypted. The existing sync service explicitly sets LimitCORE=0 and ERL_CRASH_DUMP_SECONDS=0 (nix/module.nix:246-248); these service-local settings are not properties of the new transient unit. nix/package.nix does not supply them globally. main's logger/guard protection catches Erlang-process failures (src/screwtape.gleam:35-44; src/screwtape_ffi.erl:47-59), not runtime/native termination.
+
+OTP's primary documentation explains that abnormal runtime exits can write erl_crash.dump in the emulator's working directory and include process data: https://www.erlang.org/doc/apps/erts/crash_dump.html . The new process holds both a decrypted key and mail. --collect removes unit state, not dump files.
+
+Inference: on a host permitting dumps, a fatal VM/native failure can persist key/mail outside the permitted fixture directory. This was not crash-tested, and host defaults were not assumed safe or inspected for secrets.
+
+Repair: carry the existing dump suppression into the transient invocation, preferably through shared Nix definitions so POL-001 does not create drifting hardening copies. Verify the generated transient command's properties and a safe dummy-data runtime failure path. A successful TLS sentinel request alone (§9:562-564) does not test this execution boundary."""
+disposition = "fix-now"
+route = "review"
+response = """
+Verified: nix/module.nix sets LimitCORE=0 and ERL_CRASH_DUMP_SECONDS=0 on screwtape.service only. Repaired in design 5.4: the systemd-run wrapper passes -p LimitCORE=0 and -E ERL_CRASH_DUMP_SECONDS=0, both from one Nix definition shared with screwtape.service (POL-001). Section 9 nix: module-eval asserts the wrapper and the service carry the same settings. A crash-path runtime test is not added: the settings are systemd and BEAM properties; the eval check confirms they are applied.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Verified: nix/module.nix sets LimitCORE=0 and ERL_CRASH_DUMP_SECONDS=0 on screwtape.service only. Repaired in design 5.4: the systemd-run wrapper passes -p LimitCORE=0 and -E ERL_CRASH_DUMP_SECONDS=0, both from one Nix definition shared with screwtape.service (POL-001). Section 9 nix: module-eval asserts the wrapper and the service carry the same settings. A crash-path runtime test is not added: the settings are systemd and BEAM properties; the eval check confirms they are applied.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — resolved as a prose/design repair. .doctrine/slice/004/design.md:453-465 adds -p LimitCORE=0 and -E ERL_CRASH_DUMP_SECONDS=0 to the credential-bearing transient service, sourced from one definition shared with screwtape.service. Section 9 at :642-644 requires equality checks for both generated paths. This directly closes the omitted-settings complaint and honours POL-001. I accept the responder's explicit choice of structural verification for these existing platform settings; this verification is not a claim that module evaluation, fatal-VM testing or activation has run."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "major"
+title = "The evaluation labels one mailbox snapshot and classifies a different, mutable snapshot"
+detail = """
+Expected: the evaluation compares operator-confirmed labels with classifications of exactly the same inputs and preprocessing.
+
+Observed: .doctrine/slice/004/design.md:438-448 first runs read | classify --state to create states.jsonl, pauses for an LLM pass and operator edits, then re-runs read | classify to create classify.jsonl. No frozen read-input artifact, content fingerprint, equal-ID-set check or mismatch rejection is specified. The IDs/cursors in the output identify messages/arrival positions, not the state bytes (the planned classify output at :363-372 omits state). Each current read invocation takes its own snapshot (src/screwtape/cli.gleam:131-160, :245-265), while the Home Manager sync timer defaults to every 15 minutes (nix/module.nix:190-194, :252-258).
+
+Inference: sync during tagging can prune, replace or change the selected mail before classification. Arrival-order cursors and matching IDs do not prove identical subject/body/truncation state. Depending on how the unspecified join works, the report can compare changed evidence or silently evaluate only the surviving intersection. No live mailbox was accessed.
+
+Repair: capture one immutable read-envelope input file inside PII_hidden_fixtures.local/ and feed it to both --state and classify, preserving POL-002. Define how labels/results bind to that sample, schema and model, and fail the report on missing, duplicate or mismatched entries. Test an intervening sync/sample change rather than assuming the manual run is atomic."""
+disposition = "fix-now"
+route = "review"
+response = """
+Verified. Repaired in design 5.3 and 5.4: step 1 writes read output once to sample.jsonl in PII_hidden_fixtures.local; classify --state and classify both read that file. just eval fails if ids in states, labels and classify differ or repeat, or name different schemas. Section 9 adds the join-failure test. Per operator, delivery order is now stated: classify deploys first, eval machinery is built afterwards.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Verified. Repaired in design 5.3 and 5.4: step 1 writes read output once to sample.jsonl in PII_hidden_fixtures.local; classify --state and classify both read that file. just eval fails if ids in states, labels and classify differ or repeat, or name different schemas. Section 9 adds the join-failure test. Per operator, delivery order is now stated: classify deploys first, eval machinery is built afterwards.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — the original mutable-mailbox-snapshot defect is resolved. .doctrine/slice/004/design.md:433-436,480-489 captures sample.jsonl once inside POL-002's directory and feeds the same file to --state and classify. A sync during operator tagging no longer changes either invocation's input. The three-file join additionally rejects differing/repeated IDs and differing schemas. The operator-authorised delivery order at :476-478 is accepted. This verifies the original repair; the join's separate handling of incomplete samples and model identity is examined as a new issue rather than reasserting the resolved snapshot complaint."
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "major"
+title = "The proposed agreement report cannot establish the calibration gate it claims to settle"
+detail = """
+Expected: .doctrine/slice/004/design.md:485-487 and DEC-035 require evaluation of probability calibration before consumers rely on mail-1.
+
+Observed: §5.4 (:445-448) specifies only primary-purpose agreement/confusion counts, noul hits/misses at 0.3/0.7 and rounded-score agreement. These discard the probability information needed for the stated conclusion. For example, two noul predictors emitting 0.71 versus 0.99 on the same examples have identical threshold counts but materially different calibration. Choice accuracy ignores whether a confident result is correct; rounding a score ignores its returned distribution. No coverage requirement or adversarial challenge set is defined for deception_cues/agent_directive, and §9's hostile-reply tests check JSON validity, not classification under mail instructions.
+
+Inference: the prescribed report can be green on a weak or badly calibrated classifier and on a mailbox sample with no relevant positive cases, while §6 says the calibration unknown has been answered. This does not contest the accepted question schema or require automatic downstream actions.
+
+Repair: specify probability-sensitive evidence (for example reliability bins with counts and proper scoring rules), report class/positive coverage and abstentions, and include synthetic adversarial mail cases using the accepted untrusted-content preamble. State an operator disposition/no-conclusion rule for sparse evidence and for whether substance is retained; do not equate threshold agreement with calibration. TypeSafe's confidence statistic is itself not empirical calibration: https://docs.typesafe.ai/confidence ."""
+disposition = "fix-now"
+route = "review"
+response = """
+Accepted in proportion, per operator. Repaired in design 5.4 and 6: eval reports per-question label coverage and a Brier score (mean squared error of probabilities or noul against the confirmed label); a question with fewer than 5 positive labels is reported as insufficient evidence, not scored; the live run also classifies a few committed synthetic adversarial mails aimed at deception_cues and agent_directive, including instructions to the classifier. Section 6 no longer claims the eval answers calibration: about 50 messages can expose gross miscalibration, not establish calibration. Reliability bins not added: too few samples to be meaningful.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Accepted in proportion, per operator. Repaired in design 5.4 and 6: eval reports per-question label coverage and a Brier score (mean squared error of probabilities or noul against the confirmed label); a question with fewer than 5 positive labels is reported as insufficient evidence, not scored; the live run also classifies a few committed synthetic adversarial mails aimed at deception_cues and agent_directive, including instructions to the classifier. Section 6 no longer claims the eval answers calibration: about 50 messages can expose gross miscalibration, not establish calibration. Reliability bins not added: too few samples to be meaningful.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — the original unjustified calibration claim is withdrawn and the evidence is improved. .doctrine/slice/004/design.md:488-502 adds label coverage, probability-sensitive Brier scoring, an insufficient-evidence outcome and synthetic classifier-directed adversarial mail. Section 6 at :539-542 and the reconciled SL-004 scope now limit the claim to first evidence/gross miscalibration; they expressly say roughly 50 messages cannot establish calibration. I accept the operator's bounded evaluation and omission of reliability bins; this is not a demand for a different question schema or for downstream automation. No empirical calibration result has been produced in this review."
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "minor"
+title = "Token usage is promised as evaluation evidence but discarded by every designed interface"
+detail = """
+Expected: .doctrine/slice/004/design.md:471-473 and :488-489 say the evaluation records usage.input_tokens in aggregate to investigate context size.
+
+Observed: Reply contains only model and answers (:247-252), jev/client.ask returns that Reply (:276-279), and both published classify envelopes (:363-372) and eval inputs (:400-402, :438-448) omit usage. There is no internal usage accumulator, eval-only response path or meter. Upstream does return usage: .doctrine/slice/004/research/research.md:178-181, local TypeSafe SDK src/types.ts, and https://api.typesafe.ai/openapi.json (SystemOneResponse).
+
+Inference: an eval consuming the specified files cannot recover the token counts the codec threw away. Estimating from text bytes is not measuring upstream input_tokens.
+
+Repair: design an explicit bounded internal usage path and aggregate output for the eval, or include a compatible optional usage field in the contract with documentation and tests. Name which module accumulates it and how failed/partial runs are reported, without logging mail or retaining raw responses."""
+disposition = "fix-now"
+response = """
+Verified: no interface carries usage. Resolved by withdrawing the promise rather than adding plumbing (operator): Screwtape does not record token usage; section 6 says llm-gateway accounting is expected to show it once classify runs through the gateway (unverified). The 400 max_tokens edge case now rests on the F-4 state bounds and the skip procedure, not on measurement. DEC-036 envelope unchanged.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Verified: no interface carries usage. Resolved by withdrawing the promise rather than adding plumbing (operator): Screwtape does not record token usage; section 6 says llm-gateway accounting is expected to show it once classify runs through the gateway (unverified). The 400 max_tokens edge case now rests on the F-4 state bounds and the skip procedure, not on measurement. DEC-036 envelope unchanged.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — resolved by withdrawing an unsupported promise, as the operator chose. .doctrine/slice/004/design.md:523-527 no longer says eval measures usage, and :543-545 explicitly states Screwtape does not record token usage and labels expected gateway accounting unverified. The canonical SL-004 scope reflects the same limitation. Reply and DEC-036 therefore need no usage field. This accepts the disclosure and scope decision, not the still-unverified availability of gateway accounting or the separately contested state-bound arithmetic in F-4."
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "minor"
+title = "Range checks accept distributions and scores that contradict each other"
+detail = """
+Expected: consumers receive meaningful probability distributions and probability-weighted scores, as the field names and upstream semantics promise.
+
+Observed: .doctrine/slice/004/design.md:261-269 checks names and independent ranges, but does not check distribution normalisation or agreement between a score and its distribution. A seven-label primary_purpose reply assigning 0.9 to every label passes those checks with sum 6.3. A score reply with score=2, confidence=1 and probabilities {0:1,1:0,2:0} also passes, although its expected score is 0. These arithmetic counterexamples were checked in memory. Research §Thread 3 explicitly describes score as probability-weighted (.doctrine/slice/004/research/research.md:172-174); the local SDK's ScoreResponse has the same meaning. Primary API contract: https://api.typesafe.ai/openapi.json .
+
+Inference: a malformed but range-valid service reply reaches different consumers as conflicting answers depending on whether they threshold score, choice or probabilities. This is an omitted semantic check, not a live service defect or proof that normalised predictions are trustworthy.
+
+Repair: define numerical tolerances and validate normalisation, selected-choice consistency and weighted-score consistency, accounting for documented upstream rounding/ties. Return a fixed known Decode path when violated. Add these cases to the hostile-reply tests; leave empirical accuracy/calibration to the separate evaluation."""
+disposition = "fix-now"
+response = """
+Accepted. Repaired in design 5.2 (jev reply): probabilities sum to 1 within 0.02; a choice must have the highest probability (ties allowed); score must be within 0.05 of the probability-weighted level. Tolerances are first estimates, confirmed against live replies by the A1 smoke test. Section 9 hostile replies add each violation.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted. Repaired in design 5.2 (jev reply): probabilities sum to 1 within 0.02; a choice must have the highest probability (ties allowed); score must be within 0.05 of the probability-weighted level. Tolerances are first estimates, confirmed against live replies by the A1 smoke test. Section 9 hostile replies add each violation.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — the specific inconsistent replies originally raised are rejected by the revised contract. .doctrine/slice/004/design.md:288-300 requires a maximal-probability choice (ties allowed), sum(p) within 0.02 of 1, and score within 0.05 of sum(i*p_i). In-memory arithmetic confirms the old sum=6.3 distribution and score=2 with p0=1 both fail. Section 9 at :615-618 includes the corresponding hostile cases. The tolerances are explicitly provisional and subject to A1; I have not represented them as confirmed compatible with live TypeSafe rounding or as evidence of model calibration."
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "minor"
+title = "The stdin callback erases the failure reason needed for the documented exit contract"
+detail = """
+Expected: oversized stdin produces LimitExceeded("stdin_bytes") and exit 1, while the compatibility entry point without stdin reports Usage("no_stdin") and exit 2.
+
+Observed: .doctrine/slice/004/design.md:332-338 defines read_stdin as fn() -> Result(String, Nil) and maps Error(Nil) to Usage("no_stdin"). At :354-358, the same edge reader returns Error for input over 16 MiB but promises that cli reports LimitExceeded("stdin_bytes"). Both reach the pure cli as the same Nil payload; no typed distinction or separate mapping is specified. Ordinary read/invalid-UTF-8 failures are likewise left without a distinguishable outcome.
+
+This is a verified interface contradiction, not an executed oversized-input failure.
+
+Repair: return a small typed stdin failure (unavailable, too_large, read/decode failure as needed) or inject a Result already carrying the shared Error type. Specify its fixed safe error mapping and test the real edge at the 16 MiB boundary, not only fixture strings returned successfully by a callback."""
+disposition = "fix-now"
+response = """
+Verified. Repaired in design 5.2: run_piped takes read_stdin returning Result of String and the shared Error; run answers Usage no_stdin. The edge FFI returns ok or error with too_large, bad_utf8 or read_failed, which main maps to LimitExceeded stdin_bytes, Decode stdin_utf8 and Decode stdin. Section 9 adds one subprocess test piping 16 MiB plus 1 bytes, expecting stdin_bytes and exit 1.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Verified. Repaired in design 5.2: run_piped takes read_stdin returning Result of String and the shared Error; run answers Usage no_stdin. The edge FFI returns ok or error with too_large, bad_utf8 or read_failed, which main maps to LimitExceeded stdin_bytes, Decode stdin_utf8 and Decode stdin. Section 9 adds one subprocess test piping 16 MiB plus 1 bytes, expecting stdin_bytes and exit 1.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — the type-level error-mapping contradiction is resolved. .doctrine/slice/004/design.md:364-369 changes the callback to Result(String, Error), preserving Usage(no_stdin) for the compatibility entry point. The edge at :385-391 distinguishes too_large, bad_utf8 and read_failed and maps them to fixed shared errors. Under src/screwtape/error.gleam:74-79, those runtime errors exit 1 while Usage exits 2. Section 9 at :628-629 adds the real 16 MiB+1 subprocess boundary case. These are reviewed design mappings; the new edge has not been implemented/executed here."
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "minor"
+title = "The repaired eval join accepts a shared partial sample and does not bind results to one model"
+detail = """
+Expected: the evaluation introduced at SL-004 §5.4 measures the complete saved sample under one identifiable schema/model, or explicitly rejects/declares a partial run.
+
+Observed: .doctrine/slice/004/design.md:480-499 defines sample.jsonl as the input, but the join at :488-489 compares IDs only across states.jsonl, labels.jsonl and classify.jsonl, plus schema equality. It neither compares with sample.jsonl nor requires successful completion metadata for both producer commands. The CLI expressly preserves successful-prefix output on failure (:370-381). Section 9 (:634) tests only a missing/repeated/mismatched ID between outputs. No model-homogeneity check is specified, although classify results carry model (:396-397).
+
+Synthetic set counterexample, checked in memory: sample IDs {a,b,c}; states, labels and classify each contain {a,b}, without duplicates and with the same schema. The prescribed three-file checks pass. If both producer commands stopped at the same input failure, the missing suffix is invisible to that join. Separately, two result rows may carry jev-1.14.0 and jev-1.13.0 while sharing mail-1; the stated join still pools them.
+
+Inference: after failed preprocessing, reused artifacts or concatenated resumptions, the report can silently score a surviving subset or mix model versions. This is a counterexample to the proposed join conditions, not a run of the not-yet-built evaluation harness. The frozen-input repair for F-6 remains accepted; this finding concerns validation added by that repair.
+
+Repair: bind the eval to the expected IDs from the saved input and to successful producer completion, and require one canonical model identity or report models as explicitly separate cohorts. Reject missing/extra/duplicate IDs relative to that input, not only differences among outputs. Add tests where every derived file omits the same suffix and where schemas match but model versions differ. Keep all per-message artifacts under POL-002 and print only aggregate diagnostics."""
+disposition = "fix-now"
+response = """
+Accepted. Repaired in 5.4 step 5: sample.jsonl ids are the expected set; just eval fails if any derived file misses, repeats or adds an id against it, if schemas differ, or if classify.jsonl names more than one model. A partial classify run therefore cannot be scored as complete. Section 9 adds the shared-suffix-missing and two-models cases. Output stays aggregate-only under POL-002.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted. Repaired in 5.4 step 5: sample.jsonl ids are the expected set; just eval fails if any derived file misses, repeats or adds an id against it, if schemas differ, or if classify.jsonl names more than one model. A partial classify run therefore cannot be scored as complete. Section 9 adds the shared-suffix-missing and two-models cases. Output stays aggregate-only under POL-002.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — resolved in the revised eval-join conditions. .doctrine/slice/004/design.md:502-506 compares every derived file against the expected sample.jsonl ID set, rejects missing/repeated/extra IDs and schema disagreement, and rejects more than one result model. Section 9 at :656-658 adds both requested regression cases. Synthetic set/cohort checks reject the old common-prefix example and mixed jev-1.14.0/jev-1.13.0 result set, while accepting a complete homogeneous run. This verifies the proposed join's conditions, not an executed evaluation harness; the accepted frozen sample, operator-confirmation and delivery-order decisions remain settled."
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "minor"
+title = "The new arrival-cut rule has no anchor when UTF-8 truncation leaves every body empty"
+detail = """
+Expected: the revised classifier preserves an honest truncation indicator for a read whose --max-bytes budget removed all available body text.
+
+Observed: .doctrine/slice/004/design.md:265-272 marks a body cut on arrival if its original is_truncated is true, or output_truncated is true and it is the last body with text or any body after that one. There may be no body with text. src/screwtape/render.gleam:271-280 uses utf8.prefix, which can return an empty string when the remaining positive budget cannot fit the first codepoint; body_json (:223-231) preserves the original false flag.
+
+Read-only reproduction against the existing compiled renderer, with a synthetic untruncated body containing only U+20AC and max_bytes=1: output_truncated=true, body texts=[empty], input is_truncated flags=[false], last nonempty body=none. The revised predicate supplies no last-nonempty index from which to mark this body or following empty bodies. This is a valid positive read budget (src/screwtape/argv.gleam:170-173).
+
+Inference: an implementation following only the stated predicate can emit an empty state body with is_truncated=false, making fully discarded evidence look like a genuinely empty message. No private mail, live classifier or new state implementation was exercised. The original F-3 address/cap repair is verified; this is the newly introduced heuristic's unhandled empty-anchor case.
+
+Repair: explicitly define the output_truncated=true/no-nonempty-body case, conservatively marking the affected bodies truncated (or carrying an equivalent aggregate partial-evidence signal). Add this multibyte-prefix case to the new render.read-to-state test in section 9 (:625-627). Describe the last-nonempty heuristic as conservative, since a codepoint cut in a following body can also leave an earlier uncut body as the last nonempty one."""
+disposition = "fix-now"
+response = """
+Accepted. Repaired in 5.2 (classify/state): when output_truncated is true and no body has text, every body is cut on arrival and sent with is_truncated true. The text now calls the last-body-with-text rule conservative, noting it can mark an earlier uncut body. Section 9 adds the euro sign with max_bytes 1 case through real render.read output.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Accepted. Repaired in 5.2 (classify/state): when output_truncated is true and no body has text, every body is cut on arrival and sent with is_truncated true. The text now calls the last-body-with-text rule conservative, noting it can mark an earlier uncut body. Section 9 adds the euro sign with max_bytes 1 case through real render.read output.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "VERIFIED — resolved in revision 27's design repair. .doctrine/slice/004/design.md:265-273 explicitly applies the output_truncated=true rule to every body when none has text, so the previously reproduced U+20AC/max_bytes=1 input is now sent with is_truncated=true despite its original false body flag. Lines 269-271 correctly disclose that the last-nonempty-body heuristic is conservative and can remove a word from an earlier uncut body. Section 9 at :627-631 adds exactly the empty-first-codepoint regression through real render.read output. Five in-memory checks of the stated predicate covered one/multiple empty bodies, output_truncated=false, an existing per-body flag, and an earlier nonempty/following-empty body; all matched the revised rule. No defect introduced by this repair was found. This is design-rule verification, not execution of a new classifier/state implementation; no settled point was reopened."
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "minor"
+title = "The new jev_context error example changes the established fixed error tag"
+detail = """
+Expected: the delta adds the fixed bound jev_context and the failing input cursor while preserving the shared Error renderer's established wire codes (DEC-014).
+
+Observed: .doctrine/slice/004/design.md:402-411 publishes {"level":"error","error":"LimitExceeded","bound":"jev_context","cursor":"…"} and :558-561 says the README shows that error line. LimitExceeded is the Gleam constructor, not the JSON error tag. src/screwtape/error.gleam:46-71 emits variant_name(error), and :95 maps LimitExceeded to the fixed lowercase string limit_exceeded.
+
+Read-only reproduction against the existing compiled pure renderer: to_json_line(LimitExceeded("jev_context")) emitted {"level":"error","error":"limit_exceeded","bound":"jev_context"}. No service, mail or credential was involved. Appending the authorised cursor field does not change that tag.
+
+Inference: an implementer following the example could introduce a classify-specific tag, or a consumer following the README example could fail to recognise the actual context-limit error and its skip instruction. This is a verified design/example inconsistency, not a reproduced defect in a new classify implementation.
+
+Repair: publish error:"limit_exceeded", preserve the existing shared renderer when adding cursor context, and pin the full error-line shape (including the fixed error tag, jev_context bound and failing cursor) in the new CLI test at design.md:667-669. The operator's 16 KiB bound, compare-only 400 detection, 413 mapping and explicit skip choice remain accepted."""
+disposition = "fix-now"
+response = "Verified in src/screwtape/error.gleam variant_name: the wire tag is limit_exceeded. The design's jev_context error-line example now prints error limit_exceeded (5.2, revision 33)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Verified in src/screwtape/error.gleam variant_name: the wire tag is limit_exceeded. The design's jev_context error-line example now prints error limit_exceeded (5.2, revision 33)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = """VERIFIED — the corrected section 5.2 example at .doctrine/slice/004/design.md:407 now emits error:"limit_exceeded", matching src/screwtape/error.gleam:95. The jev_context bound and authorised cursor metadata remain intact. This resolves F-13's constructor-versus-wire-tag inconsistency. Checked only the response and this repair; no new implementation or live-service behaviour is claimed."""
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

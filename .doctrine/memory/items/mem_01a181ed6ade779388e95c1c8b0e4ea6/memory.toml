@@ -1,0 +1,46 @@
+memory_uid = "mem_01a181ed6ade779388e95c1c8b0e4ea6"
+memory_key = "mem.fact.doctrine.design-apply-acceptance-records-user-act"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "design apply top-level acceptance records a user checkpoint act"
+summary = "In design apply, a top-level acceptance records the stage's user checkpoint act (in reviewing: design-accepted); never send it with agent-lane declarations"
+created = "2026-10-28"
+updated = "2026-10-28"
+
+[scope]
+paths = []
+globs = []
+commands = ["doctrine design apply"]
+tags = ["doctrine", "design"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "c9ebb7239185773e6e383a7437ddd45b18dd94cb"
+ref_name = "refs/heads/main"
+checkout_state_id = "6e9ec36866b1e253e85e7097ff9f97af22e8834fea566b1317e78b947a784d5c"
+base_commit = "90c36994eaeab41cfe8b63240f5c802b7ca050b1"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "high"
+weight = 0
+
+[[source]]
+kind = "observation"
+ref = "SL-004 rev 31 sl4-adv-attest"
+

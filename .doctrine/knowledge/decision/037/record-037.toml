@@ -1,0 +1,39 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 37
+slug = "classify-stop-at-first-failure"
+title = "classify stops at the first failure, keeps what it classified, and never retries"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-28"
+updated = "2026-10-28"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-009's no-retry rule rests on the sync timer; classify is a pipe verb with no timer. Jev documents 429 and 529 as retryable. Jev answers are derived from attacker-controlled text, and decode.dict copies map keys into error paths (mem.fact.gleam.decode-dict-key-in-path)."
+choice = "One Jev request per message holding every question. A response is decoded by our known question names only, never decode.dict, with type and range checks: probabilities and noul in [0, 1], confidence in [0, 1], score within its levels, choice in its criteria. The first failure of any kind (malformed input line, transport, non-2xx, decode) ends the run: stdout keeps the lines already classified, stderr gets one error line, exit 1 (2 for usage or config). No retry. The consumer resumes with read --after the last emitted cursor."
+alternatives = ["per-message error lines and continue", "bounded retry with backoff on 429/529"]
+rationale = "The cursor already makes resumption exact and cheap; continuing past failures would hammer a rate-limited or failing upstream and blur which messages were classified. Every state field is bounded (DEC-034), so a single message is unlikely to exceed Jev's context; one that still fails on every run is skipped by resuming read --after its cursor (amended 2026-10-28, RV-016 F-4)."
+consequences = ["Outcome carries stdout and an error together for classify", "Error paths name only our own question names"]
+decided_by = "agent proposal; operator choice (david)"
+decided_on = "2026-10-28"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "no-retry carried to classify without the timer rationale"
+target = "DEC-009"
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

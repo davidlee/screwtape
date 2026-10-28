@@ -1,0 +1,39 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 33
+slug = "jev-loopback-http"
+title = "Screwtape's Jev endpoint accepts http only for the literal loopback host 127.0.0.1"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-28"
+updated = "2026-10-28"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context      = "SL-004 calls Jev directly (interim, https://api.typesafe.ai) and later through the LLM gateway (flakes:IMP-054). The gateway relay listens on plain http at 127.0.0.1:<relayPort> only (no IPv6 listener), behind per-client keys; jails already use it. DEC-018 keeps https mandatory and rejected a loopback-http exception for session_url and apiUrl."
+choice       = "The Jev base_url accepts https://, or http:// only when the host is the literal 127.0.0.1. No localhost (DNS), no [::1], no other host. session_url and apiUrl stay https-only under DEC-018. The transport is unchanged; httpc speaks http."
+alternatives = ["unix client socket via httpc's unix_socket option", "TLS on the gateway relay (certs + client CA file)", "https everywhere, no gateway"]
+rationale    = "DEC-018 rejected loopback http because the mail token's crash frames and the I1 TLS suite must run the real TLS path; that reasoning binds the Fastmail token, not the Jev endpoint. The gateway client key is low value (budget-capped, one model) and already crosses loopback in clear for every jail. The unix socket option is thinly documented and profile-global; relay TLS is heavy flakes work for no gain against a same-host attacker."
+consequences = ["config validation gains a Jev-specific scheme rule; non_https reason for every other URL is unchanged", "The gateway client key crosses loopback in clear text, as for jails", "No flakes transport change (operator, from the flakes session, 2026-10-28)"]
+decided_by   = "agent proposal; operator choice (david)"
+decided_on   = "2026-10-28"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "narrows DEC-018's https rule: Jev base_url only; mail URLs unchanged"
+target = "DEC-018"
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

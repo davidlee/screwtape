@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a181ed-38d6-7190-b763-1115d72a0646"
+recorded_at = "2026-10-28T09:52:49.878652601Z"
+kind = "friction"
+summary = "design apply: top-level acceptance on a reviewer-lane attestation submission recorded a user design-accepted act"
+detail = "SL-004 run dr-01a181a1, revision 31, submission sl4-adv-attest. Agent declared 14 att-adv-* section attestations (reviewer adversarial) with a top-level acceptance whose basis cited RV-016, not the user. The engine also recorded act cpa-design-accepted with authority user and that basis. The user had NOT accepted the design. No verb retracts an act; it should go stale once the user's real review-disposed is recorded (acceptance binds disposition). Correct form for agent-lane attestations: omit top-level acceptance. Friction: an acceptance meant for one declaration silently became a user checkpoint act."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

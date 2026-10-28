@@ -1,0 +1,39 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 36
+slug = "classify-output-envelope"
+title = "classify output: a contract-v1 `classify` envelope per message, its vocabulary versioned by a schema id"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-28"
+updated = "2026-10-28"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-029 makes adding a value to an existing enum a contract version bump; the classification vocabulary will evolve faster than the read contract."
+choice = "One line per input message, oldest first as read: {version: 1, kind: classify, data: {id, cursor, schema, model, answers}}. id and cursor are copied from the input. model is the versioned id Jev reports. answers is keyed by question name: choice -> {choice, confidence, probabilities}; noul -> {noul}; score -> {score, confidence, probabilities}. The question names, choice names and score levels are defined by `schema`, not by contract enums; consumers check schema and refuse an unknown one. `classify --state` emits {version: 1, kind: classify_state, data: {id, cursor, schema, state}}."
+alternatives = ["contract enums with a version bump per tag", "open-ended names with no schema id"]
+rationale = "Keeps DEC-029 intact for the read contract while letting the schema evolve; raw distributions leave thresholds to consumers (TypeSafe confidence guidance)."
+consequences = ["README Contract section gains classify and classify_state, with the schema documented beside them", "DEC-030 pinning applies: render and CLI tests fix the shape"]
+decided_by = "agent proposal; operator choice (david)"
+decided_on = "2026-10-28"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "schema id keeps classify vocabulary out of contract enums"
+target = "DEC-029"
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

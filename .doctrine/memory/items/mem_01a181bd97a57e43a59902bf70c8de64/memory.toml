@@ -1,0 +1,42 @@
+memory_uid = "mem_01a181bd97a57e43a59902bf70c8de64"
+memory_key = "mem.fact.doctrine.governance-confirmed-invalidated-by-edges"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "A new governed_by or shapes edge invalidates a design run's governance-confirmed act"
+summary = "Adding POL/DEC edges to a slice mid-design makes governance-confirmed stale; re-confirm with the user before the next stage advance"
+created = "2026-10-28"
+updated = "2026-10-28"
+
+[scope]
+paths = []
+globs = []
+commands = ["doctrine design apply"]
+tags = ["doctrine", "design"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "c9ebb7239185773e6e383a7437ddd45b18dd94cb"
+ref_name = "refs/heads/main"
+checkout_state_id = "d3b1c96352a03c36aa9774d2d629c731d2e59fd62578e98aa86ae53953dec3c7"
+base_commit = "90c36994eaeab41cfe8b63240f5c802b7ca050b1"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+

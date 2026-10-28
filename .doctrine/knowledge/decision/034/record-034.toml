@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 34
+slug = "classify-pii-stripped-state"
+title = "classify sends Jev a fixed, PII-stripped state built from the read envelope"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-28"
+updated = "2026-10-28"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "SL-004 sends mail content to an external decision model (Jev, TypeSafe) and, for the evaluation, to an operator-run LLM tagger. Regex cannot remove all PII (IDE-001). Codex review (2026-10-28) showed a naive digit rule erases dates and deadlines."
+choice = "state = {subject, sender_domains (from[].email after the last @, lowercased, deduplicated), sender_domains_omitted, bodies: [{text, is_truncated, conversion_failed}], bodies_omitted, attachments: [{type, name}], attachments_omitted}. No display names, local parts, other address fields, header ids or provenance. Every field and list is bounded: body texts 16384 bytes in total, at most 10 bodies, subject 512 bytes, at most 10 sender domains of at most 253 bytes, at most 20 attachments with type and name 128 bytes each (overflow counted in the _omitted fields); cuts fall on a codepoint boundary; control characters other than tab, LF and CR are removed. Texts are stripped first and cut to their bounds after, since stripping can lengthen text. A body cut on arrival (its is_truncated, or read output_truncated for the last body with text and any after it) loses its last partial word before stripping and is sent as truncated. The worst case is about 51 KB encoded; whether it fits Jev token limits is unmeasured, and a message that does not is skipped by cursor. The strip uses Erlang re (OTP, via FFI) in a self-contained module with no Screwtape imports: email addresses -> [email]; URLs -> scheme://host, with /[...] appended when a path or query was dropped; IPv4 -> [ip]; date, time and date-with-time shapes (calendar-plausible day and month, whole tokens only, nothing rule 5 would join touching either end) are protected; then any run of 8 or more digits, allowing space, dash or dot separators -> [number]. `classify --state` prints the state lines without calling Jev."
+alternatives = ["gleam_regexp dependency", "hand-written scanner", "send the read envelope as is", "Luhn-checked card detection"]
+rationale = "The host and sender domain are the strongest phishing and purpose signals and are not personal; local parts and names are. One function and one rule set over every text field keeps the strip auditable, and --state makes it inspectable. Erlang re adds no dependency. Eight-digit runs catch card, phone, tax-file and account numbers; protected date shapes keep deadlines answerable."
+consequences = ["Names; postal addresses and short numbers (BSB; short references) leak and the README says so", "screwtape_pii_ffi.erl wraps re and check_imports allowlists it", "Changing the state; its bounds or the rules bumps the question schema id (DEC-035)", "Amended 2026-10-28 after RV-016 F-2 F-3 F-4 (operator assent): per-field bounds; strip before cut; whole-token date protection"]
+decided_by = "agent proposal, Codex review; operator choice (david)"
+decided_on = "2026-10-28"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

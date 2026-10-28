@@ -1,0 +1,161 @@
+id = 4
+slug = "jev-classifier"
+title = "Jev mail classifier verb over PII-stripped read output"
+status = "ready"
+created = "2026-10-28"
+updated = "2026-10-28"
+tags = []
+
+[relationships]
+needs = []                      # slice→work hard prerequisite
+after = []                      # slice→work soft sequence: { to, rank }
+
+[[selector]]
+selector = "src/screwtape/cli.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/argv.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/config.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/credential.gleam"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/classify*"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/jev*"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/pii*"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape_http.erl"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "test/**"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "README.md"
+intent = "design-target"
+
+[[selector]]
+selector = "nix/module.nix"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/http.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/jmap/client.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape_ffi.erl"
+intent = "design-target"
+
+[[selector]]
+selector = "test/check_imports.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "nix/module-eval.nix"
+intent = "design-target"
+
+[[selector]]
+selector = ".gitignore"
+intent = "design-target"
+
+[[selector]]
+selector = "PII_hidden_fixtures.local/*.md"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "justfile"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/pii.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape_pii_ffi.erl"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/classify/**"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/jev.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/jev/**"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/render.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/support/**"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/**"
+intent = "design-target"
+
+[[selector]]
+selector = "test/fixtures/mail/**"
+intent = "design-target"
+
+[[selector]]
+selector = "test/eval.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/eval/**"
+intent = "design-target"
+
+[[selector]]
+selector = "PII_hidden_fixtures.local/CLAUDE.md"
+intent = "design-target"
+
+[[selector]]
+selector = "PII_hidden_fixtures.local/AGENTS.md"
+intent = "design-target"
+
+[[relation]]
+label = "governed_by"
+target = "POL-002"
+
+[[relation]]
+label = "references"
+role = "originates_from"
+target = "IDE-001"
+
+# STRUCTURAL relations are uniform `[[relation]]` rows, never a typed
+# `[relationships]` axis. Slices carry no typed STRUCTURAL
+# relation axes — the `[relationships]` table above holds only the dep/seq payload
+# (`needs`/`after`). Author a structural edge with the `doctrine link` verb
+# — it validates the (source, label) pair and resolves the target:
+#   doctrine link SL-NNN specs SPEC-NNN
+#   doctrine link SL-NNN governed_by ADR-NNN
+# `doctrine inspect SL-NNN` renders the inbound + outbound edges.
