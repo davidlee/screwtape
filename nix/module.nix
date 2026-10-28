@@ -16,13 +16,16 @@ self: {
   # Relative to %E, the user manager's xdg.configHome (asserted below).
   credentialPath = "credstore.encrypted/screwtape.${credential}";
 
+  # The unit's StateDirectory, under xdg.stateHome (asserted below).
+  storeDir = "${config.xdg.stateHome}/screwtape";
+
   # The config holds no secret, so it lives in the store (DEC-009).
   configFile = pkgs.writeTextFile {
     name = "screwtape.json";
     text = builtins.toJSON {
       session_url = cfg.sessionUrl;
       credential_name = credential;
-      store_path = "${config.xdg.stateHome}/screwtape/mail.sqlite3";
+      store_path = "${storeDir}/mail.sqlite3";
       window = {
         inherit (cfg.window) mailboxes;
         max_age_days = cfg.window.maxAgeDays;
@@ -103,6 +106,13 @@ in {
       internal = true;
       readOnly = true;
       description = "The generated config, as the wrapper passes it.";
+    };
+
+    storeDir = mkOption {
+      type = types.str;
+      internal = true;
+      readOnly = true;
+      description = "The store's directory. A reader, jailed or not, needs it writable (DEC-031).";
     };
 
     package = mkOption {
@@ -197,7 +207,7 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    services.screwtape.configFile = configFile;
+    services.screwtape = {inherit configFile storeDir;};
 
     # The unit's StateDirectory and %E resolve from the user manager's own
     # defaults, not from xdg: the two must agree (RV-001 F-31).

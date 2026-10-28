@@ -258,6 +258,8 @@
     # ---- the config's state directory and NF-006 ---------------------------
     (lib.assertMsg (ok.config.xdg.stateHome == "/home/operator/.local/state")
       "xdg.stateHome: want the default /home/operator/.local/state (EX-2, RV-001 F-31)")
+    (lib.assertMsg (ok.config.services.screwtape.storeDir == "/home/operator/.local/state/screwtape")
+      "services.screwtape.storeDir: want the unit's StateDirectory, /home/operator/.local/state/screwtape (DEC-031)")
     (lib.assertMsg (!(lib.hasInfix "/home/" (builtins.readFile ./module.nix)))
       "nix/module.nix: must contain no /home/ literal (NF-006)")
     (lib.assertMsg negRejected
