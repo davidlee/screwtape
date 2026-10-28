@@ -30,7 +30,7 @@ fresh-as-of: 2026-10-29 · SL-004 done (reconciled RV-018, REV-002; eb9b8aa); op
 - mem.fact.doctrine.governance-confirmed-invalidated-by-edges — new governing edges stale the governance act
 
 ### Open
-- OPEN satan:RFC-020 D1/D5 amendment draft (cross-repo; DEC-016 exposure note landed with RV-018 F-17); consumer: malebolge IMP-022
+- SETTLED satan:RFC-020 D1/D5/D8 amendment landed in satan 2026-10-29; consumer: malebolge IMP-022
 - SETTLED RV-018 F-12 — operator accepted the mail-1 text 2026-10-29 (refinable without id bump while unreleased); DEC-035 amended
 - SETTLED design A1 — confirmed live at PHASE-14 except the alias (untestable through the pinned gateway key); design prose: RV-018 F-18
 - design § 6 — substance signal and calibration: now IMP-003's question
