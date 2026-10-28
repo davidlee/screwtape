@@ -16,7 +16,7 @@ copied from the operator's mailbox, including its PII-stripped `classify
   rates), never by its content.
 - **Never sent elsewhere** except where the operator directed it: the Jev
   call in `classify`, and the LLM tagging pass the operator runs for the
-  evaluation (SL-004).
+  evaluation (IMP-003).
 - **Scrubbed fixtures are different.** Hand-made fixtures, and scrubbed
   fixtures with recorded provenance (e.g. those copied from malebolge's
   `test/mail/fixtures/real/`), belong in `test/` as usual.

@@ -146,3 +146,36 @@ satan:RFC-020 D1/D5 amendment draft (F-17).
 ### Not edited (immutable plan criteria; recorded here)
 - PHASE-12 EX-12 and EX-14, PHASE-13 EX-7, PHASE-14 EX-3 and VT-4 wording
   (F-6, F-12, F-8, F-10, F-11).
+
+## Reconciliation Outcome
+
+Operator replies 2026-10-29: "apply the diff"; F-12, F-16, F-17 "yes".
+
+### Direct edits applied
+- design.md (edited in place; the run is locked, so no `design adopt`): § 5.1
+  (F-4), § 5.2 (F-5 F-6 F-7 F-8 F-9 F-12 F-14 F-15 F-18), § 5.3 and § 5.4
+  and § 9 (F-10 F-13), § 5.5 (F-3 F-9 F-18), § 6 (F-18), § 7 DEC-039 row
+  (F-9), § 10 rows (F-2). Drafted by a Sonnet agent, each claim checked
+  against the code; the operator approved the diff.
+- Selector registry (F-2): `doctrine slice selector add 4 --intent
+  design-target` for `src/screwtape/error.gleam`, `nix/package.nix`,
+  `test/fixtures/jev/**`. `slice conformance 4`: 70 conformant, 0
+  undelivered; the 13 undeclared paths are `.doctrine/` bookkeeping.
+
+### REVs completed
+- REV-002 (`reconcile-sl-004`): done. POL-002 line 19 "(SL-004)" →
+  "(IMP-003)" (F-16), landed by hand. Narrative in revision-002.md.
+
+### Decisions amended (outside REV's target kinds)
+- DEC-035 (F-12): the authored instructions and label descriptions are
+  mail-1, accepted by the operator, refinable without an id bump while
+  mail-1 is unreleased.
+- DEC-016 (F-17): consequence for the `jev` credential and PII-stripped mail
+  leaving the host (DEC-038).
+
+### Not edited
+- Plan criteria PHASE-12 EX-12 and EX-14, PHASE-13 EX-7, PHASE-14 EX-3 and
+  VT-4 (immutable); drift recorded in the brief.
+
+### Carried to close
+- The satan:RFC-020 D1/D5 amendment draft (cross-repo, F-17).

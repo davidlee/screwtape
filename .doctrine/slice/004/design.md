@@ -123,12 +123,12 @@ stdin lines ──▶ classify/input.line ──▶ Mail ──▶ classify/stat
                                                                               ▼
               schema.mail_1 ──▶ jev.request_body(model, state, questions) ──▶ jev/client.ask ──Send──▶ Jev / gateway
                                                                                    │
-                render.classify(id, cursor, schema, reply) ◀── jev.reply(text, questions, model)
+                render.classify(id, cursor, reply) ◀──── jev.reply(text, questions, model)
 ```
 
 | module | role | effects |
 |---|---|---|
-| `screwtape/http` (new) | `Send`, `HttpFailure`, `status/1`, `failure/1` | none (types and pure mapping) |
+| `screwtape/http` (new) | `Send`, `HttpFailure`, `status/1`, `failure/2` | none (types and pure mapping) |
 | `screwtape/jmap/client` | the JMAP exchange over `http.Send`; budget; problem documents | none |
 | `screwtape/pii` (new) | `strip(String) -> String`; self-contained, for reuse | the FFI `screwtape_pii_ffi` (Erlang `re`) |
 | `screwtape/classify/input` (new) | decodes one stdin line (a v1 `read` envelope) into a `Mail` | none |
@@ -174,7 +174,10 @@ The module is self-contained, so it can be reused or ported: it imports only
 types. Each rule is a pattern and replacement constant. The rules are
 applied in this order. All matching is case-insensitive and Unicode-aware.
 
-1. Email addresses become `[email]`.
+1. Email addresses become `[email]`. An address is recognised by a dotted
+   domain whose last label has 2 or more letters, so `user@localhost` and
+   `a@b.c` survive. Rule 1 runs before rule 2, so a URL with userinfo
+   (`https://user:pw@host.example/p`) loses its host to this rule too.
 2. URLs (`https?://…` up to whitespace or `<>"'`) become `scheme://host`,
    followed by `/[…]` when a path, query or fragment was dropped. The host
    loses any port and userinfo.
@@ -254,14 +257,14 @@ bounds are constants:
 | an attachment's `type` and `name` | 128 bytes each |
 
 - `sender_domains`: the text after the last `@` of each sender, lowercased
-  and deduplicated in order. A sender without `@`, or with a domain over 253
-  bytes, is dropped and counted.
+  and deduplicated in order. A sender without `@`, with an empty domain, or
+  with a domain over 253 bytes is dropped and counted.
 - Every text first loses its control characters other than tab, line feed
   and carriage return. JSON would print each as a six-byte escape.
-- `pii.strip` is applied next, to the subject, each text and each
-  attachment name. Each is then cut to its bound with `utf8.prefix`, the
+- `pii.strip` is applied next, to the subject, each text, each
+  attachment type and name, and each sender domain. Each is then cut to its bound with `utf8.prefix`, the
   same rule `render.print_bodies` uses. The bound therefore holds for what
-  is sent: stripping can lengthen text (`a@b.c` becomes `[email]`). A body
+  is sent: stripping can lengthen text (`a@b.co` becomes `[email]`). A body
   cut here has `is_truncated: true`.
 - A body is *cut on arrival* when its `is_truncated` is true, or when the
   line's `output_truncated` is true and it is the last body with text or
@@ -274,9 +277,10 @@ bounds are constants:
   true`. An address or number cut off by `read` is then never sent
   half-recognised.
 - The worst case is about 51 KB encoded, since `"` and `\` print as two
-  bytes. Typical states are a few KB. **Inference, unmeasured:** whether a
-  worst case fits Jev's 32k-token limit for the state and one question. A
-  message that does not is skipped (§ 5.5).
+  bytes. Typical states are a few KB. **Observed (PHASE-14 live
+  check):** the largest request, 19.7 KB, took 5,884 input tokens, far under
+  Jev's 32k-token limit. **Inference, unmeasured:** whether the worst case
+  fits. A message that does not is skipped (§ 5.5).
 
 #### `screwtape/jev`
 
@@ -300,21 +304,24 @@ pub fn reply(text: String, questions: List(Question), model: String) -> Result(R
 - **`request_body`** gives `{"model", "state", "questions": {name: {"type",
   "instructions", "criteria"?}}}`. Choice criteria are a `{label:
   description}` object, and score levels are an ordered array.
-- **`reply`** decodes the body with `decode.at`, one path per known
-  question, never with `decode.dict`. It checks:
+- **`reply`** reads each value with `decode.at`, one path per known key.
+  The `probabilities` object is also read with `decode.dict`, for its key
+  count only (operator ruling 2026-10-29), so no server key reaches an
+  `Error`. It checks:
   - `answers.<name>.type` equals the question's type;
   - a choice's `choice` is one of its labels, and has the highest
     probability (ties allowed);
-  - `probabilities` has exactly our labels, or keys `"0"`…`"n-1"`, each in
-    [0, 1], and they sum to 1 ± 0.02;
+  - `probabilities` has exactly our keys, each in [0, 1], summing to
+    1 ± 0.02: a choice's labels, or `"0"`…`"n-1"` for a score;
   - `confidence` and `noul` are in [0, 1];
   - `score` is in [0, n-1], and within 0.05 of the probability-weighted
     level, Σ i·pᵢ;
   - `model` equals the configured `model`, or the configured `model` after
     its last `/` (a gateway's provider prefix). Equality, not a shape: any
     shape a model id fits, a key can fit too.
-- The two tolerances are first estimates. The A1 smoke test confirms them
-  against live replies.
+- The two tolerances held on the PHASE-14 live check: the probabilities
+  summed to 1 at float precision (30/30), and the largest gap between a
+  score and Σ i·pᵢ was 0.01.
 - Any failure is `Decode(path)`, where the path holds only our own question
   names and labels.
 - Extra answers or keys are ignored. Jev chooses no output key.
@@ -334,11 +341,11 @@ pub fn ask(send: http.Send, token: Token, endpoint: Endpoint,
 - The response cap is 65,536 bytes, a constant: answers are small.
   `TooLarge` maps to `LimitExceeded("jev_response_bytes")`.
 - Then `http.status`, then `jev.reply`. A non-2xx body is never printed.
-- One exception is decoded, by comparison only: a 400 whose error code
-  equals `max_tokens_exceeded`, and any 413, become
-  `LimitExceeded("jev_context")`. Every other 400 stays
-  `Http("status_400")`. The error code's location in the body is confirmed
-  with A1.
+- One exception is decoded, by comparison only (DEC-039): a 400 whose
+  `detail.error_type` equals `max_tokens_exceeded`, or whose gateway
+  `error.message` holds `"error_type":"max_tokens_exceeded"`, and any 413,
+  become `LimitExceeded("jev_context")`. Every other 400 stays
+  `Http("status_400")`. IMP-004 removes the `error.message` match.
 
 #### `screwtape/classify/schema`
 
@@ -347,7 +354,9 @@ pub const id = "mail-1"
 pub fn mail_1() -> List(Question)   // DEC-035, preamble prepended to each instructions
 ```
 
-The text is fixed in DEC-035. The README table is checked against
+DEC-035 fixes the preamble, the question names, the choice labels and the
+score levels. The instructions and label descriptions are fixed in
+`classify/schema.gleam` under `mail-1`. The README table is checked against
 `mail_1()` names by a test, so the docs and the code cannot drift.
 
 #### config
@@ -370,6 +379,9 @@ Validation reasons:
 | `invalid:jev.credential_name` | the name contains `/` |
 | `empty:jev.model` | |
 
+A `base_url` that validates but cannot form the request URL (`https://`
+with no host) fails `Config("jev_url")` at the first ask.
+
 `classify` without `--state` and without the block fails with
 `Config("no_jev")`, exit 2. `request_timeout_ms` and `ca_file` are shared.
 
@@ -391,7 +403,8 @@ Validation reasons:
 - **dispatch.** It returns an `Outcome`, and the existing branches go
   through one `outcome(Result(…))` helper. The `classify` branch builds its
   own `Outcome`:
-  - success: `Outcome(Some(lines), [], 0)`;
+  - success: `Outcome(Some(lines), [], 0)`; empty stdin is
+    `Outcome(None, [], 0)`;
   - first failure at message k > 0: `Outcome(Some(lines before k),
     [error line], code)`;
   - failure at k = 0: `stdout: None`.
@@ -414,8 +427,11 @@ Validation reasons:
 #### the edge
 
 `screwtape_ffi:read_stdin/0` reads standard input to EOF as a UTF-8
-binary. It does this with `io:setopts(standard_io, [binary, {encoding,
-unicode}])` and a `file:read/2` loop. It answers `{ok, Binary}` or `{error,
+binary. It sets `io:setopts(standard_io, [binary, {encoding, latin1}])` and
+reads raw bytes with a `file:read/2` loop (`{encoding, unicode}` fails
+`no_translation` on valid UTF-8 and passes `\xff`). It validates the bytes
+with `unicode:characters_to_binary/1` and restores the device's encoding. It
+answers `{ok, Binary}` or `{error,
 Reason}`, where `Reason` is `too_large` (over 16 MiB, a constant),
 `bad_utf8` or `read_failed`. `main` maps these to
 `LimitExceeded("stdin_bytes")`, `Decode("stdin_utf8")` and
@@ -460,8 +476,8 @@ The README gains:
 - **Schema `mail-1`** is owned by `classify/schema`. Its id changes with any
   change to questions, instructions, criteria, levels, state fields, the cap
   or the strip rules (DEC-035).
-- **Credentials.** The Jev key, now a TypeSafe key and later a gateway client
-  key, is an encrypted user-scope credential: `jev` in `credstore.encrypted`.
+- **Credentials.** The Jev key, a gateway client key (`llm-gateway issue`, then
+  `screwtape-provision jev --from-file`), is an encrypted user-scope credential: `jev` in `credstore.encrypted`.
   Only the `systemd-run` transient unit decrypts it (DEC-038).
 - **Real mail** lives only in `PII_hidden_fixtures.local/` (gitignored,
   POL-002). SL-004 creates the folder with its two notes; IMP-003's eval
@@ -475,8 +491,12 @@ The README gains:
 
 - The source is `cfg.opRef` for fastmail, `cfg.jev.opRef` for jev, or the
   file named by `--from-file`.
-- The staging and the atomic move are unchanged. A `--from-file` source is
-  removed after a successful move.
+- Staging is a private per-run directory beside the store, and the move is
+  atomic (`mv -fT`). A `--from-file` source that is a symlink, or is the
+  stored credential itself, is refused. A `--from-file` source is removed
+  after a successful move.
+- `jev` is offered only when `services.screwtape.jev` is set; otherwise it
+  is a usage error, exit 2.
 - Only `fastmail` restarts `screwtape.service`.
 - The gateway key comes from `llm-gateway issue screwtape --models
   typesafe/jev-1.14.0 --budget <USD> --out <file>`, run without sudo. That
@@ -506,7 +526,7 @@ exec systemd-run --user --pipe --quiet --wait --collect \
 No code change is needed.
 
 **Live check.** Once deployed, `classify` runs on the copied scrubbed
-fixtures with the interim key. That run confirms A1, the § 5.2 reply
+fixtures through the gateway with a client key. That run confirms A1, the § 5.2 reply
 tolerances and where a 400 carries `max_tokens_exceeded`; the codec is
 fixed if they differ. The evaluation on real mail follows, as IMP-003.
 
@@ -517,7 +537,7 @@ fixed if they differ. The evaluation on real mail follows, as IMP-003.
 - **I1.** No byte of the key appears on stdout or stderr, in errors or in
   crash output. The token-leak suite runs `classify` with a sentinel key.
 - **I2.** Every stdout key, label and level comes from `mail_1()` or a fixed
-  name. `model` is printed only if it equals the configured model.
+  name. `model` is printed only if it equals the configured model or the configured model's text after its last `/`.
 - **I3.** Every text in `state` has passed `pii.strip`. `state` holds no
   display name, local part, header id or provenance.
 - **I4.** Output lines are in input order. Each line corresponds to one
@@ -529,7 +549,7 @@ fixed if they differ. The evaluation on real mail follows, as IMP-003.
 - A `read` line whose text is all truncated or empty is still classified.
   Its `is_truncated` and `conversion_failed` flags tell Jev the evidence is
   partial.
-- A message too large for Jev (400 `max_tokens_exceeded`, or 413) stops
+- A message too large for Jev (400 `max_tokens_exceeded` per DEC-039, or 413) stops
   the run with `LimitExceeded("jev_context")` and the message's `cursor`.
   The state's bounds make it unlikely (**inference**, unmeasured). The
   README shows the error line and the skip: `read --after` that cursor.
@@ -537,7 +557,9 @@ fixed if they differ. The evaluation on real mail follows, as IMP-003.
 
 **Assumptions:**
 - **A1.** Jev's reply shape matches the OpenAPI spec (research, Thread 3).
-  A live smoke test confirms it.
+  Confirmed by the PHASE-14 live check (`model`, `answers`, `usage`; score
+  answers add an ignored `legend`), except alias behaviour, untestable
+  through the pinned key (403 on `typesafe/jev-latest`).
 - **A2.** `systemd-run --pipe` carries stdin, stdout and the exit code, as
   the spike showed (research, finding A).
 
@@ -550,6 +572,9 @@ fixed if they differ. The evaluation on real mail follows, as IMP-003.
 - Token usage per message. Screwtape does not record it. Once `classify`
   runs through the gateway, llm-gateway's own accounting is expected to
   show it (unverified).
+- A1 is resolved (§ 5.5). Replies are not deterministic: 81 of 150 scalars
+  differ between two runs (largest gap 0.13, one choice flipped). IMP-003's
+  eval measures it.
 - SL-004 inq-9, deferred to close: the satan:RFC-020 D1/D5 amendment draft
   in `~/dev/satan`, and the DEC-016 exposure note (the Jev key and mail in
   flight).
@@ -565,6 +590,7 @@ fixed if they differ. The evaluation on real mail follows, as IMP-003.
 | DEC-036 | `classify` envelope with a `schema` id that versions its vocabulary | enum bumps, unversioned names |
 | DEC-037 | stop at the first failure, keep the prefix, no retry | continue past errors, backoff |
 | DEC-038 | optional `jev` config, a `systemd-run --pipe` wrapper, a generalised provision | a plaintext key directory, a new ingress |
+| DEC-039 | a 400 is `jev_context` when `detail.error_type`, or the gateway's `error.message`, holds `max_tokens_exceeded`; so is any 413 | direct-Jev key only (`status_400` through the gateway) |
 | POL-002 | real mail only in `PII_hidden_fixtures.local/` | a folder note alone |
 
 Design-local choices:
@@ -659,7 +685,7 @@ tests, each with a reason.
   the wrapper branch, and with jev unset the wrapper is unchanged. The
   wrapper and `screwtape.service` carry the same crash-dump settings.
 - **Manual.** The § 5.4 live check: `classify` on the scrubbed fixtures,
-  with the interim key, confirms A1, the reply tolerances and the
+  through the gateway with its client key, confirms A1, the reply tolerances and the
   `max_tokens_exceeded` location. The eval on real mail is IMP-003.
 
 <!-- doctrine:section sec-10 -->
@@ -678,11 +704,14 @@ tests, each with a reason.
 | `src/screwtape/config.gleam` | the `jev` block and its validation |
 | `src/screwtape/argv.gleam`, `src/screwtape/cli.gleam` | the `Classify` verb, `run_piped`, `Outcome` from dispatch |
 | `src/screwtape.gleam`, `src/screwtape_ffi.erl` | `read_stdin` at the edge |
+| `src/screwtape/error.gleam` | `decode_failure` and `to_json_line_at`, reused by the classify codecs and the error line (POL-001) |
 | `test/check_imports.gleam` | the new rules and the FFI allowlist |
 | `test/support/*` | `fixture_send` and `cli_fixture` (stdin, jev config); a Jev reply fixture; a loopback server for the leak test |
 | `test/screwtape/*_test.gleam` | the tests in § 9; moved imports in `transport_test` and `client_test` |
 | `test/fixtures/mail/` | copied scrubbed `read` envelopes and `PROVENANCE.md` |
 | `.gitignore`, `PII_hidden_fixtures.local/{CLAUDE,AGENTS}.md` | POL-002: ignore `/PII_hidden_fixtures.local/*` and negate only the two notes, so nothing is ever force-added |
 | `nix/module.nix`, `nix/module-eval.nix` | jev options, the wrapper branch, the generalised provision, the shared crash-dump settings |
+| `nix/package.nix` | the check ships `.gitignore`, `README.md` and `gitMinimal`, so the POL-002 and docs tests run in `checks.gleam-test` |
+| `test/fixtures/jev/` | the recorded `mail-1` reply, the gateway and direct `max_tokens_exceeded` 400s, `PROVENANCE.md` |
 | `README.md` | the contract additions, `mail-1`, the PII caveat, provisioning |
 

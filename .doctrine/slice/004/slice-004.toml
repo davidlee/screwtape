@@ -130,6 +130,18 @@ intent = "design-target"
 selector = "PII_hidden_fixtures.local/AGENTS.md"
 intent = "design-target"
 
+[[selector]]
+selector = "src/screwtape/error.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "nix/package.nix"
+intent = "design-target"
+
+[[selector]]
+selector = "test/fixtures/jev/**"
+intent = "design-target"
+
 [[relation]]
 label = "governed_by"
 target = "POL-002"
