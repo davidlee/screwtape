@@ -18,12 +18,12 @@ the response bodies verbatim. They hold no key bytes and no mail text.
   words (no mail). The gateway wraps Jev's error as
   `{"error":{"message":"litellm.BadRequestError: TypesafeException - {\"detail\":{\"error_type\":\"max_tokens_exceeded\"}} …","type":"invalid_request_error","code":"400"}}`:
   upstream Jev puts the code at `detail.error_type`; through the gateway it
-  survives only inside `error.message`. Not yet used by a test: how the client
-  maps it is pending a design decision (SL-004 notes, PHASE-14 live check).
+  survives only inside `error.message`. Used by `jev_client_test`
+  (`context_400_gateway_fixture_test`) and `cli_test`, mapped to
+  `LimitExceeded("jev_context")` per DEC-039.
 
-## Spec-derived
+## Derived from the recording
 
-- `max-tokens-exceeded-400.json` — `HTTPBadRequestError` from the TypeSafe
-  OpenAPI document at `https://api.typesafe.ai/openapi.json`, `detail` as an
-  object with `code`. The live recording above contradicts the `code` key
-  (Jev uses `error_type`); kept until the decision above replaces it.
+- `max-tokens-exceeded-400.direct.json` — `{"detail":{"error_type":"max_tokens_exceeded"}}`:
+  the inner body of the recorded gateway message above, i.e. what direct Jev
+  sends. Used by `jev_client_test` (`context_400_direct_fixture_test`).

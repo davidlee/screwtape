@@ -2109,7 +2109,7 @@ pub fn classify_stops_at_the_failing_line_test() {
   let credentials = cli_fixture.jev_credential_dir(jev_secret)
   let lines = list.take(cli_fixture.read_after_lines(), 3)
   let reply = cli_fixture.jev_reply("mail-1-reply.json")
-  let limit = cli_fixture.jev_reply("max-tokens-exceeded-400.json")
+  let limit = cli_fixture.jev_reply("max-tokens-exceeded-400.gateway.json")
   let fixture =
     fixture_send.start([
       jev_step(200, reply),
@@ -2164,7 +2164,7 @@ pub fn classify_failure_at_the_first_line_prints_nothing_test() {
   let setup = cli_fixture.jev_config("cli-classify-k0", jev_base_url)
   let credentials = cli_fixture.jev_credential_dir(jev_secret)
   let line = cli_fixture.read_after_lines() |> nth_line(0)
-  let limit = cli_fixture.jev_reply("max-tokens-exceeded-400.json")
+  let limit = cli_fixture.jev_reply("max-tokens-exceeded-400.gateway.json")
   let fixture = fixture_send.start([jev_step(400, limit)])
   let outcome =
     run_classify(

@@ -1,8 +1,9 @@
 //// VT-6: the Jev client (PHASE-12, T5; design § 5.2 `screwtape/jev/client`).
 ////
 //// One POST to `base_url <> "/v1/systemone"` under a fixed response cap, then
-//// the status mapping. The reply fixture is recorded and the 400 fixture
-//// spec-derived (see `test/fixtures/jev/PROVENANCE.md`); every `Error`
+//// the status mapping. The reply fixture is recorded; the 400 fixtures are the
+//// recorded gateway envelope and the direct body derived from its
+//// `error.message` (see `test/fixtures/jev/PROVENANCE.md`); every `Error`
 //// asserted here is compared whole, so a non-2xx body carrying server text
 //// would fail the test.
 
@@ -88,6 +89,23 @@ fn header(recorded: fixture_send.Recorded, name: String) -> String {
   }
 }
 
+/// A 400 body shaped like the LLM gateway's envelope (LiteLLM), carrying
+/// `message` verbatim.
+fn gateway_envelope(message: String) -> String {
+  json.object([
+    #(
+      "error",
+      json.object([
+        #("message", json.string(message)),
+        #("type", json.string("invalid_request_error")),
+        #("param", json.null()),
+        #("code", json.string("400")),
+      ]),
+    ),
+  ])
+  |> json.to_string
+}
+
 // ---------------------------------------------------------------- the request
 
 pub fn request_shape_test() {
@@ -131,14 +149,76 @@ pub fn too_large_test() {
 
 // ---------------------------------------------------------------- the context
 
-pub fn context_400_fixture_test() {
-  ask_status(400, fixture("max-tokens-exceeded-400.json"))
+pub fn context_400_gateway_fixture_test() {
+  ask_status(400, fixture("max-tokens-exceeded-400.gateway.json"))
   |> should.equal(Error(LimitExceeded("jev_context")))
 }
 
-pub fn context_400_string_detail_test() {
-  ask_status(400, "{\"detail\":\"max_tokens_exceeded\"}")
+pub fn context_400_direct_fixture_test() {
+  ask_status(400, fixture("max-tokens-exceeded-400.direct.json"))
   |> should.equal(Error(LimitExceeded("jev_context")))
+}
+
+pub fn gateway_message_without_the_literal_400_test() {
+  ask_status(
+    400,
+    gateway_envelope("litellm.BadRequestError: secret server text"),
+  )
+  |> should.equal(Error(Http("status_400")))
+}
+
+pub fn gateway_message_with_bare_code_400_test() {
+  ask_status(
+    400,
+    gateway_envelope("litellm.BadRequestError: max_tokens_exceeded"),
+  )
+  |> should.equal(Error(Http("status_400")))
+}
+
+/// DEC-039 recognises either location, so a body carrying both shapes matches:
+/// an unmatched `detail.error_type` must not mask the gateway's message.
+pub fn both_shapes_gateway_match_400_test() {
+  let body =
+    json.object([
+      #("detail", json.object([#("error_type", json.string("other_code"))])),
+      #(
+        "error",
+        json.object([
+          #(
+            "message",
+            json.string(
+              "litellm.BadRequestError: {\"detail\":{\"error_type\":\"max_tokens_exceeded\"}}",
+            ),
+          ),
+        ]),
+      ),
+    ])
+    |> json.to_string
+  ask_status(400, body) |> should.equal(Error(LimitExceeded("jev_context")))
+}
+
+pub fn non_object_400_test() {
+  ask_status(400, "[]") |> should.equal(Error(Http("status_400")))
+}
+
+pub fn other_error_type_400_test() {
+  ask_status(400, "{\"detail\":{\"error_type\":\"other_code\"}}")
+  |> should.equal(Error(Http("status_400")))
+}
+
+pub fn string_detail_400_test() {
+  ask_status(400, "{\"detail\":\"max_tokens_exceeded\"}")
+  |> should.equal(Error(Http("status_400")))
+}
+
+pub fn detail_code_400_test() {
+  ask_status(400, "{\"detail\":{\"code\":\"max_tokens_exceeded\"}}")
+  |> should.equal(Error(Http("status_400")))
+}
+
+pub fn gateway_body_500_test() {
+  ask_status(500, fixture("max-tokens-exceeded-400.gateway.json"))
+  |> should.equal(Error(Http("status_500")))
 }
 
 pub fn context_413_test() {
