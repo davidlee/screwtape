@@ -116,6 +116,38 @@ Operator confirms afterwards: VH-1 the probe ran with their key and nothing secr
 
 - Run extent (operator, 2026-10-29): after PHASE-14 completes (live check included), continue through /audit → /reconcile → /close via sub-orchestrators instead of halting before audit. User acts doctrine requires at close, and the POL-002 "(SL-004)" → "(IMP-003)" revision, still go to the operator.
 
+### PHASE-14 live check (2026-10-29; EN-3 met: operator "deployed and provisioned", seat verified PATH, wrapper branch and credstore)
+Endpoint: gateway `http://127.0.0.1:4000` (LiteLLM 1.106.2), key scoped to `typesafe/jev-1.14.0`. Gateway-reported spend for all raw calls: $0.0023.
+- EX-7 (observed): `screwtape classify < inputs` through the deployed wrapper over the 15 distinct `read` envelopes in test/fixtures/mail/ (read-*.json, deduplicated by id): rc 0, 15 classify lines, all `"model":"jev-1.14.0"`, empty stderr, 4.5 s.
+- EX-8 (observed): raw calls ran in `systemd-run --user --pipe --quiet --wait --collect -p LoadCredentialEncrypted=jev:~/.config/credstore.encrypted/screwtape.jev -p LimitCORE=0 bash <script>`; inside the unit `read -r k < "$CREDENTIALS_DIRECTORY/jev"` then `printf 'authorization: Bearer %s\n' "$k" | curl -H @- …` (both builtins; curl reads the header from stdin; argv holds only paths and the URL). Calls: 2 × 15 mail-1 requests (bodies from `jev.request_body` over `classify --state` output), one oversized probe (synthetic state: one ~206 KB body of repeated filler words), one alias probe. Key-byte check (VA-1) ran in a second such unit: the key in a shell variable compared by `case` against each fixture, raw reply, header dump and classify output: 70 files, 0 hits.
+- EX-10 (observed, 30 raw replies over 15 states, two runs):
+
+| question type | reply keys | probabilities | choice = argmax | score vs Σ i·pᵢ |
+|---|---|---|---|---|
+| top level | `model`, `answers`, `usage{input_tokens, output_tokens}` | | | |
+| choice (primary_purpose) | type, choice, confidence, probabilities | all 7 labels present; Σ = 1 exactly (|Σ−1| = 0 at float precision, 30/30); 2 dp | 30/30 | n/a |
+| noul (×5) | type, noul | none | n/a | n/a |
+| score (×2) | type, score, confidence, probabilities, legend | keys "0"…"2"; Σ = 1 exactly, 30/30 | n/a | max |score − Σ| = 0.01 (2-dp rounding) |
+
+  - `legend` = our criteria keyed by index (ignored by the codec; extra key). Values carry 1–2 decimals.
+  - model: request `typesafe/jev-1.14.0` → reply `jev-1.14.0`, 30/30 (the § 5.2 last-`/` rule).
+  - Tolerances (0.02 sum, 0.05 score) hold with margin; no change. Inference: Jev normalises after rounding.
+  - Not deterministic: run 1 vs run 2, 81 of 150 scalars differ, max Δ 0.13; one `primary_purpose` choice flipped.
+  - Largest request 19.7 KB → 5,884 input tokens. The state bound (~24.5 KB worst case) sits far below the 32k-token state limit for ordinary text.
+- 400 path (observed): the oversized probe got HTTP 400 (no 413), body recorded verbatim at test/fixtures/jev/max-tokens-exceeded-400.gateway.json: `{"error":{"message":"litellm.BadRequestError: TypesafeException - {\"detail\":{\"error_type\":\"max_tokens_exceeded\"}}\n\nLiteLLM: model group 'typesafe/jev-1.14.0' failed …","type":"invalid_request_error","param":null,"code":"400"}}`. Upstream Jev puts the code at `detail.error_type` (not `detail.code`, not a string `detail`); the gateway keeps it only inside the free-text `error.message`. The deployed client maps this 400 to `Http("status_400")`, not `LimitExceeded("jev_context")`.
+- Alias (observed, one call): request `model` `typesafe/jev-latest` → HTTP 403 `{"error":{"message":"screwtape: model 'typesafe/jev-latest' not allowed","type":"permission_error",…,"code":"403"}}`. The gateway key is scoped to the pinned model, so whether Jev echoes an alias as the served version cannot be tested through it; the pin (design § 7) is also enforced by the gateway.
+- EX-9 (partial): mail-1-reply.json replaced by a recorded reply (verbatim; VT-4 reply half green); the recorded 400 added beside the spec-derived one, unused until the decision below. PROVENANCE.md rewritten.
+- EX-11 STOP (escalated): the gateway's error envelope changes the § 5.2 "error code equals max_tokens_exceeded" contract (the code is no longer at any JSON key). Codec unchanged. Decision for the operator via /consult:
+  (a) also match the LiteLLM envelope (compare inside `error.message`, coupling to LiteLLM's message text);
+  (b) fix only the upstream key (`detail.error_type`) and accept that through the gateway an over-context 400 is `status_400` (classify stops instead of skipping; evidence above says the bounded state rarely if ever reaches the limit);
+  (c) change the gateway to pass upstream error bodies through (~/flakes, outside this slice).
+  Either way the spec-derived `detail.code` fixture is wrong and goes.
+- PHASE-14 stays in_progress: VT-4's "maps the recorded 400 to jev_context" and EX-9/EX-11 wait on that decision.
+
+Operator confirmation (VH-1, VH-2; not marked verified):
+- VH-1: the agent's probes ran under your key: check `journalctl --user --since "2026-10-29 02:40" --until "2026-10-29 03:00" | grep 'Started \[systemd-run\]'`: the agent's units run `bash …/scratchpad/live/call.sh` (two 15-request passes; one oversized + alias probe; plus one failed start with a wrong script path) and `bash …/keycheck.sh` (the key-byte check), beside the wrapper's own `screwtape --config … classify` unit, and the gateway's spend for key `screwtape` (≈ $0.0023 plus the 15 wrapper calls). Nothing secret was printed: the unit printed only `<request path> <status> <seconds>` lines and `clean <path>` lines; confirm no key appears in this session's transcript if you wish.
+- VH-2: run `cat test/fixtures/mail/read-*.json | screwtape classify` in ~/dev/screwtape (duplicates included: 16 lines) and confirm 16 `"kind":"classify"` lines with `"model":"jev-1.14.0"` and nothing on stderr.
+
 ## Autonomy log
 <!-- one line per envelope decision: phase · what · why · tier (decided / deferred / escalated) -->
 - seat · PHASE-14 EN-2 operator act changes from interim key to gateway key provisioning · operator ruling 2026-10-28 · decided
@@ -144,3 +176,8 @@ Operator confirms afterwards: VH-1 the probe ran with their key and nothing secr
 - PHASE-14 · `nix/package.nix` check ships `.gitignore` and README.md, adds gitMinimal and `git init` (isolated config) so pol002_test and docs_test run in checks.gleam-test · outside § 10's path list; test-only inputs · decided
 - PHASE-14 · provision staging is a per-run `mktemp -d` beside the store and `mv -fT`, not the fixed `.new` file; symlink and stored-path sources refused · Codex VA-3 F1-F4; EX-3 and design § 5.4 say "staging unchanged"; still staged + atomic, contract kept · decided, flag for audit
 - PHASE-14 · wrapper routes every `classify` invocation except exactly `classify --state` through systemd-run · the safer default; malformed args fail argv inside the unit · decided
+- PHASE-14 · live calls beyond the charter's three (second 15-call pass for tolerance spread, key-byte check unit) · operator lifted the call budget 2026-10-29 · decided
+- PHASE-14 · raw recordings via curl in a credentialed systemd-run unit (key through `read`/`printf` builtins and `curl -H @-`); request bodies built by `jev.request_body` from `classify --state` · the wrapper prints decoded lines only, EX-9/EX-10 need raw bodies · decided
+- PHASE-14 · recorded mail-1 reply replaces the spec-derived one; jev_test expectations and the token_leak model substitution (now format-independent) updated by the orchestrator · fixture swap, no codec change · decided
+- PHASE-14 · gateway 400 envelope carries `max_tokens_exceeded` only inside `error.message`; upstream key is `detail.error_type` · changes a § 5.2 contract · escalated (codec unchanged)
+- PHASE-14 · alias probe answered 403 by the gateway (key scoped to the pinned model); A1 alias inference untestable via this key · recorded · decided

@@ -1,9 +1,10 @@
 //// VT-6: the Jev client (PHASE-12, T5; design § 5.2 `screwtape/jev/client`).
 ////
 //// One POST to `base_url <> "/v1/systemone"` under a fixed response cap, then
-//// the status mapping. The two 400 fixtures are spec-derived (see
-//// `test/fixtures/jev/PROVENANCE.md`); every `Error` asserted here is compared
-//// whole, so a non-2xx body carrying server text would fail the test.
+//// the status mapping. The reply fixture is recorded and the 400 fixture
+//// spec-derived (see `test/fixtures/jev/PROVENANCE.md`); every `Error`
+//// asserted here is compared whole, so a non-2xx body carrying server text
+//// would fail the test.
 
 import gleam/http as method
 import gleam/http/response.{Response}

@@ -1,12 +1,29 @@
 # Jev fixtures: provenance
 
-Both files are spec-derived, not recordings. They follow the TypeSafe OpenAPI
-document at `https://api.typesafe.ai/openapi.json`:
+## Recorded (SL-004 PHASE-14 live check, 2026-10-29)
 
-- `mail-1-reply.json` — `SystemOneResponse`; the observed live reply shape
-  from flakes SL-019 VH-1, where a configured `typesafe/jev-1.14.0` replies
-  with the bare model `jev-1.14.0`.
-- `max-tokens-exceeded-400.json` — `HTTPBadRequestError`, whose `detail` is
-  string or object; the location of the error code is unconfirmed until A1.
+Recorded through the operator's llm-gateway (LiteLLM 1.106.2 at
+`http://127.0.0.1:4000`, key scoped to `typesafe/jev-1.14.0`), from a transient
+`systemd-run --user` unit holding the key as an encrypted credential. Bytes are
+the response bodies verbatim. They hold no key bytes and no mail text.
 
-Pending A1: SL-004 PHASE-14 replaces them with recordings.
+- `mail-1-reply.json` — `POST /v1/systemone`, HTTP 200. Request: `model`
+  `typesafe/jev-1.14.0`, `questions` = `schema.mail_1()`, `state` built by
+  `screwtape classify --state` from a scrubbed fixture in `test/fixtures/mail/`
+  (the request body was `jev.request_body`). The reply reports `model`
+  `jev-1.14.0` and carries `usage` and, for score questions, `legend`; it
+  contains no state text.
+- `max-tokens-exceeded-400.gateway.json` — same endpoint and request shape,
+  HTTP 400, with a synthetic state: one body of ~206 KB of repeated filler
+  words (no mail). The gateway wraps Jev's error as
+  `{"error":{"message":"litellm.BadRequestError: TypesafeException - {\"detail\":{\"error_type\":\"max_tokens_exceeded\"}} …","type":"invalid_request_error","code":"400"}}`:
+  upstream Jev puts the code at `detail.error_type`; through the gateway it
+  survives only inside `error.message`. Not yet used by a test: how the client
+  maps it is pending a design decision (SL-004 notes, PHASE-14 live check).
+
+## Spec-derived
+
+- `max-tokens-exceeded-400.json` — `HTTPBadRequestError` from the TypeSafe
+  OpenAPI document at `https://api.typesafe.ai/openapi.json`, `detail` as an
+  object with `code`. The live recording above contradicts the `code` key
+  (Jev uses `error_type`); kept until the decision above replaces it.

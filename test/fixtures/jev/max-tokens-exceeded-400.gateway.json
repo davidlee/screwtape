@@ -1,0 +1,1 @@
+{"error":{"message":"litellm.BadRequestError: TypesafeException - {\"detail\":{\"error_type\":\"max_tokens_exceeded\"}}\n\nLiteLLM: model group 'typesafe/jev-1.14.0' failed with the error above. No fallback was attempted.","type":"invalid_request_error","param":null,"code":"400"}}

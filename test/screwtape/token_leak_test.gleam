@@ -381,10 +381,7 @@ pub fn classify_reflected_model_test() {
   let reflected = string.lowercase(sentinel)
   let reply =
     cli_fixture.jev_reply("mail-1-reply.json")
-    |> string.replace(
-      "\"model\": \"jev-1.14.0\"",
-      "\"model\": \"" <> reflected <> "\"",
-    )
+    |> string.replace("\"jev-1.14.0\"", "\"" <> reflected <> "\"")
   string.contains(reply, reflected) |> should.be_true
   let server =
     local_jmap.start_with(fn(_base_url) {

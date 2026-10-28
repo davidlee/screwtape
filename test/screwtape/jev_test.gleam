@@ -2,7 +2,7 @@
 ////
 //// Every failure is a `Decode(path)` whose path is built only from our own
 //// question names and labels — never a key or a value from the reply. The
-//// fixture reply is spec-derived (see `test/fixtures/jev/PROVENANCE.md`).
+//// fixture reply is a live recording (see `test/fixtures/jev/PROVENANCE.md`).
 
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
@@ -80,22 +80,22 @@ pub fn fixture_reply_decodes_with_the_prefixed_model_test() {
       reply.answers
       |> list.map(fn(entry) { entry.1 })
       |> should.equal([
-        jev.ChoiceAnswer("correspondence", 0.81, [
-          #("correspondence", 0.72),
-          #("payment_due", 0.1),
-          #("payment_record", 0.05),
-          #("service_notice", 0.08),
-          #("editorial", 0.02),
-          #("promotion", 0.02),
-          #("other", 0.01),
+        jev.ChoiceAnswer("editorial", 0.66, [
+          #("correspondence", 0.0),
+          #("payment_due", 0.0),
+          #("payment_record", 0.0),
+          #("service_notice", 0.15),
+          #("editorial", 0.71),
+          #("promotion", 0.14),
+          #("other", 0.0),
         ]),
-        jev.NoulAnswer(0.97),
-        jev.NoulAnswer(0.88),
-        jev.NoulAnswer(0.12),
-        jev.NoulAnswer(0.0),
-        jev.NoulAnswer(0.03),
-        jev.ScoreAnswer(0.15, 0.9, [0.85, 0.15, 0.0]),
-        jev.ScoreAnswer(1.2, 0.75, [0.0, 0.8, 0.2]),
+        jev.NoulAnswer(0.16),
+        jev.NoulAnswer(0.89),
+        jev.NoulAnswer(0.07),
+        jev.NoulAnswer(0.57),
+        jev.NoulAnswer(0.09),
+        jev.ScoreAnswer(0.02, 0.97, [0.98, 0.02, 0.0]),
+        jev.ScoreAnswer(1.93, 0.88, [0.01, 0.06, 0.93]),
       ])
     },
   )
