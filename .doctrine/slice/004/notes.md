@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-28 · ready; design re-locked without the eval (run rev 43); plan reworked to 4 phases; next: /super-orchestrator from PHASE-01 · 060d763 (pre-surgery baseline; rework uncommitted)
+fresh-as-of: 2026-10-29 · SL-004 done (reconciled RV-018, REV-002; eb9b8aa); open: satan:RFC-020 D1/D5 amendment; next IMP-003, malebolge IMP-022
 
 ### Produced
 - SL-004 scoped, researched (`research/research.md`, raw/ threads), design run at reviewing; design.md materialised (14 sections) — uncommitted
@@ -30,8 +30,8 @@ fresh-as-of: 2026-10-28 · ready; design re-locked without the eval (run rev 43)
 - mem.fact.doctrine.governance-confirmed-invalidated-by-edges — new governing edges stale the governance act
 
 ### Open
-- SL-004 inq-9 (deferred to close) — satan:RFC-020 D1/D5 amendment draft + DEC-016 exposure note (RV-018 F-17)
-- RV-018 F-12 — operator to accept the agent-authored mail-1 instructions and label descriptions before DEC-035 is amended
+- OPEN satan:RFC-020 D1/D5 amendment draft (cross-repo; DEC-016 exposure note landed with RV-018 F-17); consumer: malebolge IMP-022
+- SETTLED RV-018 F-12 — operator accepted the mail-1 text 2026-10-29 (refinable without id bump while unreleased); DEC-035 amended
 - SETTLED design A1 — confirmed live at PHASE-14 except the alias (untestable through the pinned gateway key); design prose: RV-018 F-18
 - design § 6 — substance signal and calibration: now IMP-003's question
 - design § 5.2 — worst-case state about 51 KB encoded vs Jev 32k tokens: unmeasured; jev_context error + skip-by-cursor covers it
@@ -39,7 +39,7 @@ fresh-as-of: 2026-10-28 · ready; design re-locked without the eval (run rev 43)
 - SETTLED `review_pass … STALE` after lock: seen at both locks (RV-016 rev 36, RV-017 rev 43); status shows 1 change since baseline right after the stage move, so the lock itself stales the pass. Inference: benign, not a review gap
 - SETTLED design § 5.2 F-9 tolerances — held live with margin; RV-018 F-18
 - design § 6 — token usage assumed visible in llm-gateway accounting (unverified)
-- FOR RECONCILE (operator, 2026-10-28): revise POL-002 § Statement, tagging-pass exemption "(SL-004)" → "(IMP-003)", through a REV (governance edit); source: RV-017 pass, pi review finding 3
+- SETTLED POL-002 "(SL-004)" → "(IMP-003)" via REV-002 (RV-018 F-16)
 - DONE plan rework (operator, 2026-10-28): 4 phases. (1) http seam lift; (2) pure core: pii, classify/input, classify/state, jev, jev/client, classify/schema, with spec-based fixtures; (3) classify verb: argv, config, run_piped, stdin edge, render, loop, token-leak; (4) ingress and docs: nix wrapper/provision/shared crash-dump settings, POL-002 guard, README, then a live run confirming A1 and fixing the codec if needed. Keep the draft's criteria, merged per phase (they carry the RV-016 repairs).
 - DONE scope change (operator): the eval is out of SL-004 (IMP-003). The locked design § 1 boundary, § 5.3 eval data, § 5.4 evaluation run, § 9 eval tests and § 10 eval paths, plus slice scope objective 7 and the eval selectors, still include it. Reconcile through the proper verb, not by hand.
 - review posture for execution (operator): a quotient pi reviewer per phase; Codex only for especially correctness-critical work or multi-phase review. Execution will be driven by /super-orchestrator.
