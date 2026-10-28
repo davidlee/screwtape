@@ -114,6 +114,8 @@ Then the agent runs, on the host:
 - EX-10: notes record per question type the reply keys, probability sums and drift, argmax, score vs Σ i·p_i, the model string, the 400 error-code path; EX-11 codec fixes within § 5.2 (tolerances, key location), else /consult.
 Operator confirms afterwards: VH-1 the probe ran with their key and nothing secret was printed; VH-2 they ran `screwtape classify` over the scrubbed fixtures and saw classify output.
 
+- Run extent (operator, 2026-10-29): after PHASE-14 completes (live check included), continue through /audit → /reconcile → /close via sub-orchestrators instead of halting before audit. User acts doctrine requires at close, and the POL-002 "(SL-004)" → "(IMP-003)" revision, still go to the operator.
+
 ## Autonomy log
 <!-- one line per envelope decision: phase · what · why · tier (decided / deferred / escalated) -->
 - seat · PHASE-14 EN-2 operator act changes from interim key to gateway key provisioning · operator ruling 2026-10-28 · decided
