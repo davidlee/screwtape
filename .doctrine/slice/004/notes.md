@@ -181,3 +181,5 @@ Operator confirmation (VH-1, VH-2; not marked verified):
 - PHASE-14 · recorded mail-1 reply replaces the spec-derived one; jev_test expectations and the token_leak model substitution (now format-independent) updated by the orchestrator · fixture swap, no codec change · decided
 - PHASE-14 · gateway 400 envelope carries `max_tokens_exceeded` only inside `error.message`; upstream key is `detail.error_type` · changes a § 5.2 contract · escalated (codec unchanged)
 - PHASE-14 · alias probe answered 403 by the gateway (key scoped to the pinned model); A1 alias inference untestable via this key · recorded · decided
+- seat · PHASE-14 EX-11 gateway-wrapped max_tokens_exceeded 400 · /consult → operator chose (a) match detail.error_type and the gateway's error.message literal, (c) later: DEC-039 accepted, IMP-004 (needs SL-004) · decided (operator, 2026-10-29)
+- seat · PHASE-14 VH-1 and VH-2 · operator confirmed 2026-10-29 ("VH-1 + VH-2 seem solid"; gateway spend for key screwtape $0.0035 of 20.00) · decided

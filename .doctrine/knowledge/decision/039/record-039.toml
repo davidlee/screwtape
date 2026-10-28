@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 39
+slug = "recognise-max-tokens-exceeded-in-a-direct-jev-400-and-in-the-gateways-wrapped-400"
+title = "Recognise max_tokens_exceeded in a direct Jev 400 and in the gateway's wrapped 400"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-28"
+updated = "2026-10-28"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Design § 5.2 maps a Jev 400 carrying max_tokens_exceeded to LimitExceeded(\"jev_context\"), so a consumer can skip by cursor (RV-016 F-4). The SL-004 PHASE-14 live check (1677666) showed Jev's key is detail.error_type, not the spec's detail.code, and that the LLM gateway (LiteLLM) rewraps it as {\"error\":{\"message\":\"litellm.BadRequestError: TypesafeException - {\\\"detail\\\":{\\\"error_type\\\":\\\"max_tokens_exceeded\\\"}}...\",\"code\":\"400\"}}, so the deployed client reported Http(\"status_400\")."
+choice = "On a 400 only, jev/client recognises max_tokens_exceeded either at detail.error_type (direct Jev) or as the literal \"error_type\":\"max_tokens_exceeded\" inside the gateway's error.message string; both are named constants, tested against the recorded gateway fixture. No server text is printed. The spec-derived detail.code fixture is dropped."
+alternatives = ["direct-Jev key only, accepting status_400 through the gateway (no skip-by-cursor on the deployed path)", "gateway passes Jev error bodies through (a ~/flakes change outside SL-004)"]
+rationale = "Keeps the F-4 skip-by-cursor behaviour on the deployed path now; the coupling to LiteLLM's message text is contained in one constant and goes once the gateway passes the body through (IMP-004)."
+consequences = ["jev/client couples to LiteLLM's error.message format until IMP-004 lands", "design § 5.2 error mapping amended at reconcile", "IMP-004: gateway passes Jev error bodies through, then remove the message match"]
+decided_by = "agent proposal; operator choice (david)"
+decided_on = "2026-10-29"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = ["SL-004 PHASE-14 live check, 1677666: test/fixtures/jev/max-tokens-exceeded-400.gateway.json"]
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-004"
