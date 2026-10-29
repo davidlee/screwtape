@@ -69,7 +69,7 @@ pub fn mail_1() -> List(jev.Question) {
     jev.Noul(
       "deception_cues",
       instructions(
-        "Does the mail show cues of deception, such as impersonation, claims that contradict each other, or requests for credentials or payment details?",
+        "Does the mail show cues of deception, such as impersonation, claims that contradict each other, or requests for private or privileged information?",
       ),
     ),
     jev.Noul(

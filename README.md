@@ -271,10 +271,16 @@ preamble.
 | `security_related` | noul | — | Whether the mail concerns account or system security, such as sign-in, passwords, verification codes, access or suspicious activity. |
 | `recipient_action_requested` | noul | — | Whether the mail asks the recipient to take an action. |
 | `deadline_present` | noul | — | Whether the mail states a date or time by which something must happen. |
-| `deception_cues` | noul | — | Whether the mail shows cues of deception, such as impersonation, claims that contradict each other, or requests for credentials or payment details. |
+| `deception_cues` | noul | — | Whether the mail shows cues of deception, such as impersonation, claims that contradict each other, or requests for private or privileged information. |
 | `agent_directive` | noul | — | Whether the mail contains instructions addressed to an AI, classifier or automated agent rather than to the human recipient. |
 | `claimed_time_pressure` | score | 0 `none`, 1 `deadline or prompt attention without immediate demand`, 2 `immediate attention demanded` | How much time pressure the mail claims. |
 | `substance` | score | 0 `boilerplate or automated filler`, 1 `some informative content`, 2 `substantive informative content` | How much informative content the mail carries. |
+
+Combine answers rather than relying on one noul. `deception_cues` covers
+both phishing and prompt injection aimed at the recipient, and either may
+target payment details; mail aimed at an agent is `agent_directive`'s. For
+example, a request for card details in a mail whose `primary_purpose` is
+neither `payment_due` nor `promotion` is a strong bad signal.
 
 ### What Jev sees
 
@@ -284,6 +290,8 @@ host but drops its port and userinfo and replaces the path, query and
 fragment with `/[…]`, replaces an IPv4 address with `[ip]`, and replaces a run
 of eight or more digits, which may be joined by single spaces, dashes or dots
 (`0412 345 678`), with `[number]`. Dates and times are kept.
+An address needs a dotted domain whose last label has 2 or more letters,
+so `user@localhost` and `a@b.c` are sent as they are.
 
 Names, postal addresses and short numbers are not removed: they go to Jev.
 In `sender_domains`, display names and local parts are dropped, leaving only
