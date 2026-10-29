@@ -1,9 +1,9 @@
-//// The README's `mail-1` table against the schema (SL-004 PHASE-14, EX-6;
-//// VT-3).
+//// The README's `mail-2` table against the schema (SL-004 PHASE-14, EX-6;
+//// SL-005 PHASE-03; VT-3).
 ////
 //// `mail_2()` owns the questions; the README says what a consumer will see.
 //// This test is the seam: it reads `README.md`, takes the first cell of every
-//// data row in the table under `### mail-1`, and requires those names to equal
+//// data row in the table under `### mail-2`, and requires those names to equal
 //// `mail_2()`'s names in order. A missing section, a missing table or a
 //// renamed, added, removed or reordered question fails here rather than in a
 //// consumer. The README's table is the published shape, so the test parses it
@@ -23,7 +23,7 @@ pub fn main() -> Nil {
 }
 
 /// The table's question names, in the order the rows print.
-pub fn mail_1_table_matches_schema_test() {
+pub fn mail_2_table_matches_schema_test() {
   let readme = readme()
   let expected = list.map(schema.mail_2(), jev.question_name)
   table_names(readme) |> should.equal(Ok(expected))
@@ -34,7 +34,7 @@ fn readme() -> String {
   text
 }
 
-/// The names in the `### mail-1` section's first table: header and separator
+/// The names in the `### mail-2` section's first table: header and separator
 /// dropped, the first cell's backticks removed. The names are the schema's
 /// exactly when the README and the code agree.
 fn table_names(readme: String) -> Result(List(String), String) {
@@ -43,16 +43,16 @@ fn table_names(readme: String) -> Result(List(String), String) {
     list.filter(lines, fn(line) { string.starts_with(string.trim(line), "|") })
   case rows {
     [_, _, ..] as table -> Ok(list.drop(table, 2) |> list.map(name_cell))
-    _ -> Error("has no table under ### mail-1")
+    _ -> Error("has no table under ### mail-2")
   }
 }
 
-/// The lines after the `### mail-1` heading, up to the next heading.
+/// The lines after the `### mail-2` heading, up to the next heading.
 fn section_lines(lines: List(String)) -> Result(List(String), String) {
   case lines {
-    [] -> Error("has no ### mail-1 section")
+    [] -> Error("has no ### mail-2 section")
     [line, ..rest] ->
-      case string.trim(line) == "### mail-1" {
+      case string.trim(line) == "### mail-2" {
         True -> Ok(until_heading(rest))
         False -> section_lines(rest)
       }

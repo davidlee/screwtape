@@ -1884,6 +1884,29 @@ fn input_ids_and_cursors(lines: List(String)) -> List(#(String, String)) {
   })
 }
 
+/// One stdout line's `data.schema`, the id a consumer refuses when unknown
+/// (VT-2).
+fn schema_of(line: String) -> Result(String, Nil) {
+  cli_fixture.field(
+    cli_fixture.stdout_text_json(line),
+    ["data", "schema"],
+    decode.string,
+  )
+}
+
+/// Each input line's encoded window under one strip function, in input order:
+/// `fn(text) { text }` is the `seen` a document prints, `pii.strip` the
+/// `state` (VT-2).
+fn window_encodings(
+  lines: List(String),
+  strip: fn(String) -> String,
+) -> List(String) {
+  list.map(lines, fn(line) {
+    let assert Ok(mail) = classify_input.line(line)
+    json.to_string(classify_state.encode(classify_state.window(mail), strip))
+  })
+}
+
 /// One scripted Jev answer at a `Post` position.
 fn jev_step(status: Int, body: String) -> fixture_send.Step {
   fixture_send.Step(
@@ -1930,6 +1953,8 @@ fn run_classify(
 
 /// VT-1: `--state` needs no credential, no network and no `jev` block — the
 /// five fixture lines each print one `classify_state` document, in order.
+/// VT-2: each of those lines carries its input line's `seen` and its stripped
+/// `state`, in that order.
 pub fn classify_state_over_the_read_fixture_test() {
   let setup = cli_fixture.unseeded("cli-classify-state")
   let lines = cli_fixture.read_after_lines()
@@ -1955,6 +1980,28 @@ pub fn classify_state_over_the_read_fixture_test() {
   printed
   |> list.map(document_fields)
   |> should.equal(input_ids_and_cursors(lines))
+
+  // VT-2: every line names the schema, and prints that input line's `seen`
+  // (unstripped) and `state` (stripped); a swapped pair fails both.
+  let seen_jsons = window_encodings(lines, fn(text) { text })
+  let state_jsons = window_encodings(lines, pii.strip)
+
+  // Non-vacuity: with no line whose `seen` differs from its `state`, a swapped
+  // pair would pass every assertion below. The fixture has one; if it ever
+  // stops having one this fails rather than passing silently.
+  list.zip(seen_jsons, state_jsons)
+  |> list.any(fn(pair) { pair.0 != pair.1 })
+  |> should.be_true
+
+  list.zip(printed, list.zip(seen_jsons, state_jsons))
+  |> list.each(fn(entry) {
+    let #(line, #(seen, state)) = entry
+    schema_of(line) |> should.equal(Ok("mail-2"))
+    string.contains(line, "\"seen\":" <> seen <> ",\"state\":")
+    |> should.be_true
+    string.contains(line, "\"state\":" <> state <> "}}")
+    |> should.be_true
+  })
 }
 
 /// No lines at all — empty stdin or only blank ones — is nothing on stdout and
@@ -2085,16 +2132,18 @@ pub fn classify_posts_each_line_and_prints_a_document_test() {
   |> list.map(fn(request) { request.url })
   |> should.equal(list.repeat(jev_base_url <> "/v1/systemone", 3))
 
-  // Each request carries its own line's state: three copies of one state would
+  // VT-2: every line names the schema and prints its own line's `seen`; each
+  // request carries its own line's state: three copies of one state would
   // fail, and so would a body that is not the window's `pii.strip` encoding.
-  let states =
-    list.map(lines, fn(line) {
-      let assert Ok(mail) = classify_input.line(line)
-      json.to_string(classify_state.encode(
-        classify_state.window(mail),
-        pii.strip,
-      ))
-    })
+  let seen_jsons = window_encodings(lines, fn(text) { text })
+  let states = window_encodings(lines, pii.strip)
+  list.zip(printed, seen_jsons)
+  |> list.each(fn(pair) {
+    let #(line, seen) = pair
+    schema_of(line) |> should.equal(Ok("mail-2"))
+    string.contains(line, "\"seen\":" <> seen <> ",\"answers\":")
+    |> should.be_true
+  })
   list.zip(
     fixture_send.recorded(fixture) |> list.map(fn(request) { request.body }),
     states,

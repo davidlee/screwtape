@@ -31,11 +31,13 @@ pub fn envelope(kind: String, data: Json) -> String {
   |> json.to_string
 }
 
-/// `classify`: the classified state's provenance plus `answers`, one key per
-/// question in the schema's order (EX-6).
+/// `classify`: the classified state's provenance plus `seen` (the window
+/// before `pii.strip`) and `answers`, one key per question in the schema's
+/// order (EX-6).
 pub fn classify(
   id id: String,
   cursor cursor: String,
+  seen seen: Json,
   reply reply: jev.Reply,
 ) -> String {
   envelope(
@@ -45,16 +47,19 @@ pub fn classify(
       #("cursor", json.string(cursor)),
       #("schema", json.string(schema.id)),
       #("model", json.string(reply.model)),
+      #("seen", seen),
       #("answers", json.object(list.map(reply.answers, answer_entry))),
     ]),
   )
 }
 
-/// `classify --state`: the same provenance with the state the classifier would
-/// send, so a consumer can inspect it without asking (EX-6).
+/// `classify --state`: the same provenance with `seen` and the `state` the
+/// classifier would send (that window after `pii.strip`), so a consumer can
+/// inspect it without asking (EX-6).
 pub fn classify_state(
   id id: String,
   cursor cursor: String,
+  seen seen: Json,
   state state: Json,
 ) -> String {
   envelope(
@@ -63,6 +68,7 @@ pub fn classify_state(
       #("id", json.string(id)),
       #("cursor", json.string(cursor)),
       #("schema", json.string(schema.id)),
+      #("seen", seen),
       #("state", state),
     ]),
   )

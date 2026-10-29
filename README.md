@@ -122,7 +122,11 @@ consumers must ignore fields they do not know. Raising the version is
 reserved for removing, renaming or retyping a field, for changing a field's
 meaning or an ordering, and for adding a value to an existing enumerated
 field (`source_type`, `truncated_by`). Consumers check `version` and refuse
-one they do not know. Values are never omitted: an absent value is `null`.
+one they do not know. `classify` and `classify_state` also carry a `schema`
+id; consumers check `schema` as well as `version` and refuse one they do not
+know. The shapes of `seen` and `state` belong to the schema: they change only
+with the schema id, never with the contract version (screwtape DEC-040).
+Values are never omitted: an absent value is `null`.
 
 The tables below follow print order. `[t]` means an array of `t`.
 
@@ -221,9 +225,10 @@ its message classified out.
 |---|---|---|
 | `id` | string | JMAP message id, from the `read` line. |
 | `cursor` | string | The message's arrival position; see Cursor below. |
-| `schema` | string | Question schema id, `mail-1`. |
+| `schema` | string | Question schema id, `mail-2`. |
 | `model` | string | The model the reply reports, as accepted: the configured model, or its text after the last `/` (a gateway's provider prefix). |
-| `answers` | object | One key per question, in the order of the `mail-1` table below. |
+| `seen` | object | The window Jev's state was stripped from: the fields of `seen` and `state` below, before `pii.strip`. |
+| `answers` | object | One key per question, in the order of the `mail-2` table below. |
 | `answers.<name>.choice` | string | A choice question's label, one of its labels and the most probable one (ties allowed). |
 | `answers.<name>.noul` | float | A noul question's probability, 0 to 1. |
 | `answers.<name>.score` | float | A score question's level, from 0 to the last level's index (n-1) and within 0.05 of the probability-weighted level Σ i·p_i. |
@@ -241,25 +246,38 @@ The state `classify` would send, printed without asking Jev:
 |---|---|---|
 | `id` | string | JMAP message id, from the `read` line. |
 | `cursor` | string | The message's arrival position; see Cursor below. |
-| `schema` | string | Question schema id, `mail-1`. |
-| `state` | object | What Jev would receive; the fields below. |
-| `state.subject` | string \| null | Subject after control-character removal and PII stripping, at most 512 bytes. |
-| `state.sender_domains` | [string] | The text after the last `@` of each sender, control-stripped, lowercased, PII-stripped and deduplicated in order, at most 10 of at most 253 bytes each. |
-| `state.sender_domains_omitted` | int | Senders dropped: no `@`, an empty domain, a domain over the bound, or past the tenth. |
-| `state.bodies` | [body] | At most 10 texts, sharing 16,384 bytes in body order. |
-| `state.bodies[].text` | string | The text after control-character removal, PII stripping and the byte bound. |
-| `state.bodies[].is_truncated` | bool | Cut here, cut on arrival, cut at sync time, or emptied because the shared budget was spent. |
-| `state.bodies[].conversion_failed` | bool | HTML conversion failed at sync time, so the text is `""`. |
-| `state.bodies_omitted` | int | Bodies past the tenth. |
-| `state.attachments` | [attachment] | At most 20, type and name only, never the bytes. |
-| `state.attachments[].type` | string | Media type after PII stripping, at most 128 bytes. |
-| `state.attachments[].name` | string \| null | Filename after PII stripping, at most 128 bytes. |
-| `state.attachments_omitted` | int | Attachments past the twentieth. |
+| `schema` | string | Question schema id, `mail-2`. |
+| `seen` | object | The window Jev's state was stripped from: the fields of `seen` and `state` below, before `pii.strip`. |
+| `state` | object | `seen` with `pii.strip` applied to every string, all other values equal; what Jev receives. |
 
-A body `read` cut on arrival also loses its last partial word before
-stripping, so a half-recognised address or number is never sent.
+`seen` and `state` have one shape, owned by the schema `mail-2`; the bounds
+are on `seen`:
 
-### mail-1
+| Field | Type | Meaning |
+|---|---|---|
+| `subject` | string \| null | Subject after control-character removal, at most 512 bytes. |
+| `from`, `sender`, `reply_to`, `to`, `cc`, `bcc` | [address] | At most 10 entries each in `read` order, not deduplicated; `name` string \| null, at most 128 bytes; `email` string, control-stripped, never cut: an email over 254 bytes drops its entry. |
+| `from_omitted`, `sender_omitted`, `reply_to_omitted`, `to_omitted`, `cc_omitted`, `bcc_omitted` | int | Entries past the tenth or dropped. |
+| `bodies` | [body] | At most 10, texts sharing 16,384 bytes in body order. |
+| `bodies[].text` | string | The text after control-character removal and the byte bound. |
+| `bodies[].is_truncated` | bool | Cut at sync time, cut on arrival, or cut here; a body reached after the budget is spent prints `""` and is truncated when its input text was non-empty (even if that text was only control characters). Control-character removal alone is not truncation. |
+| `bodies[].conversion_failed` | bool | HTML conversion failed at sync time, so the text is `""`. |
+| `bodies_omitted` | int | Bodies past the tenth. |
+| `attachments` | [attachment] | At most 20, type and name only. |
+| `attachments[].type` | string | Media type at most 128 bytes. |
+| `attachments[].name` | string \| null | Filename at most 128 bytes. |
+| `attachments_omitted` | int | Attachments past the twentieth. |
+
+Control-character removal takes out U+0000–U+001F except tab, LF and CR,
+U+007F, and the bidi overrides U+202A–U+202E and U+2066–U+2069. A text cut here or cut on
+arrival loses everything after its last whitespace, so a half-recognised
+address or number is never sent; a cut prefix with no whitespace is kept
+whole. Stripping runs after the cut and nothing is cut after it; a
+placeholder can be longer than what it replaces (`?` → `?[…]`), so `state`
+texts may exceed the bounds above. `seen`'s texts are un-stripped mail text,
+printed to stdout like `read`'s output.
+
+### mail-2
 
 The questions, one row per question, in the order `classify` prints its
 answers, each question's instructions opened by the same untrusted-data
@@ -284,19 +302,25 @@ neither `payment_due` nor `promotion` is a strong bad signal.
 
 ### What Jev sees
 
-Only the state above leaves the machine, and `pii.strip` has run over its
-texts. It replaces an email address with `[email]`, keeps a URL's scheme and
-host but drops its port and userinfo and replaces the path, query and
-fragment with `/[…]`, replaces an IPv4 address with `[ip]`, and replaces a run
-of eight or more digits, which may be joined by single spaces, dashes or dots
-(`0412 345 678`), with `[number]`. Dates and times are kept.
-An address needs a dotted domain whose last label has 2 or more letters,
-so `user@localhost` and `a@b.c` are sent as they are.
+Only `state` leaves the machine, and `pii.strip` has run over its texts. It
+drops a URL's userinfo and keeps its scheme, host, port and path; it replaces
+the query or fragment, from the first `?` or `#` up to the next whitespace,
+quote, `<` or `>`, with `?[…]` or `#[…]`; it replaces a run of 20 or more
+ASCII letters and digits holding at least one of each with `[token]`; an IPv4
+address with `[ip]`; a run of eight or more digits, which may be joined by
+single spaces, dashes or dots (`0412 345 678`), with `[number]`. Dates and
+times are kept.
 
-Names, postal addresses and short numbers are not removed: they go to Jev.
-In `sender_domains`, display names and local parts are dropped, leaving only
-the domain after the `@`; names inside the subject or body text are not
-removed.
+No rule targets names or addresses: display names and full email addresses
+in all six address lists go to Jev, as do addresses and names inside the
+subject and body text, URL paths, postal addresses and short numbers. The
+rules above still apply inside them, so a local part of 20+ mixed letters and
+digits becomes `[token]` and one of 8+ digits `[number]`. The rules accept
+some misses: account ids under 8 digits; all-letter tokens, and all-digit
+runs under 8 digits; hyphenated UUIDs; tokens under 20 characters. A URL
+without `http://` or `https://` gets only the token, IP and number rules. The
+token rule also over-matches: a host label of 20+ mixed letters and digits
+becomes `[token]`.
 
 ### thread
 
@@ -407,6 +431,11 @@ other way in.
 - `classify` reads at most 16 MiB of stdin; more fails with
   `limit_exceeded` / `stdin_bytes` and exit 1. Page the selection with
   `read --limit`.
+- A `classify` line carries `seen`, at most about 45 KB of text (16,384 body
+  bytes, 512 subject, 6 lists × 10 × (128 + 254), 20 attachments × 2 × 128)
+  plus its JSON; a `classify_state` line adds `state`, which placeholders can
+  grow to about 1.52 times `seen` (the pinned worst case: 47,588 bytes of
+  `seen`, 72,373 of `state`).
 - `thread --limit` keeps the last entries in thread order, 50 by default;
   `total` is the thread's entry count and `truncated` is true when entries
   were dropped.

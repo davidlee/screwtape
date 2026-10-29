@@ -927,22 +927,36 @@ fn contract_reply() -> jev.Reply {
   ])
 }
 
+/// The contract cases' `seen`: the window before `pii.strip`. It differs from
+/// the `state` the `classify_state` case passes, so an argument swapped at the
+/// call site fails the byte-exact expectation.
+fn contract_seen() -> json.Json {
+  json.object([#("subject", json.string("seen"))])
+}
+
 /// Byte for byte: the keys in the documented order, the answers in the reply's.
 pub fn classify_contract_test() {
-  render.classify(id: "M1", cursor: "C1", reply: contract_reply())
+  render.classify(
+    id: "M1",
+    cursor: "C1",
+    seen: contract_seen(),
+    reply: contract_reply(),
+  )
   |> should.equal(
-    "{\"version\":1,\"kind\":\"classify\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-2\",\"model\":\"jev-1.14.0\",\"answers\":{\"a\":{\"choice\":\"y\",\"confidence\":0.7,\"probabilities\":{\"x\":0.3,\"y\":0.7}},\"n\":{\"noul\":0.25},\"s\":{\"score\":1.5,\"confidence\":0.5,\"probabilities\":{\"0\":0.1,\"1\":0.5,\"2\":0.4}}}}}",
+    "{\"version\":1,\"kind\":\"classify\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-2\",\"model\":\"jev-1.14.0\",\"seen\":{\"subject\":\"seen\"},\"answers\":{\"a\":{\"choice\":\"y\",\"confidence\":0.7,\"probabilities\":{\"x\":0.3,\"y\":0.7}},\"n\":{\"noul\":0.25},\"s\":{\"score\":1.5,\"confidence\":0.5,\"probabilities\":{\"0\":0.1,\"1\":0.5,\"2\":0.4}}}}}",
   )
 }
 
+/// Byte for byte, and `seen` differs from `state` so a swapped pair fails.
 pub fn classify_state_contract_test() {
   render.classify_state(
     id: "M1",
     cursor: "C1",
-    state: json.object([#("subject", json.null())]),
+    seen: contract_seen(),
+    state: json.object([#("subject", json.string("state"))]),
   )
   |> should.equal(
-    "{\"version\":1,\"kind\":\"classify_state\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-2\",\"state\":{\"subject\":null}}}",
+    "{\"version\":1,\"kind\":\"classify_state\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-2\",\"seen\":{\"subject\":\"seen\"},\"state\":{\"subject\":\"state\"}}}",
   )
 }
 
@@ -965,7 +979,8 @@ pub fn classify_fixture_answers_are_in_question_order_test() {
   let reply_text = cli_fixture.jev_reply("mail-1-reply.json")
   let assert Ok(reply) = jev.reply(reply_text, schema.mail_2(), "jev-1.14.0")
   let names = list.map(schema.mail_2(), jev.question_name)
-  let document = render.classify(id: "M1", cursor: "C1", reply: reply)
+  let document =
+    render.classify(id: "M1", cursor: "C1", seen: contract_seen(), reply: reply)
 
   keys_in_order(document, names) |> should.be_true
   parse(document)

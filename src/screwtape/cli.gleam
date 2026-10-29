@@ -540,10 +540,16 @@ fn classify_mail(
   mail: input.Mail,
 ) -> Result(String, Error) {
   let w = classify_state.window(mail)
+  let seen = classify_state.encode(w, fn(t) { t })
   let state = classify_state.encode(w, pii.strip)
   case classifier {
     Local ->
-      Ok(render.classify_state(id: mail.id, cursor: mail.cursor, state: state))
+      Ok(render.classify_state(
+        id: mail.id,
+        cursor: mail.cursor,
+        seen: seen,
+        state: state,
+      ))
     Remote(endpoint, token, send) -> {
       use reply <- result.try(jev_client.ask(
         send,
@@ -552,7 +558,12 @@ fn classify_mail(
         state,
         schema.mail_2(),
       ))
-      Ok(render.classify(id: mail.id, cursor: mail.cursor, reply: reply))
+      Ok(render.classify(
+        id: mail.id,
+        cursor: mail.cursor,
+        seen: seen,
+        reply: reply,
+      ))
     }
   }
 }
