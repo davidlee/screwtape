@@ -87,3 +87,29 @@ code citations, I1 being structural, and the 45 KB arithmetic. The open
 risk is empirical, not design: ASM-006's token fit, settled by VT-6 and
 the VH-1 live probe at execution. A further pass would only probe the
 README rewrite, which `docs_test` and VT-5 pin.
+
+## Implementation run
+
+Seat: /super-orchestrator, 2026-10-29, main worktree, from a293122 (clean).
+
+- Host gate: `nix develop -c just check` (green at a293122, 611 tests).
+- quotient forms: `read` (root read-only) and `write` (root writable;
+  `just check` green, 611 tests). Neither has network or `curl`. No form
+  change needed.
+- Known hazard, not a form gap: concurrent builds of `build/` (two
+  `gleam`/`just` runs at once) race on the esqlite NIF and argv artefacts and
+  fail spuriously. Run one build at a time: never run the host gate while a pi
+  worker builds, and tell workers to run gate steps sequentially.
+- Operator ruling (2026-10-29, the user: "call Jev whenever, it's like 1/3 of
+  a cent"): live Jev calls are allowed unattended, including PHASE-03 VH-1.
+  The call runs on the host (Claude Bash), never in a pi worker: the forms have
+  no network, and the credential
+  (`~/.config/credstore.encrypted/screwtape.jev`) stays out of pi context. The
+  synthetic worst-case mail is hand-made outside the repo (POL-002), e.g. in
+  the session scratchpad; only token counts / `jev_context` outcome are
+  recorded here, not the mail.
+- README Bounds figure: PHASE-03 EX-5's "about 1.6×" is an estimate; replace
+  it with the ratio PHASE-02 EX-7's test pins.
+- Other writers: none expected.
+
+## Autonomy log
