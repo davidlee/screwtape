@@ -6,18 +6,23 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-29 · design/reviewing (run rev 22) · d757768 (all SL-005 work uncommitted)
+fresh-as-of: 2026-10-29 · plan/ready (design locked rev 29; PHASE-01..03 planned) · cd815ca
 
 ### Produced
-- design.md (10 sections, materialised rev 20); DEC-040, DEC-041, DEC-042,
-  DEC-043, DEC-044; ASM-006; RV-019 (design review pass, open)
+- design.md locked (run rev 29; 10 sections attested); DEC-040..DEC-044
+  (DEC-041 amended by RV-019 F-3/F-6); ASM-006; RV-019 concluded, 7 findings
+  verified — 50b633c
+- plan.toml / plan.md, 3 phases; phase sheets materialised — 9d379c4, c428e67
+- selectors match design § 10 plus jev_test, jev_client_test (schema rename
+  reach, plan.md Notes); research restamped — cd815ca
 - research/research.md; IMP-003 retargeted to mail-2
+- No code changed yet; gate not run this slice.
 
 ### Learned
 - (none durable yet)
 
 ### Open
-- ASM-006 — validate by VT-6 + VH-1 (design § 9)
+- ASM-006 — validate by PHASE-02 EX-7 (VT-6) + PHASE-03 VH-1
 - Follow-Ups in slice-005.md: malebolge DEC-077, POL-002 wording REV, IDE-002
 
 ## Design triage (2026-10-29, exploring)
