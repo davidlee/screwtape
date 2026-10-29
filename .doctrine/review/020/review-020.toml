@@ -1,0 +1,242 @@
+id    = 20
+slug  = "sl-005-audit-conformance-whole-slice"
+title = "SL-005 audit: conformance (whole slice)"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "reconciliation"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-005"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "major"
+title = "Expected DEC-034 superseded and DEC-036/DEC-029 marked amended; observed DEC-034 still accepted with no relation"
+detail = """
+Expected: DEC-044 states "These records supersede DEC-034"; DEC-040 "amends DEC-036 and DEC-029" (design § 7).
+Observed: `doctrine show DEC-034` → `accepted`, no supersede relation; DEC-036 and DEC-029 carry no relation to DEC-040. A reader of DEC-034 sees "strip first, cut after" and `sender_domains` as live governance.
+"""
+disposition = "design-wrong"
+response = """
+Governance lags the slice. Reconciliation Brief § Governance/spec: record `doctrine supersede DEC-044 DEC-034` (DEC-034 → superseded) and link DEC-040 → DEC-036, DEC-040 → DEC-029 as amends.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Governance lags the slice. Reconciliation Brief § Governance/spec: record `doctrine supersede DEC-044 DEC-034` (DEC-034 → superseded) and link DEC-040 → DEC-036, DEC-040 → DEC-029 as amends.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "major"
+title = "Expected POL-002 to describe classify output accurately; observed it calls classify --state 'PII-stripped'"
+detail = """
+Expected: POL-002 names what classify prints so its scope is exact.
+Observed: POL-002 Statement: "including its PII-stripped `classify --state` form". Since SL-005, both `classify` and `classify_state` lines carry `seen` (un-stripped window, design § 5.6), and `state` itself now keeps names, addresses and URL paths. Listed in slice-005.md Follow-Ups as a REV at reconcile.
+"""
+disposition = "design-wrong"
+response = """
+Reconciliation Brief § Governance/spec: REV modify POL-002 Statement — real mail covers `classify` and `classify --state` output (both carry the un-stripped `seen`; `state` is partly stripped), not a "PII-stripped --state form".
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Reconciliation Brief § Governance/spec: REV modify POL-002 Statement — real mail covers `classify` and `classify --state` output (both carry the un-stripped `seen`; `state` is partly stripped), not a "PII-stripped --state form".
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-3"
+status = "open"
+severity = "minor"
+title = "Expected ASM-006 settled from VT-6 + VH-1; observed it is still 'held' with VH-1 awaiting operator confirmation"
+detail = """
+Expected: ASM-006 validated by PHASE-02 VT-6 (pinned worst-case state 72,373 B, ratio 1.52) and PHASE-03 VH-1 (live probe).
+Observed: VT-6 passes. VH-1 was agent-run (notes.md § VH-1 live probe): synthetic worst-case mail, 12,269 input tokens (~38% of 32k), no jev_context. VH-1 is human-verified; operator confirmation pending. ASM-006 status `held`.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "Expected design § 5.1 to name the address entry type as built; observed Entry in design, input.Address in code"
+detail = """
+Expected: design § 5.1 `Addresses(entries: List(Entry), omitted)`, `Entry(name, email)`.
+Observed: `state.gleam:50` `Addresses(entries: List(Address), omitted: Int)`, reusing `input.Address(name, email)`. Autonomy log PHASE-02 flagged it for audit. Shape and contract identical; reusing the input type avoids a parallel type (POL-001).
+"""
+disposition = "design-wrong"
+response = """
+Code is right: reusing `input.Address` avoids a second identical type (POL-001). Reconciliation Brief § Per-slice: design.md § 5.1 Entry → `input.Address(name, email)`.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Code is right: reusing `input.Address` avoids a second identical type (POL-001). Reconciliation Brief § Per-slice: design.md § 5.1 Entry → `input.Address(name, email)`.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "nit"
+title = "Expected design § 10 to list every touched test; observed jev_test and jev_client_test missing"
+detail = """
+Expected: § 10 code impact lists all touched paths.
+Observed: `slice conformance` shows test/screwtape/jev_test.gleam and jev_client_test.gleam touched (conformant against selectors; mail-1 → mail-2 rename) but § 10's test row omits them. Known since planning (handover), not reopened then.
+"""
+disposition = "design-wrong"
+response = """
+Reconciliation Brief § Per-slice: design.md § 10 test row adds `jev_test.gleam`, `jev_client_test.gleam` (schema id rename).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Reconciliation Brief § Per-slice: design.md § 10 test row adds `jev_test.gleam`, `jev_client_test.gleam` (schema id rename).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "nit"
+title = "Expected utf8.spend doc to hold for both callers; observed it describes only render's uncut-text use"
+detail = """
+Expected: the shared helper's doc is true for every caller.
+Observed: `utf8.gleam:36-38`: "A codepoint dropped whole still spends the bytes reserved for it, so the next text does not see them." True for `render.read`, which passes the uncut text (size ≥ remaining → 0). False for `state.window_body`, which passes the seen text after prefix + word drop: leftover bytes do flow to the next body (design § 5.3 intends this: "charged the seen text's byte size"). Comment inherited from the old render-local `spend`.
+"""
+disposition = "fix-now"
+response = """
+Fixed in this audit: `utf8.gleam` doc now states the caller chooses what is charged (render: uncut text; state: kept text, leftover flows on). `nix develop -c just check` green, 629 tests.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Fixed in this audit: `utf8.gleam` doc now states the caller chooses what is charged (render: uncut text; state: kept text, leftover flows on). `nix develop -c just check` green, 629 tests.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "nit"
+title = "Control-only body: is_truncated depends on whether budget remains"
+detail = """
+Observed: a body whose text is only control characters prints `is_truncated: false` while budget remains (cleaned text empty, not cut) and `true` once the budget is spent (input non-empty). PHASE-02 pi review F5.
+Checked against design § 5.3: "control removal alone is not truncation" and "Once the budget is spent ... is_truncated true when its input text was non-empty". Both rules are literal. README.md:263 now states the case.
+"""
+disposition = "aligned"
+response = """
+Both behaviours are the design's literal rules (§ 5.3) and README.md:263 documents the case. A control-only body carries no text either way; consumers lose nothing.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "aligned"
+response = """
+Both behaviours are the design's literal rules (§ 5.3) and README.md:263 documents the case. A control-only body carries no text either way; consumers lose nothing.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "nit"
+title = "conformance: .doctrine/slice/005/notes.md reported undeclared"
+detail = """
+Observed: `doctrine slice conformance 5` → undeclared (1): M .doctrine/slice/005/notes.md; undelivered 0; conformant 18.
+The path is the slice's own working notes, committed in ce0e899 alongside code.
+"""
+disposition = "tolerated"
+response = """
+The slice's own notes.md is doctrine working state, not product surface; design-target selectors govern code and README. Adding a selector for it would make every slice's conformance carry its own notes. No action.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = """
+The slice's own notes.md is doctrine working state, not product surface; design-target selectors govern code and README. Adding a selector for it would make every slice's conformance carry its own notes. No action.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

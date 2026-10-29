@@ -6,24 +6,26 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-29 · plan/ready (design locked rev 29; PHASE-01..03 planned) · cd815ca
+fresh-as-of: 2026-10-29 · audit (RV-020 open, F-3 awaits VH-1 confirmation) · ce0e899
 
 ### Produced
-- design.md locked (run rev 29; 10 sections attested); DEC-040..DEC-044
-  (DEC-041 amended by RV-019 F-3/F-6); ASM-006; RV-019 concluded, 7 findings
-  verified — 50b633c
-- plan.toml / plan.md, 3 phases; phase sheets materialised — 9d379c4, c428e67
-- selectors match design § 10 plus jev_test, jev_client_test (schema rename
-  reach, plan.md Notes); research restamped — cd815ca
-- research/research.md; IMP-003 retargeted to mail-2
-- No code changed yet; gate not run this slice.
+- design.md locked (run rev 29); DEC-040..DEC-044; ASM-006; RV-019 — 50b633c
+- plan.toml / plan.md, 3 phases — 9d379c4, c428e67
+- PHASE-01 utf8.spend, strip relaxed — 25f1d0a; PHASE-02 window, mail-2 —
+  a54c839; PHASE-03 seen on lines, README — 65879a9; VH-1 probe — ce0e899
+- RV-020 audit: 8 findings; synthesis + reconciliation brief in review-020.md
+- Gate green, 629 tests; verify-vt 12/12; conformance 18/0/1 (notes only)
 
 ### Learned
-- (none durable yet)
+- Concurrent `gleam`/`just` builds race on `build/` (§ Implementation run).
+- Live Jev calls run on the host, never in a pi worker (no network; keep
+  the credential out of pi context) (§ Implementation run).
 
 ### Open
-- ASM-006 — validate by PHASE-02 EX-7 (VT-6) + PHASE-03 VH-1
-- Follow-Ups in slice-005.md: malebolge DEC-077, POL-002 wording REV, IDE-002
+- RV-020 F-3: ASM-006 settle, pending operator confirmation of VH-1
+- RV-020 brief → /reconcile: design § 5.1, § 10; DEC-034 supersede;
+  DEC-040 amends relations; POL-002 REV
+- Follow-Ups in slice-005.md: malebolge DEC-077, IDE-002
 
 ## Design triage (2026-10-29, exploring)
 

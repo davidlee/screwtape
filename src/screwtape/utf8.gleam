@@ -34,8 +34,9 @@ fn keep_codepoints(
 }
 
 /// The budget left after `text` under `remaining`: its byte size, capped at
-/// what remains. A codepoint dropped whole still spends the bytes reserved for
-/// it, so the next text does not see them.
+/// what remains. The caller chooses what is charged: `render.read` passes the
+/// uncut text, so a cut spends everything; `classify/state` passes the text it
+/// kept, so bytes a cut gave back go to the next body.
 pub fn spend(text: String, remaining: Int) -> Int {
   let size = string.byte_size(text)
   case size < remaining {
