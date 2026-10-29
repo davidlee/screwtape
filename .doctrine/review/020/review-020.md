@@ -59,4 +59,4 @@ Tradeoff accepted: a control-only body's `is_truncated` depends on whether body 
 ### Governance/spec (REV)
 - F-1 — DEC-034: superseded by DEC-044 (`doctrine supersede DEC-044 DEC-034`); DEC-036 and DEC-029: record DEC-040's amendment as a relation.
 - F-2 — POL-002 Statement: REV modify. `classify` and `classify --state` output both carry the un-stripped `seen`; replace "its PII-stripped `classify --state` form" with wording that covers both lines.
-- F-3 — ASM-006: settle as validated on VT-6 (worst case 72,373 B, ratio 1.52) and VH-1 (12,269 tokens, ~38% of 32k, no `jev_context`). Adversarial residual stays as stated. *Pending operator confirmation of VH-1.*
+- F-3 — ASM-006: settle as validated on VT-6 (worst case 72,373 B, ratio 1.52) and VH-1 (12,269 tokens, ~38% of 32k, no `jev_context`). Adversarial residual stays as stated. Operator confirmed VH-1 (2026-10-29).

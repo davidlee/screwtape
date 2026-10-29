@@ -10,6 +10,14 @@ raiser    = "raiser"
 responder = "responder"
 rounds_base = 0
 contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Conformance audit of SL-005 PHASE-01..03 (262925a..ce0e899) against design.md § 5.1–5.6, § 9, § 10 and governance DEC-029/034/036/040–044, POL-002, ASM-006. Code read: state.gleam, pii.gleam, utf8.gleam, cli.classify_mail, render classify lines, README contract. Mechanical: slice conformance 18/0/1, verify-vt 12/12, doctrine check gate and just check green (629). VH-1 operator-confirmed. 8 findings, all verified; brief written.
+"""
 
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-005"
@@ -76,16 +84,32 @@ role = "raiser"
 
 [[finding]]
 id = "F-3"
-status = "open"
+status = "verified"
 severity = "minor"
 title = "Expected ASM-006 settled from VT-6 + VH-1; observed it is still 'held' with VH-1 awaiting operator confirmation"
 detail = """
 Expected: ASM-006 validated by PHASE-02 VT-6 (pinned worst-case state 72,373 B, ratio 1.52) and PHASE-03 VH-1 (live probe).
 Observed: VT-6 passes. VH-1 was agent-run (notes.md § VH-1 live probe): synthetic worst-case mail, 12,269 input tokens (~38% of 32k), no jev_context. VH-1 is human-verified; operator confirmation pending. ASM-006 status `held`.
 """
+disposition = "design-wrong"
+response = """
+Operator confirmed VH-1 (2026-10-29, "VH-1 confirmed"). ASM-006 is validated by VT-6 and VH-1. Reconciliation Brief § Governance/spec: settle ASM-006 as validated, adversarial residual unchanged.
+"""
 
 [[finding.turn]]
 act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Operator confirmed VH-1 (2026-10-29, "VH-1 confirmed"). ASM-006 is validated by VT-6 and VH-1. Reconciliation Brief § Governance/spec: settle ASM-006 as validated, adversarial residual unchanged.
+"""
+
+[[finding.turn]]
+act = "verify"
 role = "raiser"
 
 [[finding]]
