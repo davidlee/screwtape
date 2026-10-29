@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a1872e-368d-7031-b4a3-0dab020ef5ce"
+recorded_at = "2026-10-29T10:21:55.213916911Z"
+kind = "friction"
+summary = "VH-1 probe: repo shipment under systemd-run --user lacks erl/coreutils on PATH"
+detail = "The deployed wrapper uses a nix store binary; running the repo's build/erlang-shipment inside the credential unit needs -E PATH=<erl dir>:<coreutils dir>. Classify does not print Jev usage, so input tokens needed a local logging proxy in front of the gateway."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
