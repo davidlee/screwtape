@@ -71,3 +71,10 @@ recipe (the eval report and the tagging brief);
 
 About 50 messages can expose gross miscalibration; they cannot establish
 calibration. Consumers set thresholds after this eval.
+
+## SL-005 (2026-10-29)
+
+SL-005 retires `mail-1` for `mail-2` (DEC-044): same questions over a wider
+window (DEC-041 to DEC-043). Evaluate `mail-2`; comparing it with `mail-1` on
+the same fixtures measures what the relaxed strip buys `deception_cues` and
+`agent_directive` (SL-005 pi review F-9, routed here).

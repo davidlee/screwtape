@@ -1,0 +1,206 @@
+id    = 19
+slug  = "design-review-of-sl-005"
+title = "design review of SL-005"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "pi review-profile pass over design.md rev 22 (sections 1-10) against DEC-029/030/034/035/036/039/040-044, ASM-006, POL-001/002 and the cited source, tests and README; 7 findings, all prose or test-plan fixes, verified on rev 24."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-005"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "Bounds bound seen, not state: strip can lengthen texts, VT-6 pins the wrong size"
+detail = """
+Design § 5.2 bounds, § 5.6 I2, § 9 VT-6, ASM-006. The bounds now apply to seen; pii.strip runs after the cut and can lengthen a text: each ? or # becomes ?[…] or #[…] (U+2026 is 3 bytes, so 1 byte becomes 6). pi measured a 16,379-byte body of "https://a? " units stripping to 23,824 bytes (+45%), so state bodies reach ~24.6 KB and a classify_state line ~98 KB, not "twice 45 KB". README:246 and :255-256 today say state.subject / attachment text are "at most" 512 / 128 bytes; that wording becomes false for state. ASM-006 validation_plan and VT-6 pin a size "computed from the bounds", which this growth can exceed, so VT-6 cannot catch it. Smallest fix: one sentence in § 5.2 that the table bounds seen and placeholders may lengthen state texts; VT-6 encodes a worst-case Window through encode(w, pii.strip) and pins that size. ASM-006's token margin (about 15k of 32k) appears to survive. Source: pi review run run-20261029T071255625Z-85-8abc2c96cef5; README lines verified by orchestrator, byte growth arithmetic checked (1 to 6 bytes per marker), measured figures are pi's.
+"""
+disposition = "fix-now"
+response = 'Fixed in prose: design 5.2 states the bounds are on seen and placeholders may lengthen state texts; README Bounds bullet says classify_state adds state up to about 1.6 times seen; VT-6 now encodes a worst-case Window through pii.strip and pins that size. ASM-006 validation_plan updated to match; slice-005.md verification line updated. Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Fixed in prose: design 5.2 states the bounds are on seen and placeholders may lengthen state texts; README Bounds bullet says classify_state adds state up to about 1.6 times seen; VT-6 now encodes a worst-case Window through pii.strip and pins that size. ASM-006 validation_plan updated to match; slice-005.md verification line updated. Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Raiser checked the revised text in design.md (revision 24) and DEC-041 / ASM-006 records."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "Rule 3 wording: query is replaced only up to whitespace, quote, < or >"
+detail = '''
+Design § 5.4 rule 3 says everything from the first ? or # is replaced. The regex's tail [^\s<>"']* stops at whitespace, a quote, < or >, so https://h/p?q="secret" strips to https://h/p?[…]"secret". Pre-existing behaviour class, and the stop set keeps markup intact. Smallest fix: change the sentence (and the README What Jev sees wording) to "up to the next whitespace, quote, < or >"; no regex change. Source: pi run, executed through OTP re; not re-run by orchestrator.
+'''
+disposition = "fix-now"
+response = 'Fixed in prose: design 5.4 rule 3 now says from the first ? or # up to the next whitespace, quote, < or > is replaced. No regex change. Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Fixed in prose: design 5.4 rule 3 now says from the first ? or # up to the next whitespace, quote, < or > is replaced. No regex change. Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Raiser checked the revised text in design.md (revision 24) and DEC-041 / ASM-006 records."
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "minor"
+title = "is_truncated: design § 5.3 and DEC-041 define it differently"
+detail = '''
+Design § 5.3 defines is_truncated = flagged by read, or cut on arrival, or cut here. DEC-041's choice says "true when the body's seen text is shorter than its input text or read flagged it". They disagree when control or bidi removal shrinks a text without a cut: "a\u0000b" gives seen "ab", design false, DEC-041 true. No VT covers this case. Smallest fix: pick one definition, state "control removal is not truncation" in § 5.3 if the design's wording wins, amend DEC-041 to match, add one VT-2 row. Verified: DEC-041 record-041.toml:15 wording.
+'''
+disposition = "fix-now"
+response = 'Kept the design definition: control removal alone is not truncation (design 5.3). DEC-041 choice amended to read flagged by read, cut on arrival, or cut here including a spent budget. VT-2 gains a row: control removal alone leaves is_truncated false. Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Kept the design definition: control removal alone is not truncation (design 5.3). DEC-041 choice amended to read flagged by read, cut on arrival, or cut here including a spent budget. VT-2 gains a row: control removal alone leaves is_truncated false. Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Raiser checked the revised text in design.md (revision 24) and DEC-041 / ASM-006 records."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "Code impact misses three test files; cli_fixture row unneeded"
+detail = """
+Design § 10 test row omits files the change breaks: test/screwtape/classify_input_test.gleam (senders_come_from_from_test :52, mail.senders assertion :79; senders is removed), test/screwtape/classify_schema_test.gleam (:19 asserts schema id "mail-1"), test/screwtape/utf8_test.gleam (gains spend). The row "test/support/cli_fixture.gleam: address lists in read fixtures if needed" looks unnecessary: cli_fixture holds a token helper, and pi reports the recorded read fixtures (test/fixtures/mail/read-*.json) already carry all six lists. Smallest fix: name the three files; drop the cli_fixture row. Verified by orchestrator: the three test assertions exist; fixture contents per pi.
+"""
+disposition = "fix-now"
+response = 'Fixed: design 10 names classify_input_test, classify_schema_test and utf8_test; cli_fixture row dropped. Slice scope Affected surface swept to match (utf8.gleam added, pii FFI marked unchanged after reading it). Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Fixed: design 10 names classify_input_test, classify_schema_test and utf8_test; cli_fixture row dropped. Slice scope Affected surface swept to match (utf8.gleam added, pii FFI marked unchanged after reading it). Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Raiser checked the revised text in design.md (revision 24) and DEC-041 / ASM-006 records."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "Moving the field table under ### mail-2 breaks docs_test"
+detail = """
+Design § 5.2 README bullet: "the field table above moves under ### mail-2". Today the field table sits under ### classify_state (README:236-261) and ### mail-1 holds only the questions table (:262). docs_test.table_names (test/screwtape/docs_test.gleam:40-49) takes every table row between ### mail-1 and the next heading and compares their first cells to the question names, so a second table in that section breaks it. Smallest fix: keep the field table in its own section (where it is, or its own heading), and ### mail-2 holds the questions table only; or say docs_test changes to read the first table. Verified by orchestrator.
+"""
+disposition = "fix-now"
+response = """Fixed: design 5.2 README bullet keeps the field table in place of classify_state's state rows; mail-2 keeps only the questions table, so docs_test reads one table. Operator agreed the recommended disposition ("agreed", 2026-10-29)."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """Fixed: design 5.2 README bullet keeps the field table in place of classify_state's state rows; mail-2 keeps only the questions table, so docs_test reads one table. Operator agreed the recommended disposition ("agreed", 2026-10-29)."""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Raiser checked the revised text in design.md (revision 24) and DEC-041 / ASM-006 records."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "DEC-041 rationale calls seen Jev's view; README omits that seen is un-stripped"
+detail = """
+DEC-041's rationale says the consumer's "invariant (agent view within Jev's view) holds by construction". seen is raw: it bounds the same window Jev's view was made from, but it holds text Jev never saw (addresses before stripping, queries, tokens, digit runs). The design § 1 wording ("what Jev's view was made from") is right; DEC-041 and a README reader can take seen as Jev's view and build the wrong guard. Also, the README classify / classify_state sections do not say seen is un-stripped mail on stdout (§ 5.6 points only at POL-002, a repo policy). Smallest fix: one README sentence under classify / mail-2 that seen is the un-stripped window state was stripped from, printed like read's output; reword DEC-041's rationale to "agent view within the window Jev's view was made from". Verified: record-041.toml:17.
+"""
+disposition = "fix-now"
+response = """Fixed: DEC-041 rationale now reads the agent sees only the window Jev's view was made from, and notes seen itself is un-stripped. Design 5.2 README bullet states seen is the un-stripped window, printed like read's output. Operator agreed the recommended disposition ("agreed", 2026-10-29)."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """Fixed: DEC-041 rationale now reads the agent sees only the window Jev's view was made from, and notes seen itself is un-stripped. Design 5.2 README bullet states seen is the un-stripped window, printed like read's output. Operator agreed the recommended disposition ("agreed", 2026-10-29)."""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Raiser checked the revised text in design.md (revision 24) and DEC-041 / ASM-006 records."
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "nit"
+title = "Token rule linearity reason is misstated"
+detail = """
+Design § 5.4 rule 4 says the scan is linear because "each lookahead stops at the run's first digit or letter". On an all-letter run the first lookahead scans to the run's end and fails; linearity comes from the lookbehind, which allows one attempt per run, at its start. pi timed 16k and 32k letter and digit runs under OTP re at under 1 ms. Smallest fix: reword to "the lookbehind allows a match attempt only at a run's start, so each run is scanned once". VT-4's linear-time row stays.
+"""
+disposition = "fix-now"
+response = 'Fixed in prose: design 5.4 rule 4 now attributes linearity to the lookbehind (one attempt per run). Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Fixed in prose: design 5.4 rule 4 now attributes linearity to the lookbehind (one attempt per run). Operator agreed the recommended disposition ("agreed", 2026-10-29).'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Raiser checked the revised text in design.md (revision 24) and DEC-041 / ASM-006 records."
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 40
+slug = "classify-state-owned-by-schema"
+title = "classify's state and seen shapes are owned by the schema id"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-29"
+updated = "2026-10-29"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-036 puts the answers' vocabulary under the schema id so it can evolve without a contract bump, and DEC-035 already bumps the schema id on any state change. But the README documents each state.* field as contract v1, so reshaping the state (SL-005) reads as a DEC-029 field removal needing contract v2."
+choice = "The shape, bounds and preprocessing of classify's state and of seen are defined by the schema id, as the answers' vocabulary is. The contract (v1) owns only the envelopes: classify {id, cursor, schema, model, seen, answers} and classify_state {id, cursor, schema, seen, state}; seen's presence is contract, its shape is the schema's. Consumers must check schema as well as version, and refuse an unknown one. The README documents state and seen under the schema's section, and its Compatibility paragraph says so. Amends DEC-036 and DEC-029 (a carve-out: reshaping state or seen is not a contract change)."
+alternatives = ["keep sender_domains beside the new lists to stay additive", "bump the contract to v2"]
+rationale = "One rule: anything Jev's view depends on is versioned by schema. Removes a dead compatibility field and a contract bump that would break every read consumer's version check; consumers already refuse an unknown schema, so they fail safe."
+consequences = ["Reshaping state or seen bumps the schema id; never the contract version", "DEC-036's envelope gains seen", "DEC-029 and README Compatibility gain the schema-check carve-out (RV: SL-005 pi review F-6)"]
+decided_by = "agent proposal (SL-005 research X-1); operator choice (david)"
+decided_on = "2026-10-29"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-005"

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 41
+slug = "classify-seen-window"
+title = "classify builds seen, Jev's window before stripping, and sends state = pii.strip(seen)"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-29"
+updated = "2026-10-29"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Malebolge (its DEC-077) shows its agent only text Jev was shown. Today bounds are spent on stripped bytes, so the raw prefix Jev saw cannot be recovered, and consumers mirror classify's bounds from outside (the mirror keeps breaking). Malebolge proposed seen.bodies byte counts plus a pinned bounds table."
+choice = "classify builds one window value, seen, from the read line, then maps pii.strip over its texts to get state; one builder, no second path (POL-001). Per text: remove control characters (U+0000-U+001F except tab, LF, CR; U+007F; and the bidi overrides U+202A-U+202E, U+2066-U+2069), cut to its bound on a codepoint boundary, and when cut here or on arrival drop the partial word (everything after the last whitespace) unless the cut prefix has no whitespace, in which case the prefix is kept. seen has the state's shape with these unstripped texts; state equals seen with every text stripped and all other values identical. is_truncated is true when read flagged the body, it was cut on arrival, or it was cut here (including emptied by a spent budget); control removal alone is not truncation. The body budget (16,384 bytes, body order) is charged for seen bytes, so seen's body texts total at most 16,384 bytes; render.read and classify share one spend helper. Both the classify and classify_state lines carry seen. Nothing is cut after stripping."
+alternatives = ["seen as byte counts per text (malebolge DEC-077 as proposed), consumer clamps raw read fields", "cut after stripping (DEC-034)"]
+rationale = "The consumer shows seen as is: no byte arithmetic in another language, no index alignment, no bounds table to mirror or pin. Its invariant (the agent sees only the window Jev's view was made from) holds by construction; seen itself is un-stripped, so it holds text Jev saw only as placeholders. One function builds the window; stripping is a map over it. Cutting raw means every cut text needs the partial-word drop, since a half-cut address or number can now occur at any bound."
+consequences = ["Each classify line carries up to ~45 KB of seen; the README Bounds section states the per-line ceiling", "Malebolge DEC-077 needs a matching change (simpler: show seen)", "Stripped text may differ in length from seen", "seen is the control-stripped; cut; word-dropped window; not a byte-exact prefix of read's text"]
+decided_by = "agent proposal (option B); operator choice (david)"
+decided_on = "2026-10-29"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-005"

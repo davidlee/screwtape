@@ -1,0 +1,114 @@
+id = 5
+slug = "classify-window-and-pii-relax"
+title = "classify window: raw-byte bounds, every address list, seen, PII relaxed for malice signals"
+status = "plan"
+created = "2026-10-29"
+updated = "2026-10-29"
+tags = []
+
+[relationships]
+needs = []                      # slice→work hard prerequisite
+after = []                      # slice→work soft sequence: { to, rank }
+
+[[selector]]
+selector = "src/screwtape/classify/**"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/pii.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape_pii_ffi.erl"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "src/screwtape/render.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/cli.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "README.md"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/classify_state_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/pii_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/render_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/cli_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/classify/state.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/classify/input.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/utf8.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "src/screwtape/classify/schema.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/docs_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/classify_input_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/classify_schema_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/utf8_test.gleam"
+intent = "design-target"
+
+[[relation]]
+label = "references"
+role = "originates_from"
+target = "IMP-005"
+
+[[relation]]
+label = "references"
+role = "originates_from"
+target = "IMP-006"
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "supersedes or amends the state shape and strip-then-cut order"
+target = "DEC-034"
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "state change bumps the schema id"
+target = "DEC-035"
+
+# STRUCTURAL relations are uniform `[[relation]]` rows, never a typed
+# `[relationships]` axis. Slices carry no typed STRUCTURAL
+# relation axes — the `[relationships]` table above holds only the dep/seq payload
+# (`needs`/`after`). Author a structural edge with the `doctrine link` verb
+# — it validates the (source, label) pair and resolves the target:
+#   doctrine link SL-NNN specs SPEC-NNN
+#   doctrine link SL-NNN governed_by ADR-NNN
+# `doctrine inspect SL-NNN` renders the inbound + outbound edges.

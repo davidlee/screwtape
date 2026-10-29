@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 43
+slug = "pii-strip-relaxed"
+title = "pii.strip relaxed in place: addresses and URL paths kept, tokens erased"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-29"
+updated = "2026-10-29"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Stripping hides phishing and injection signals from Jev: addresses become [email], URL paths become /[…] (IMP-005). The operator wants the stripping code kept rather than removed, and the contract simple."
+choice = "pii.strip, one rule set over every text in state: the email rule is removed (addresses kept), along with the URL pass that depended on it; URLs keep scheme, host, port and path, drop userinfo, and replace a query with ?[…] and a fragment with #[…]; new token rule: a run of 20 or more [A-Za-z0-9] (no - or _), anchored at the run's start so the scan stays linear, containing at least one letter and one digit, becomes [token]; IPv4 -> [ip], protected date/time shapes, and runs of 8+ digits -> [number] unchanged. Schemeless URLs get only the token and digit rules. No flag."
+alternatives = ["a CLI flag or jev config key selecting strict or relaxed stripping", "remove pii.strip", "drop URL paths after N segments"]
+rationale = "Relaxing in place keeps one implementation (POL-001) and keeps Jev's view independent of how screwtape is invoked. Directive-shaped, hyphenated and lookalike paths and domains survive; hex hashes, API keys and mixed-case reset tokens do not. Known misses, accepted: account ids of 1-7 digits, all-letter tokens, hyphenated UUIDs, tokens under 20 characters."
+consequences = ["README What Jev sees is rewritten", "pii_test's table is the specification and changes with it", "RSK-001 unchanged"]
+decided_by = "agent proposal; operator direction (URL paths partial, domain intact) and choice (david)"
+decided_on = "2026-10-29"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-005"

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 44
+slug = "classify-question-schema-mail-2"
+title = "Question schema mail-2: mail-1's questions over the SL-005 window"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-29"
+updated = "2026-10-29"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-035 bumps the schema id on any change to state preprocessing. SL-005 changes the state's shape, bounds, cut order and strip rules (DEC-040 to DEC-043)."
+choice = "The schema id becomes mail-2: mail-1's questions, instructions and rubrics unchanged, over the state of DEC-041, DEC-042 and DEC-043. mail-1 is retired. Topic relevance (IDE-002) moves to a later id. These records supersede DEC-034; SL-004 design invariant I3 ('every text in state has passed pii.strip; no display name, local part') is superseded for SL-005 onward."
+alternatives = ["keep mail-1 since it is unreleased"]
+rationale = "Answers cached under mail-1 (eval data, consumer caches) were computed over a different view; a new id keeps them distinguishable."
+consequences = ["schema.gleam id and the README mail-1 table rename", "DEC-035 consequence: mail-2 is no longer the topic-relevance candidate"]
+decided_by = "agent proposal; operator choice (david)"
+decided_on = "2026-10-29"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-005"

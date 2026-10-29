@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 42
+slug = "classify-address-lists"
+title = "classify's window carries every address list in full, bounded per list"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-29"
+updated = "2026-10-29"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-034 sent only from domains. Reply-To / Sender mismatches, display-name impersonation and lookalike local parts are phishing signals Jev cannot see (IMP-005, IMP-006). read already prints every list as {name, email}."
+choice = "seen and state carry from, sender, reply_to, to, cc, bcc, each a list of {name: string|null, email: string} in read order, no dedup, at most 10 entries per list, overflow counted in <list>_omitted. A display name is cut to 128 bytes (the same bound as attachment type and name, one constant). An entry whose email exceeds 254 bytes (RFC 5321 path limit) is dropped and counted. Recipients carry full addresses like senders. sender_domains is removed."
+alternatives = ["recipients as domains only", "dedupe entries", "64-byte name cap (malebolge DEC-050)"]
+rationale = "One entry shape and one rule for six lists. Full recipient addresses show alias leakage and mail not addressed to the operator. Domains are readable from the full address, so sender_domains is redundant."
+consequences = ["More personal data (names; local parts; correspondents) leaves the machine for typesafe.ai; the README says so", "Only the first 10 entries per list are kept; a sender can push later entries out (counted in <list>_omitted)", "An oversize email drops its entry; Jev sees the omitted count", "Numbers chosen consistent with IMP-002"]
+decided_by = "agent proposal; operator direction and choice (david)"
+decided_on = "2026-10-29"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-005"
