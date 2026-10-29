@@ -37,5 +37,8 @@ emits `mail-2`; no release happens in between.
 
 - Reuse `classify_state_test`'s `base_mail`, `state_of` and decoder, and
   `pii_test`'s `#(input, expected)` table (design § 9).
+- Renaming `schema.mail_1` to `mail_2` (PHASE-02) also touches `jev_test`
+  and `jev_client_test`, which design § 10 does not list; it is a rename
+  only. The recorded `mail-1-reply.json` fixture keeps its name.
 - `jev_context` handling and cursor-bearing error lines are unchanged in
   every phase (DEC-039).

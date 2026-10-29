@@ -36,7 +36,7 @@ entrance_criteria = [
 exit_criteria = [
   { id = "EX-1", text = "utf8.spend(text, remaining) returns remaining minus the text's byte size, floored at 0; render.gleam and classify/state.gleam call it and define no spend of their own." },
   { id = "EX-2", text = "pii.strip applies, in order: forged markers removed; URL userinfo dropped; URL query or fragment replaced from the first ? or # up to the next whitespace, quote, < or > (?[…] / #[…]), path and port kept; [token] for a 20+ run of ASCII letters and digits holding both, matched only at a run's start; [ip]; protected dates and [number]." },
-  { id = "EX-3", text = "The email rule, the [email]-host URL pass, the port pass, the /[…] remainder pass and their constants are gone; email addresses pass through unchanged." },
+  { id = "EX-3", text = "The email rule, the [email]-host URL pass, the port pass, the /[…] remainder pass and their constants are gone; email addresses pass through unchanged. classify_state_test rows that asserted [email] or /[…] are re-pointed to the new rules." },
   { id = "EX-4", text = "A token holding 8+ digits strips to one [token]; a 16 KiB letter run and a 16 KiB digit run strip in well under a second." },
   { id = "EX-5", text = "just check is clean." },
 ]
@@ -63,7 +63,7 @@ exit_criteria = [
   { id = "EX-3", text = "Every text: controls removed (U+0000–U+001F except tab, LF, CR; U+007F; U+202A–U+202E; U+2066–U+2069), cut with utf8.prefix, then the partial word dropped when cut here or on arrival, a whitespace-free prefix kept whole." },
   { id = "EX-4", text = "Address lists: at most 10 entries each in read order, not deduplicated; name cut to 128 bytes; an email over 254 bytes drops its entry; <list>_omitted counts dropped and overflow entries. Emails get control removal only." },
   { id = "EX-5", text = "Bodies: the first 10, against a 16,384-byte budget charged with utf8.spend on the seen text; is_truncated = read flag ∨ cut on arrival ∨ cut here; control removal alone is not truncation; a budget-spent body is text \"\" with is_truncated true when its input text was non-empty." },
-  { id = "EX-6", text = "schema.id is mail-2 and schema.mail_1 is renamed mail_2; cli.classify_mail sends and prints encode(window(mail), pii.strip)." },
+  { id = "EX-6", text = "schema.id is mail-2 and schema.mail_1 is renamed mail_2 at every call site (cli, and the tests classify_schema, jev, jev_client, render, docs); render_test's byte-exact lines carry schema mail-2; cli.classify_mail and cli_test use encode(window(mail), pii.strip). The recorded fixture test/fixtures/jev/mail-1-reply.json keeps its name and provenance: it records a mail-1 request, and mail-2 asks the same questions (DEC-044)." },
   { id = "EX-7", text = "The worst-case window's encoded state size (every field at its bound, text that placeholders lengthen) is computed by a test and pinned, and noted against ASM-006's 32k-token budget." },
   { id = "EX-8", text = "state_holds_only_the_contract_fields_test is a positive key-set test; just check is clean." },
 ]
@@ -74,7 +74,7 @@ verification = [
   { id = "VT-4", expects = "the decoder reads all six lists with names", test_file = "test/screwtape/classify_input_test.gleam", keywords = ["reply_to", "bcc", "name"], waived = false },
   { id = "VT-5", expects = "the schema id is mail-2", test_file = "test/screwtape/classify_schema_test.gleam", keywords = ["\"mail-2\"", "mail_2"], waived = false },
   { id = "VT-6", expects = "worst-case encoded state size pinned (ASM-006)", test_file = "test/screwtape/classify_state_test.gleam", keywords = ["worst_case"], waived = false },
-  { id = "VA-1", text = "grep finds no state.build, Mail.senders, sender_domains or mail_1 in src or test." },
+  { id = "VA-1", text = "grep finds no state.build, .senders, sender_domains or schema.mail_1 in src or test; mail-1 remains only in the recorded reply fixture and its provenance, and in docs_test and README until PHASE-03." },
   { id = "VA-2", text = "Phase review (code-review, quotient pi reviewer) against design § 5.1, § 5.3, § 5.6; findings disposed before the next phase." },
 ]
 specs        = []
@@ -93,7 +93,7 @@ exit_criteria = [
   { id = "EX-3", text = "README classify and classify_state document seen as the un-stripped window state was stripped from, printed like read's output; the field table replaces classify_state's state.* rows with its bounds stated for seen, and says placeholders may lengthen state texts." },
   { id = "EX-4", text = "README ### mail-1 is renamed ### mail-2 and holds only the questions table; docs_test reads ### mail-2." },
   { id = "EX-5", text = "README What Jev sees is rewritten for design § 5.4 and the egress (names, full addresses of all six lists, URL paths), listing the token rule's accepted misses; Bounds states the per-line ceiling (about 45 KB of seen; classify_state up to about 1.6 times that, per PHASE-02 EX-7)." },
-  { id = "EX-6", text = "No sender_domains or mail-1 remains in README or src; TDD scaffolding pruned; just check is clean." },
+  { id = "EX-6", text = "No sender_domains or mail-1 remains in README, src or docs_test (the recorded reply fixture and its provenance excepted); TDD scaffolding pruned; just check is clean." },
 ]
 verification = [
   { id = "VT-1", expects = "byte-exact classify and classify_state contract strings carry seen", test_file = "test/screwtape/render_test.gleam", keywords = ["\\\"seen\\\"", "classify_state"], waived = false },
