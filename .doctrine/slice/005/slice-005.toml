@@ -1,7 +1,7 @@
 id = 5
 slug = "classify-window-and-pii-relax"
 title = "classify window: raw-byte bounds, every address list, seen, PII relaxed for malice signals"
-status = "plan"
+status = "ready"
 created = "2026-10-29"
 updated = "2026-10-29"
 tags = []
@@ -80,6 +80,14 @@ intent = "design-target"
 
 [[selector]]
 selector = "test/screwtape/utf8_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/jev_test.gleam"
+intent = "design-target"
+
+[[selector]]
+selector = "test/screwtape/jev_client_test.gleam"
 intent = "design-target"
 
 [[relation]]
