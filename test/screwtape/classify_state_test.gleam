@@ -187,26 +187,28 @@ pub fn control_characters_are_removed_test() {
   s.attachments |> should.equal([AttachmentOut("app/pdf", Some("name"))])
 }
 
-pub fn pii_strip_applies_to_subject_body_and_attachment_type_and_name_test() {
+pub fn pii_strip_applies_a_token_rule_to_subject_body_and_attachment_fields_test() {
   let mail =
     Mail(
       ..base_mail(),
-      subject: Some("write bob@shop.example"),
-      bodies: [MailBody("mail bob@shop.example", False, False)],
-      attachments: [#("mailto:bob@shop.example", Some("from bob@shop.example"))],
+      subject: Some("key Zx9Qw8Er7Ty6Ui5Op4As3Df2 ok"),
+      bodies: [MailBody("key Zx9Qw8Er7Ty6Ui5Op4As3Df2 ok", False, False)],
+      attachments: [
+        #("app/Zx9Qw8Er7Ty6Ui5Op4As3Df2", Some("name Zx9Qw8Er7Ty6Ui5Op4As3Df2")),
+      ],
     )
   let s = state_of(mail)
-  s.subject |> should.equal(Some("write [email]"))
-  s.bodies |> should.equal([BodyOut("mail [email]", False, False)])
+  s.subject |> should.equal(Some("key [token] ok"))
+  s.bodies |> should.equal([BodyOut("key [token] ok", False, False)])
   s.attachments
-  |> should.equal([AttachmentOut("mailto:[email]", Some("from [email]"))])
+  |> should.equal([AttachmentOut("app/[token]", Some("name [token]"))])
 }
 
 pub fn attachment_type_is_stripped_before_it_is_cut_test() {
   let attachment = #("see https://shop.example/track?id=123456789", None)
   let s = state_of(Mail(..base_mail(), attachments: [attachment]))
   s.attachments
-  |> should.equal([AttachmentOut("see https://shop.example/[…]", None)])
+  |> should.equal([AttachmentOut("see https://shop.example/track?[…]", None)])
 }
 
 pub fn empty_sender_domain_is_dropped_and_counted_test() {
@@ -232,7 +234,8 @@ pub fn sender_domain_is_kept_at_253_bytes_and_dropped_at_254_test() {
 }
 
 pub fn stripping_that_lengthens_stays_within_the_body_total_test() {
-  let text = string.repeat("a@b.c ", 1000)
+  // A one-byte query becomes `[…]`, five bytes: each 11-byte URL grows by 4.
+  let text = string.repeat("http://h?q ", 1000)
   let bodies = list.repeat(MailBody(text, False, False), 10)
   let s = state_of(Mail(..base_mail(), bodies: bodies))
   total_bytes(s.bodies) |> should.equal(16_384)

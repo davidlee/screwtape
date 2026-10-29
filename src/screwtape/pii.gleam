@@ -1,19 +1,25 @@
 //// PII stripping: the shapes that can identify a person become placeholders
-//// (design § 5.2). The module is self-contained — it imports only its own FFI
+//// (design § 5.4). The module is self-contained — it imports only its own FFI
 //// wrapper — so it can be reused or ported, and it knows nothing of mail or of
 //// Screwtape's types.
 ////
-//// Five rules, in this order: email addresses, URLs, IPv4 addresses, protected
-//// date/time shapes, and runs of eight or more digits. Every rule is a named
-//// pattern constant and a named replacement, so the rules and their tests sit
-//// together. All matching is global, case-insensitive and Unicode-aware.
+//// Six rules, in this order: forged mask markers; URL userinfo; a URL's query
+//// and fragment; runs of twenty or more letters and digits; IPv4 addresses;
+//// and protected date/time shapes with runs of eight or more digits. Every
+//// rule is a named pattern constant and a named replacement, so the rules and
+//// their tests sit together. All matching is global, case-insensitive and
+//// Unicode-aware.
 ////
-//// Rules 4 and 5 need masking, because a protected shape must survive the
-//// digit rule untouched. One pass wraps every match in a pair of private-use
-//// markers (U+E000 and U+E001): a protected shape is followed by an empty
-//// marker pair, and a digit run is enclosed by a pair. The enclosed spans then
-//// collapse to `[number]`, and the empty pairs are dropped. Markers already in
-//// the input are removed first, so input cannot forge them.
+//// Email addresses pass through unchanged, and a scheme-less URL gets rules 4
+//// to 6 only. A URL keeps its host, port and path, losing just its userinfo
+//// and, as `?[…]` or `#[…]`, its query or fragment.
+////
+//// Rule 6 needs masking, because a protected shape must survive the digit rule
+//// untouched. One pass wraps every match in a pair of private-use markers
+//// (U+E000 and U+E001): a protected shape is followed by an empty marker pair,
+//// and a digit run is enclosed by a pair. The enclosed spans then collapse to
+//// `[number]`, and the empty pairs are dropped. Markers already in the input
+//// are removed first, so input cannot forge them.
 ////
 //// A shape is protected only as a whole token (RV-016 F-2): no digit, and no
 //// space, `.`, `/` or `-` followed by a digit, may touch either end. Otherwise
@@ -21,8 +27,8 @@
 //// `12.12.2026` and `12.12.2026 14:00` survive, while `12.12.2026 3456`,
 //// `9 12.12.2026` and `12/12/2026 12345678` lose their digit runs.
 
-/// The placeholder an email address becomes.
-const email_replacement = "[email]"
+/// The placeholder a run of twenty or more letters and digits becomes.
+const token_replacement = "[token]"
 
 /// The placeholder an IPv4 address becomes.
 const ip_replacement = "[ip]"
@@ -30,7 +36,7 @@ const ip_replacement = "[ip]"
 /// The placeholder a long digit run becomes.
 const number_replacement = "[number]"
 
-/// What a stripped URL leaves in place of its path, query and fragment.
+/// What a stripped URL leaves in place of its query or fragment.
 const ellipsis = "\u{2026}"
 
 /// The mask markers: no meaning in the input, pure bookkeeping in between.
@@ -38,49 +44,25 @@ const mask_open = "\u{E000}"
 
 const mask_close = "\u{E001}"
 
-/// Rule 1: a quoted or atom local part; domain labels of letters, marks,
-/// digits and hyphens; a top-level domain of two or more letters. Unicode
-/// letters, combining marks and digits are allowed throughout, so
-/// `jürgen@exämple.de` matches, composed or decomposed.
-const email_pattern =
-  "(?<!"
-  <> email_atext
-  <> ")(?:\"[^\"\\r\\n]*\"|"
-  <> email_atext
-  <> "+)@(?:[\\p{L}\\p{M}\\p{N}-]+\\.)+[\\p{L}\\p{M}]{2,}"
-
-/// One local-part character: letters with their combining marks, digits and
-/// the RFC 5322 atom punctuation except `/` and a backtick, so a URL's
-/// `scheme://user@` never reads as an address. The lookbehind on it makes a
-/// match start only at the start of a token, so a long near-address is
-/// scanned once, not once per character.
-const email_atext = "[\\p{L}\\p{M}\\p{N}._%+'!#$&*=?^{|}~-]"
-
-/// Everything before an `[email]` host in a URL authority is dropped. Rule 1
-/// ran first, so userinfo has already become `[email]`
-/// (`https://user:pw@host/p` → `https://user:[email]/p` → `https://[email]/p`).
-const url_email_host_pattern = "(https?://)[^/?#\\s<>\"']*\\[email\\]"
-
-const url_email_host_replacement = "\\1[email]"
-
-/// A userinfo that survived rule 1, up to the last `@` of the authority.
+/// Rule 2: a userinfo, up to the last `@` of the authority.
 const url_userinfo_pattern = "(https?://)[^/?#\\s<>\"']*@"
 
 const url_userinfo_replacement = "\\1"
 
-/// The port after a host, a bracketed IPv6 literal included, dropped.
-const url_port_pattern =
-  "(https?://(?:\\[[^\\]/?#\\s<>\"']*\\]|[^/?#\\s<>\"':]+)):[0-9]+"
+/// Rule 3: a URL's query and fragment, from the first `?` or `#` up to the
+/// next whitespace, quote, `<` or `>`. The path and the port are kept, so the
+/// result is `?[…]` or `#[…]`.
+const url_query_pattern = "(https?://[^\\s<>\"'?#]*)([?#])[^\\s<>\"']*"
 
-const url_port_replacement = "\\1"
+const url_query_replacement = "\\1\\2[" <> ellipsis <> "]"
 
-/// Path, query or fragment after the authority, dropped. This runs after the
-/// three passes above, so the authority it keeps is already just the host.
-const url_remainder_pattern = "(https?://[^/?#\\s<>\"']+)([/?#][^\\s<>\"']*)"
+/// Rule 4: a run of twenty or more letters and digits holding at least one of
+/// each. The lookbehind lets a match attempt start only at a run's start, so
+/// each run is scanned once and the scan stays linear.
+const token_pattern =
+  "(?<![A-Za-z0-9])(?=[A-Za-z]*[0-9])(?=[0-9]*[A-Za-z])[A-Za-z0-9]{20,}"
 
-const url_remainder_replacement = "\\1/[" <> ellipsis <> "]"
-
-/// Rule 3: four dotted octets of one to three digits each.
+/// Rule 5: four dotted octets of one to three digits each.
 const ipv4_pattern =
   "(?<![0-9.])(?:[0-9]{1,3}\\.){3}[0-9]{1,3}(?![0-9])(?!\\.[0-9])"
 
@@ -154,7 +136,7 @@ const dotted_date_token = left <> "(?:" <> date_dotted <> ")" <> right
 
 const time_token = left <> "(?:" <> time <> ")" <> right
 
-/// Rule 4: every protected shape, longest first, so a date followed by a time
+/// Rule 6: every protected shape, longest first, so a date followed by a time
 /// is taken whole before either half is. The whole alternation is one capture
 /// group, which is what the mask replacement restores.
 const protected_pattern =
@@ -178,7 +160,7 @@ const protected_pattern =
   <> time_token
   <> ")"
 
-/// Rule 5: eight or more digits, with single spaces, dashes or dots between
+/// Rule 6: eight or more digits, with single spaces, dashes or dots between
 /// them. The scan is left to right and the run greedy, so a run is taken from
 /// its first digit; only a digit may not precede it.
 const number_pattern = "(?<![0-9])[0-9](?:[ .-]?[0-9]){7,}"
@@ -196,30 +178,20 @@ const masked_number_pattern =
 /// The empty marker pair a protected shape carries.
 const empty_mask_pattern = mask_open <> mask_close
 
-/// A marker already in the input, which carries no meaning.
+/// Rule 1: a marker already in the input, which carries no meaning.
 const forged_marker_pattern = "[" <> mask_open <> mask_close <> "]"
 
 /// Replace everything that could identify a person with a placeholder.
 pub fn strip(text: String) -> String {
   text
   |> replace(forged_marker_pattern, "")
-  |> replace(email_pattern, email_replacement)
-  |> strip_url
+  |> replace(url_userinfo_pattern, url_userinfo_replacement)
+  |> replace(url_query_pattern, url_query_replacement)
+  |> replace(token_pattern, token_replacement)
   |> replace(ipv4_pattern, ip_replacement)
   |> replace(mask_pattern, mask_replacement)
   |> replace(masked_number_pattern, number_replacement)
   |> replace(empty_mask_pattern, "")
-}
-
-/// Rule 2: keep the scheme and the host, drop the rest. Four passes, because
-/// a replacement cannot be conditional: the userinfo that rule 1 turned into
-/// `[email]`, then a surviving userinfo, then the port, then the remainder.
-fn strip_url(text: String) -> String {
-  text
-  |> replace(url_email_host_pattern, url_email_host_replacement)
-  |> replace(url_userinfo_pattern, url_userinfo_replacement)
-  |> replace(url_port_pattern, url_port_replacement)
-  |> replace(url_remainder_pattern, url_remainder_replacement)
 }
 
 @external(erlang, "screwtape_pii_ffi", "replace")

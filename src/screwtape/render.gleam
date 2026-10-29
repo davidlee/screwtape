@@ -351,22 +351,11 @@ fn print_bodies(
           let text = utf8.prefix(body.text, remaining)
           #(
             [body_json(body, text), ..printed],
-            spend(body.text, remaining),
+            utf8.spend(body.text, remaining),
             truncated || string.byte_size(text) < string.byte_size(body.text),
           )
         })
       #(list.reverse(printed), truncated)
     }
-  }
-}
-
-/// The budget left after a body of `text` under `remaining`: its byte size,
-/// capped at what remains. A codepoint dropped whole still spends the bytes
-/// reserved for it, so the next body does not see them.
-fn spend(text: String, remaining: Int) -> Int {
-  let size = string.byte_size(text)
-  case size < remaining {
-    True -> remaining - size
-    False -> 0
   }
 }

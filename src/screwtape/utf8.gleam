@@ -1,4 +1,5 @@
-//// UTF-8 string helpers: prefixes cut on codepoint boundaries.
+//// UTF-8 string helpers: prefixes cut on codepoint boundaries, and the one
+//// shared budget spend (design § 5.6).
 ////
 //// Pure, and this module imports only `gleam_stdlib` (invariant I5, enforced
 //// by `just check-imports`), so it cannot do I/O.
@@ -29,6 +30,17 @@ fn keep_codepoints(
         False -> list.reverse(kept)
       }
     }
+  }
+}
+
+/// The budget left after `text` under `remaining`: its byte size, capped at
+/// what remains. A codepoint dropped whole still spends the bytes reserved for
+/// it, so the next text does not see them.
+pub fn spend(text: String, remaining: Int) -> Int {
+  let size = string.byte_size(text)
+  case size < remaining {
+    True -> remaining - size
+    False -> 0
   }
 }
 

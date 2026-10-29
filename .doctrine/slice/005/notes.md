@@ -113,3 +113,11 @@ Seat: /super-orchestrator, 2026-10-29, main worktree, from a293122 (clean).
 - Other writers: none expected.
 
 ## Autonomy log
+- PHASE-01 · added `linear_long_letter_run_needs_the_token_lookbehind_test` (64 KiB run, < 1 s) beside the EX-4 16 KiB tests · negative control: without the lookbehind a 16 KiB run strips in ~0.2 s, so the 16 KiB tests alone cannot catch its loss; 64 KiB fails (verified) · decided
+- PHASE-01 · re-pointed `stripping_that_lengthens_stays_within_the_body_total_test` input from addresses to `http://h?q ` (query grows by 4 B) · it relied on the removed email rule (EX-3); PHASE-02 rewrites this area anyway · decided
+
+## Review passes
+
+- PHASE-01 · pi implement (T1 tests, $0.060): table re-pointed and verified in `re`; 3 reds + utf8.spend compile red. Missed the lengthening test in classify_state_test.
+- PHASE-01 · pi implement (T2 code, $0.018): green first try, 617 tests.
+- PHASE-01 · pi review (VA-2, $0.088): hit the 40-request ceiling without answering; one continuation answered. One low finding (lengthening test no longer lengthens), verified and fixed. No other findings.

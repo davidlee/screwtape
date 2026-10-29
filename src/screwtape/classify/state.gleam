@@ -128,7 +128,7 @@ fn body_json(
           #("is_truncated", json.bool(is_truncated)),
           #("conversion_failed", json.bool(body.conversion_failed)),
         ]),
-        spend(sent, remaining),
+        utf8.spend(sent, remaining),
       )
     }
   }
@@ -283,14 +283,4 @@ fn from_last_whitespace(codepoints: List(UtfCodepoint)) -> List(UtfCodepoint) {
 
 fn is_whitespace(value: Int) -> Bool {
   value == 0x20 || value == 0x09 || value == 0x0A || value == 0x0D
-}
-
-/// The budget left after a body under `remaining`, as `render.print_bodies`
-/// spends it: the text's byte size, capped at what remains.
-fn spend(text: String, remaining: Int) -> Int {
-  let size = string.byte_size(text)
-  case size < remaining {
-    True -> remaining - size
-    False -> 0
-  }
 }
