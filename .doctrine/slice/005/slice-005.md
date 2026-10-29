@@ -104,6 +104,15 @@ Settled by DEC-040 to DEC-044 and ASM-006 (design inquiries inq-1..inq-7).
 
 ## Summary
 
+Delivered 2026-10-29 in three phases (25f1d0a, a54c839, 65879a9). classify
+builds one bounded window (`state.window`); `seen` and `state` are the same
+encoder over it, identity and `pii.strip` respectively, and both lines carry
+`seen`. All six address lists reach Jev with names; `pii.strip` keeps
+addresses and URL paths, erases userinfo, query, fragment and 20+ mixed
+tokens. Schema `mail-2`. Worst-case state 72,373 B; live probe 12,269 tokens
+(ASM-006 validated). Audit RV-020 (8 findings, no blockers); reconciled via
+direct design edits, REV-004 (POL-002), DEC-034 superseded.
+
 ## Follow-Ups
 - Malebolge DEC-077: switch from clamping by `seen.bodies` counts to
   showing `seen` (DEC-041); drop its `JEV_WINDOW` table.

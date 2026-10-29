@@ -1,7 +1,7 @@
 id = 5
 slug = "classify-window-and-pii-relax"
 title = "classify window: raw-byte bounds, every address list, seen, PII relaxed for malice signals"
-status = "reconcile"
+status = "done"
 created = "2026-10-29"
 updated = "2026-10-29"
 tags = []

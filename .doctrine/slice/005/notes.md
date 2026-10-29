@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-29 · audit done (RV-020 concluded; VH-1 operator-confirmed) · ce0e899
+fresh-as-of: 2026-10-29 · closed (RV-020 done, REV-004 done) · 9fb3326
 
 ### Produced
 - design.md locked (run rev 29); DEC-040..DEC-044; ASM-006; RV-019 — 50b633c
@@ -18,8 +18,9 @@ fresh-as-of: 2026-10-29 · audit done (RV-020 concluded; VH-1 operator-confirmed
 
 ### Learned
 - Concurrent `gleam`/`just` builds race on `build/` (§ Implementation run).
-- Live Jev calls run on the host, never in a pi worker (no network; keep
-  the credential out of pi context) (§ Implementation run).
+- Live Jev calls run on the host, never in a pi worker →
+  mem.fact.screwtape.jev-live-calls-on-host. Build race → existing
+  mem_01a17f2e07f07e03bc8b89563a4325d5.
 
 ### Open
 - RV-020 reconciled (REV-004 done): design § 5.1, § 10; DEC-034 superseded;

@@ -1,0 +1,46 @@
+memory_uid = "mem_01a18787b9707a4291a4eae391130b51"
+memory_key = "mem.fact.screwtape.jev-live-calls-on-host"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "Live Jev calls run on the host, never in a quotient pi worker"
+summary = "Live Jev calls run on the host, never in a quotient pi worker"
+created = "2026-10-29"
+updated = "2026-10-29"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["jev", "quotient"]
+workspace = "default"
+repo = "github.com/davidlee/screwtape"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "commit"
+commit = "9fb3326376066c94eb890c535572b00ef61c7246"
+tree = "0856cf8b6d9ca65dd195e39e87ecbd0bc44334a0"
+ref_name = "refs/heads/main"
+checkout_state_id = ""
+base_commit = "9fb3326376066c94eb890c535572b00ef61c7246"
+verified_sha = ""
+normalizer = ""
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "medium"
+weight = 0
+
+[[source]]
+kind = "slice"
+ref = "SL-005"
+
