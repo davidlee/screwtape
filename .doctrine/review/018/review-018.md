@@ -179,3 +179,9 @@ Operator replies 2026-10-29: "apply the diff"; F-12, F-16, F-17 "yes".
 
 ### Carried to close
 - The satan:RFC-020 D1/D5 amendment draft (cross-repo, F-17).
+
+### Post-close addendum (2026-10-29)
+- F-12: operator refined `deception_cues` ("deception cues => requests for
+  private or privileged information"); schema.gleam and README updated in
+  2b0f9d6, DEC-035 rationale amended. mail-1 unreleased, no id bump.
+- F-14: README PII caveat now names the short-address limit.
