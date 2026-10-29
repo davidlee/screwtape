@@ -115,9 +115,16 @@ Seat: /super-orchestrator, 2026-10-29, main worktree, from a293122 (clean).
 ## Autonomy log
 - PHASE-01 · added `linear_long_letter_run_needs_the_token_lookbehind_test` (64 KiB run, < 1 s) beside the EX-4 16 KiB tests · negative control: without the lookbehind a 16 KiB run strips in ~0.2 s, so the 16 KiB tests alone cannot catch its loss; 64 KiB fails (verified) · decided
 - PHASE-01 · re-pointed `stripping_that_lengthens_stays_within_the_body_total_test` input from addresses to `http://h?q ` (query grows by 4 B) · it relied on the removed email rule (EX-3); PHASE-02 rewrites this area anyway · decided
+- PHASE-02 · named the shared address type `input.Address(name, email)` (design § 5.1 says `Entry`) · reads better beside `Addresses(entries, omitted)`; scope and contract unchanged; flag for audit · decided
+- PHASE-02 · oversize emails are dropped before the 10-slot take (a dropped entry takes no slot); the 254-byte check is on the control-stripped email · matches EX-4 wording and the old sender_domains rule · decided
+- PHASE-02 · added `fields_are_encoded_in_contract_order_test` (byte-exact empty window) and made VT-1's mail carry a strippable email and name · negative controls: an email or name bypassing `text` passed VT-1 and failed only the worst-case pin; field order (EX-2) had no test · decided
+- PHASE-02 · EX-7 pinned size: worst-case `seen` 47,588 B, `state` 72,373 B, ratio 1.52 (filler `http://? `, 9 B → 14 B). ASM-006: at SL-004's 3.35 B/token, about 21.6k tokens; token-dense adversarial text may exceed 32k (accepted residual, `jev_context`). Not untenable for ordinary text · PHASE-03 README Bounds figure "about 1.6×" → 1.52 · decided
 
 ## Review passes
 
 - PHASE-01 · pi implement (T1 tests, $0.060): table re-pointed and verified in `re`; 3 reds + utf8.spend compile red. Missed the lengthening test in classify_state_test.
 - PHASE-01 · pi implement (T2 code, $0.018): green first try, 617 tests.
 - PHASE-01 · pi review (VA-2, $0.088): hit the 40-request ceiling without answering; one continuation answered. One low finding (lengthening test no longer lengthens), verified and fixed. No other findings.
+- PHASE-02 · pi implement (T1 tests, $0.087): all VT tests + EX-6 renames, compile red. Missed: VT-1 had no strippable email or name; no field-order test (both added by me after negative controls).
+- PHASE-02 · pi implement (T2 code, $0.044): green first try, 628 tests; pins filled. Helpers tidied by me (`field_text`).
+- PHASE-02 · pi review (VA-2, $0.027, 9 requests): no src defects. F1 medium (oversize-email test could not tell filter-first from cap-first) verified by negative control and fixed; F2 comment off by one, fixed; F3 attachment type had no word-drop case, added. F4 PROVENANCE.md names `schema.mail_1()`: accepted, it records how the mail-1 fixture was made (EX-6 keeps provenance). F5 a control-only body is `is_truncated` false with budget left and true once the budget is spent: accepted, both are the design's wording (§ 5.3); flag for audit/PHASE-03 docs.

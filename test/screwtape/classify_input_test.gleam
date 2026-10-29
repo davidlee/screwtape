@@ -11,7 +11,7 @@ import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
-import screwtape/classify/input.{type Mail, MailBody}
+import screwtape/classify/input.{type Mail, Address, MailBody}
 import screwtape/error.{Decode}
 import screwtape/file
 
@@ -35,7 +35,7 @@ const fixtures = [
 /// One line of the read contract, every key `render.read` prints for the
 /// fields the classifier reads.
 const good_line =
-  "{\"version\":1,\"kind\":\"read\",\"data\":{\"id\":\"M1\",\"cursor\":\"1:M1\",\"subject\":null,\"from\":[{\"name\":null,\"email\":\"a@b.example\"}],\"bodies\":[{\"part_id\":\"1\",\"source_type\":\"text\",\"text\":\"hi\",\"is_truncated\":false,\"truncated_by\":null,\"is_encoding_problem\":false,\"conversion_failed\":false}],\"attachments\":[{\"part_id\":\"2\",\"blob_id\":\"b\",\"name\":null,\"type\":\"text/plain\",\"size\":1,\"disposition\":null,\"cid\":null}],\"output_truncated\":false}}"
+  "{\"version\":1,\"kind\":\"read\",\"data\":{\"id\":\"M1\",\"cursor\":\"1:M1\",\"subject\":null,\"from\":[{\"name\":null,\"email\":\"a@b.example\"},{\"name\":\"Second\",\"email\":\"a2@b.example\"}],\"sender\":[{\"name\":\"Sender\",\"email\":\"s@b.example\"}],\"reply_to\":[{\"name\":null,\"email\":\"r@b.example\"}],\"to\":[{\"name\":\"To\",\"email\":\"t@b.example\"}],\"cc\":[{\"name\":\"Cc\",\"email\":\"c@b.example\"}],\"bcc\":[{\"name\":null,\"email\":\"b@b.example\"}],\"bodies\":[{\"part_id\":\"1\",\"source_type\":\"text\",\"text\":\"hi\",\"is_truncated\":false,\"truncated_by\":null,\"is_encoding_problem\":false,\"conversion_failed\":false}],\"attachments\":[{\"part_id\":\"2\",\"blob_id\":\"b\",\"name\":null,\"type\":\"text/plain\",\"size\":1,\"disposition\":null,\"cid\":null}],\"output_truncated\":false}}"
 
 // ---------------------------------------------------------------------------
 // The fixtures
@@ -49,9 +49,22 @@ pub fn output_truncated_fixture_test() {
   single("read-Stm7N6wH5vLs.json").output_truncated |> should.be_true
 }
 
-pub fn senders_come_from_from_test() {
-  single("read-Stm7N6wH5vLs.json").senders
-  |> should.equal(["b69e1c@example.com"])
+pub fn from_carries_the_name_test() {
+  single("read-Stm7N6wH5vLs.json").from
+  |> should.equal([Address(name: Some("GitHub"), email: "b69e1c@example.com")])
+}
+
+pub fn to_carries_the_name_test() {
+  single("read-Stm7N6wH5vLs.json").to
+  |> should.equal([Address(name: Some("Nomov Min"), email: "cb@example.com")])
+}
+
+pub fn the_other_lists_are_read_too_test() {
+  let mail = single("read-Stm7N6wH5vLs.json")
+  mail.sender |> should.equal([])
+  mail.reply_to |> should.equal([])
+  mail.cc |> should.equal([])
+  mail.bcc |> should.equal([])
 }
 
 pub fn attachment_is_type_and_optional_name_test() {
@@ -76,7 +89,20 @@ pub fn line_decodes_the_read_contract_test() {
   mail.id |> should.equal("M1")
   mail.cursor |> should.equal("1:M1")
   mail.subject |> should.equal(None)
-  mail.senders |> should.equal(["a@b.example"])
+  // All six lists, in order, with names; a null name stays None.
+  mail.from
+  |> should.equal([
+    Address(name: None, email: "a@b.example"),
+    Address(name: Some("Second"), email: "a2@b.example"),
+  ])
+  mail.sender
+  |> should.equal([Address(name: Some("Sender"), email: "s@b.example")])
+  mail.reply_to
+  |> should.equal([Address(name: None, email: "r@b.example")])
+  mail.to |> should.equal([Address(name: Some("To"), email: "t@b.example")])
+  mail.cc |> should.equal([Address(name: Some("Cc"), email: "c@b.example")])
+  mail.bcc
+  |> should.equal([Address(name: None, email: "b@b.example")])
   mail.bodies |> should.equal([MailBody("hi", False, False)])
   mail.attachments |> should.equal([#("text/plain", None)])
   mail.output_truncated |> should.be_false

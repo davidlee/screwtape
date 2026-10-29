@@ -56,6 +56,7 @@ import screwtape/http
 import screwtape/jev/client as jev_client
 import screwtape/jmap/client
 import screwtape/model
+import screwtape/pii
 import screwtape/render
 import screwtape/store
 import screwtape/store/query
@@ -538,20 +539,18 @@ fn classify_mail(
   classifier: Classifier,
   mail: input.Mail,
 ) -> Result(String, Error) {
+  let w = classify_state.window(mail)
+  let state = classify_state.encode(w, pii.strip)
   case classifier {
     Local ->
-      Ok(render.classify_state(
-        id: mail.id,
-        cursor: mail.cursor,
-        state: classify_state.build(mail),
-      ))
+      Ok(render.classify_state(id: mail.id, cursor: mail.cursor, state: state))
     Remote(endpoint, token, send) -> {
       use reply <- result.try(jev_client.ask(
         send,
         token,
         endpoint,
-        classify_state.build(mail),
-        schema.mail_1(),
+        state,
+        schema.mail_2(),
       ))
       Ok(render.classify(id: mail.id, cursor: mail.cursor, reply: reply))
     }

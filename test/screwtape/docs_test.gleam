@@ -1,10 +1,10 @@
 //// The README's `mail-1` table against the schema (SL-004 PHASE-14, EX-6;
 //// VT-3).
 ////
-//// `mail_1()` owns the questions; the README says what a consumer will see.
+//// `mail_2()` owns the questions; the README says what a consumer will see.
 //// This test is the seam: it reads `README.md`, takes the first cell of every
 //// data row in the table under `### mail-1`, and requires those names to equal
-//// `mail_1()`'s names in order. A missing section, a missing table or a
+//// `mail_2()`'s names in order. A missing section, a missing table or a
 //// renamed, added, removed or reordered question fails here rather than in a
 //// consumer. The README's table is the published shape, so the test parses it
 //// as text and never trusts a hand-kept list.
@@ -25,7 +25,7 @@ pub fn main() -> Nil {
 /// The table's question names, in the order the rows print.
 pub fn mail_1_table_matches_schema_test() {
   let readme = readme()
-  let expected = list.map(schema.mail_1(), jev.question_name)
+  let expected = list.map(schema.mail_2(), jev.question_name)
   table_names(readme) |> should.equal(Ok(expected))
 }
 

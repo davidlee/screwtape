@@ -931,7 +931,7 @@ fn contract_reply() -> jev.Reply {
 pub fn classify_contract_test() {
   render.classify(id: "M1", cursor: "C1", reply: contract_reply())
   |> should.equal(
-    "{\"version\":1,\"kind\":\"classify\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-1\",\"model\":\"jev-1.14.0\",\"answers\":{\"a\":{\"choice\":\"y\",\"confidence\":0.7,\"probabilities\":{\"x\":0.3,\"y\":0.7}},\"n\":{\"noul\":0.25},\"s\":{\"score\":1.5,\"confidence\":0.5,\"probabilities\":{\"0\":0.1,\"1\":0.5,\"2\":0.4}}}}}",
+    "{\"version\":1,\"kind\":\"classify\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-2\",\"model\":\"jev-1.14.0\",\"answers\":{\"a\":{\"choice\":\"y\",\"confidence\":0.7,\"probabilities\":{\"x\":0.3,\"y\":0.7}},\"n\":{\"noul\":0.25},\"s\":{\"score\":1.5,\"confidence\":0.5,\"probabilities\":{\"0\":0.1,\"1\":0.5,\"2\":0.4}}}}}",
   )
 }
 
@@ -942,7 +942,7 @@ pub fn classify_state_contract_test() {
     state: json.object([#("subject", json.null())]),
   )
   |> should.equal(
-    "{\"version\":1,\"kind\":\"classify_state\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-1\",\"state\":{\"subject\":null}}}",
+    "{\"version\":1,\"kind\":\"classify_state\",\"data\":{\"id\":\"M1\",\"cursor\":\"C1\",\"schema\":\"mail-2\",\"state\":{\"subject\":null}}}",
   )
 }
 
@@ -963,8 +963,8 @@ fn keys_in_order(text: String, names: List(String)) -> Bool {
 /// order (VT-5).
 pub fn classify_fixture_answers_are_in_question_order_test() {
   let reply_text = cli_fixture.jev_reply("mail-1-reply.json")
-  let assert Ok(reply) = jev.reply(reply_text, schema.mail_1(), "jev-1.14.0")
-  let names = list.map(schema.mail_1(), jev.question_name)
+  let assert Ok(reply) = jev.reply(reply_text, schema.mail_2(), "jev-1.14.0")
+  let names = list.map(schema.mail_2(), jev.question_name)
   let document = render.classify(id: "M1", cursor: "C1", reply: reply)
 
   keys_in_order(document, names) |> should.be_true

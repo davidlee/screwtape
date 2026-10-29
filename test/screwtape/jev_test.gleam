@@ -75,7 +75,7 @@ pub fn fixture_reply_decodes_with_the_prefixed_model_test() {
     fn(reply) {
       reply.answers
       |> list.map(fn(entry) { jev_question_name(entry.0) })
-      |> should.equal(mail_1_names())
+      |> should.equal(mail_2_names())
       // Every answer, in full: our label order, every probability, both scores.
       reply.answers
       |> list.map(fn(entry) { entry.1 })
@@ -101,7 +101,7 @@ pub fn fixture_reply_decodes_with_the_prefixed_model_test() {
   )
 }
 
-fn mail_1_names() -> List(String) {
+fn mail_2_names() -> List(String) {
   [
     "primary_purpose",
     "security_related",
@@ -349,7 +349,7 @@ fn text(document: Dynamic, path: List(String)) -> String {
 
 fn decode_fixture(model: String) -> jev.Reply {
   let assert Ok(text) = file.read_text("test/fixtures/jev/mail-1-reply.json")
-  let assert Ok(reply) = jev.reply(text, schema.mail_1(), model)
+  let assert Ok(reply) = jev.reply(text, schema.mail_2(), model)
   reply
 }
 

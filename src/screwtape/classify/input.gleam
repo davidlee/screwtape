@@ -14,6 +14,12 @@ import gleam/result
 import gleam/string
 import screwtape/error.{type Error, Decode}
 
+/// One address as `read` prints it: the display name, when it has one, and the
+/// address itself. The one address type serves input and the window (POL-001).
+pub type Address {
+  Address(name: Option(String), email: String)
+}
+
 /// One body of the message: its printed text and the two flags the classifier
 /// reads.
 pub type MailBody {
@@ -21,14 +27,19 @@ pub type MailBody {
 }
 
 /// One `read` document as the classifier sees it: the summary fields it keeps,
-/// the from addresses as printed, the bodies and the attachments as
+/// the six address lists as printed, the bodies and the attachments as
 /// `#(type, name)`.
 pub type Mail {
   Mail(
     id: String,
     cursor: String,
     subject: Option(String),
-    senders: List(String),
+    from: List(Address),
+    sender: List(Address),
+    reply_to: List(Address),
+    to: List(Address),
+    cc: List(Address),
+    bcc: List(Address),
     bodies: List(MailBody),
     attachments: List(#(String, Option(String))),
     output_truncated: Bool,
@@ -79,7 +90,12 @@ fn document_decoder() -> decode.Decoder(Mail) {
   use id <- decode.field("id", decode.string)
   use cursor <- decode.field("cursor", decode.string)
   use subject <- decode.field("subject", decode.optional(decode.string))
-  use senders <- decode.field("from", decode.list(email_decoder()))
+  use from <- decode.field("from", decode.list(address_decoder()))
+  use sender <- decode.field("sender", decode.list(address_decoder()))
+  use reply_to <- decode.field("reply_to", decode.list(address_decoder()))
+  use to <- decode.field("to", decode.list(address_decoder()))
+  use cc <- decode.field("cc", decode.list(address_decoder()))
+  use bcc <- decode.field("bcc", decode.list(address_decoder()))
   use bodies <- decode.field("bodies", decode.list(body_decoder()))
   use attachments <- decode.field(
     "attachments",
@@ -90,17 +106,23 @@ fn document_decoder() -> decode.Decoder(Mail) {
     id: id,
     cursor: cursor,
     subject: subject,
-    senders: senders,
+    from: from,
+    sender: sender,
+    reply_to: reply_to,
+    to: to,
+    cc: cc,
+    bcc: bcc,
     bodies: bodies,
     attachments: attachments,
     output_truncated: output_truncated,
   ))
 }
 
-/// An address prints `{"name", "email"}`; only `email` is read.
-fn email_decoder() -> decode.Decoder(String) {
+/// An address prints `{"name", "email"}`; a null name is no name.
+fn address_decoder() -> decode.Decoder(Address) {
+  use name <- decode.field("name", decode.optional(decode.string))
   use email <- decode.field("email", decode.string)
-  decode.success(email)
+  decode.success(Address(name: name, email: email))
 }
 
 fn body_decoder() -> decode.Decoder(MailBody) {
@@ -126,7 +148,12 @@ fn empty_mail() -> Mail {
     id: "",
     cursor: "",
     subject: None,
-    senders: [],
+    from: [],
+    sender: [],
+    reply_to: [],
+    to: [],
+    cc: [],
+    bcc: [],
     bodies: [],
     attachments: [],
     output_truncated: False,

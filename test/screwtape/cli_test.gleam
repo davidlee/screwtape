@@ -35,6 +35,7 @@ import screwtape/cli
 import screwtape/error
 import screwtape/http
 import screwtape/model
+import screwtape/pii
 import screwtape/store
 import support/cli_fixture
 import support/fixture_send
@@ -2085,11 +2086,14 @@ pub fn classify_posts_each_line_and_prints_a_document_test() {
   |> should.equal(list.repeat(jev_base_url <> "/v1/systemone", 3))
 
   // Each request carries its own line's state: three copies of one state would
-  // fail, and so would a body that is not the state `build` makes.
+  // fail, and so would a body that is not the window's `pii.strip` encoding.
   let states =
     list.map(lines, fn(line) {
       let assert Ok(mail) = classify_input.line(line)
-      json.to_string(classify_state.build(mail))
+      json.to_string(classify_state.encode(
+        classify_state.window(mail),
+        pii.strip,
+      ))
     })
   list.zip(
     fixture_send.recorded(fixture) |> list.map(fn(request) { request.body }),

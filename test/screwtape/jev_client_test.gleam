@@ -68,7 +68,7 @@ fn ask(
       cli_fixture.token(secret),
       endpoint(),
       state(),
-      schema.mail_1(),
+      schema.mail_2(),
     )
   #(result, fixture)
 }
@@ -117,7 +117,7 @@ pub fn request_shape_test() {
   recorded.cap |> should.equal(client.response_bytes)
   recorded.cap |> should.equal(65_536)
   recorded.body
-  |> should.equal(jev.request_body(model, state(), schema.mail_1()))
+  |> should.equal(jev.request_body(model, state(), schema.mail_2()))
 }
 
 pub fn request_headers_test() {

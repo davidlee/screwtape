@@ -1,4 +1,4 @@
-//// EX-14: the `mail-1` question schema (PHASE-12, T4; design § 5.2).
+//// EX-14: the `mail-2` question schema (PHASE-12, T4; design § 5.2).
 ////
 //// DEC-035 fixes the text; this test pins the parts a consumer depends on:
 //// the id, the eight questions in order, their types and their shared
@@ -15,12 +15,12 @@ pub fn main() -> Nil {
   gleeunit.main()
 }
 
-pub fn id_is_mail_1_test() {
-  schema.id |> should.equal("mail-1")
+pub fn id_is_mail_2_test() {
+  schema.id |> should.equal("mail-2")
 }
 
 pub fn eight_questions_in_order_test() {
-  schema.mail_1()
+  schema.mail_2()
   |> list.map(name)
   |> should.equal([
     "primary_purpose",
@@ -35,7 +35,7 @@ pub fn eight_questions_in_order_test() {
 }
 
 pub fn types_are_one_choice_five_nouls_and_two_scores_test() {
-  schema.mail_1()
+  schema.mail_2()
   |> list.map(type_name)
   |> should.equal([
     "choice",
@@ -50,7 +50,7 @@ pub fn types_are_one_choice_five_nouls_and_two_scores_test() {
 }
 
 pub fn every_instructions_starts_with_the_preamble_test() {
-  schema.mail_1()
+  schema.mail_2()
   |> list.each(fn(question) {
     instructions(question)
     |> string.starts_with(schema.preamble <> " ")
@@ -69,7 +69,7 @@ pub fn preamble_is_the_verbatim_text_test() {
 }
 
 pub fn primary_purpose_has_the_seven_labels_test() {
-  let assert [jev.Choice(_, _, criteria), ..] = schema.mail_1()
+  let assert [jev.Choice(_, _, criteria), ..] = schema.mail_2()
   criteria
   |> list.map(fn(entry) { entry.0 })
   |> should.equal([
@@ -87,7 +87,7 @@ pub fn primary_purpose_has_the_seven_labels_test() {
 
 pub fn scores_have_three_levels_each_test() {
   let assert [_, _, _, _, _, _, claimed_time_pressure, substance] =
-    schema.mail_1()
+    schema.mail_2()
   case claimed_time_pressure {
     jev.Score(_, _, levels) ->
       levels
