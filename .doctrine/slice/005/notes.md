@@ -22,7 +22,7 @@ fresh-as-of: 2026-10-29 · audit done (RV-020 concluded; VH-1 operator-confirmed
   the credential out of pi context) (§ Implementation run).
 
 ### Open
-- RV-020 brief → /reconcile: design § 5.1, § 10; DEC-034 supersede;
+- RV-020 reconciled (REV-004 done): design § 5.1, § 10; DEC-034 superseded;
   DEC-040 amends relations; POL-002 REV; ASM-006 settle (validated)
 - Follow-Ups in slice-005.md: malebolge DEC-077, IDE-002
 

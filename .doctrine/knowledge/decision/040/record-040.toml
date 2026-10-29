@@ -29,5 +29,17 @@ supersedes    = []   # record ids this one replaces (set by doctrine supersede)
 superseded_by = []   # set on superseded predecessor (verb-written)
 
 [[relation]]
+label = "references"
+role = "concerns"
+descriptor = "amends: state and seen shapes owned by the schema id"
+target = "DEC-036"
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "amends: state and seen shapes owned by the schema id"
+target = "DEC-029"
+
+[[relation]]
 label = "shapes"
 target = "SL-005"

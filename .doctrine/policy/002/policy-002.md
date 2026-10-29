@@ -6,8 +6,9 @@ Real, unscrubbed mail content lives only outside the repository, by
 default in `~/.local/state/screwtape/eval/` (the operator may choose
 another location outside the repository).
 This means message text, subjects, addresses, names, and anything else
-copied from the operator's mailbox, including its PII-stripped `classify
---state` form.
+copied from the operator's mailbox, including the `classify` and `classify
+--state` output, which carry it un-stripped in `seen` and partly stripped
+in `state`.
 
 - **Never in the repository.** Never copy real mail into the repository
   tree, not even under an ignored path.

@@ -60,3 +60,27 @@ Tradeoff accepted: a control-only body's `is_truncated` depends on whether body 
 - F-1 — DEC-034: superseded by DEC-044 (`doctrine supersede DEC-044 DEC-034`); DEC-036 and DEC-029: record DEC-040's amendment as a relation.
 - F-2 — POL-002 Statement: REV modify. `classify` and `classify --state` output both carry the un-stripped `seen`; replace "its PII-stripped `classify --state` form" with wording that covers both lines.
 - F-3 — ASM-006: settle as validated on VT-6 (worst case 72,373 B, ratio 1.52) and VH-1 (12,269 tokens, ~38% of 32k, no `jev_context`). Adversarial residual stays as stated. Operator confirmed VH-1 (2026-10-29).
+
+## Reconciliation Outcome
+
+Operator reply 2026-10-29: "apply" (all six proposed writes).
+
+### Direct edits applied
+- design.md § 5.1: `Entry` → reused `input.Address(name, email)` (F-4).
+- design.md § 10: test row adds `jev_test.gleam`, `jev_client_test.gleam` (F-5). Selector registry already listed both; no selector change.
+
+### REVs completed
+- REV-004 (`reconcile-sl-005`): done. POL-002 § Statement now says `classify` and `classify --state` output carry real mail un-stripped in `seen` and partly stripped in `state` (F-2). Landed by hand. Narrative in revision-004.md.
+
+### Knowledge records (outside REV's target kinds)
+- DEC-034: `doctrine supersede DEC-044 DEC-034`; status → superseded (F-1).
+- DEC-040: `references --role concerns` edges to DEC-036 and DEC-029, descriptor "amends: state and seen shapes owned by the schema id" (F-1). No `amends` label exists for decisions.
+- ASM-006: settled `validated` on VT-6 and operator-confirmed VH-1 (F-3).
+
+### Fixed during audit
+- F-6: `utf8.spend` doc comment (51d707c).
+
+### Aligned / tolerated
+- F-7 aligned (design § 5.3 literal, README.md:263); F-8 tolerated (slice notes are not product surface).
+
+Reconcile pass complete — handoff to /close.

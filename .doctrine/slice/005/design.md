@@ -27,7 +27,7 @@ DEC-044 and ASM-006; evidence in `research/research.md`.
 | `src/screwtape/cli.gleam` | `classify_mail` builds the window once |
 | `src/screwtape/classify/schema.gleam` | id `mail-2` |
 | `README.md` | Compatibility, classify, classify_state, mail-2, What Jev sees, Bounds |
-| `test/screwtape/classify_state_test.gleam`, `pii_test.gleam`, `render_test.gleam`, `cli_test.gleam`, `docs_test.gleam`, `classify_input_test.gleam` (`senders` → address lists), `classify_schema_test.gleam` (`mail-2`), `utf8_test.gleam` (`spend`) | per § 9 |
+| `test/screwtape/classify_state_test.gleam`, `pii_test.gleam`, `render_test.gleam`, `cli_test.gleam`, `docs_test.gleam`, `classify_input_test.gleam` (`senders` → address lists), `classify_schema_test.gleam` (`mail-2`), `utf8_test.gleam` (`spend`), `jev_test.gleam` and `jev_client_test.gleam` (schema id rename) | per § 9 |
 
 <!-- doctrine:section sec-2 -->
 ## 2. Current State
@@ -98,8 +98,8 @@ read line ──input.line──► Mail ──state.window──► Window
 - the old `build` goes; callers use `window` then `encode` twice.
 
 `Window` is a record mirroring the JSON: `subject: Option(String)`, six
-`Addresses` (`entries: List(Entry)`, `omitted: Int`; `Entry(name:
-Option(String), email: String)`), `bodies: List(WindowBody)` (`text`,
+`Addresses` (`entries: List(Address)`, `omitted: Int`, reusing
+`input.Address(name: Option(String), email: String)`), `bodies: List(WindowBody)` (`text`,
 `is_truncated`, `conversion_failed`), `bodies_omitted`, `attachments:
 List(#(String, Option(String)))`, `attachments_omitted`.
 
