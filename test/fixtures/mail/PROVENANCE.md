@@ -11,4 +11,5 @@ personal terms replaced consistently.
 - Source of the capture: malebolge `707b444` `test/mail/fixtures/SOURCE.md`.
 
 Nothing here is unscrubbed mail. Real mail never enters this repository
-(POL-002); unscrubbed material belongs in `PII_hidden_fixtures.local/`.
+(POL-002); unscrubbed material stays outside it, by default in
+`~/.local/state/screwtape/eval/`.

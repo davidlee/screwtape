@@ -20,19 +20,19 @@ What carries over from SL-004:
 - POL-002 governs all real-mail handling.
 
 Scope here: `test/eval/tagging.md`, `gleam run -m eval`, `just eval`,
-`test/fixtures/mail/adversarial/`, then the first run inside
-`PII_hidden_fixtures.local/`, with aggregates only.
-Depends on SL-004 being deployed. SL-004 delivers the folder, its notes and
-the gitignore guard test (POL-002).
+`test/fixtures/mail/adversarial/`, then the first run in the eval directory outside the repository
+(default `~/.local/state/screwtape/eval/`, POL-002), with aggregates only.
+Depends on SL-004 being deployed.
 
 ## Eval design (from SL-004)
 
-**Eval data** lives in `PII_hidden_fixtures.local/` (gitignored, POL-002):
+**Eval data** lives outside the repository, by default in
+`~/.local/state/screwtape/eval/` (POL-002):
 `sample.jsonl` (the `read` output, taken once), `states.jsonl`,
 `labels.jsonl` (LLM-proposed, operator-confirmed) and `classify.jsonl`.
-Only aggregate reports leave the folder.
+Only aggregate reports leave that directory.
 
-**Evaluation run.** All files are in `PII_hidden_fixtures.local/`.
+**Evaluation run.** All files are in the eval directory.
 1. `screwtape read --after "" --limit 50 --max-bytes 16384 >
    sample.jsonl`. This is the sample. Every later step reads this file, so
    a sync in between cannot change what is tagged or classified.
@@ -40,8 +40,9 @@ Only aggregate reports leave the folder.
 3. An LLM tagging pass, driven by `test/eval/tagging.md`, writes
    `labels.jsonl` from `states.jsonl`. The operator confirms or edits it.
 4. `screwtape classify < sample.jsonl > classify.jsonl`.
-5. `just eval` runs `gleam run -m eval`. The ids in `sample.jsonl` are the
-   expected set. It fails if any of the three derived files misses,
+5. `just eval` runs `gleam run -m eval` on the eval directory (given as
+   an argument, since it is outside the repository). The ids in
+   `sample.jsonl` are the expected set. It fails if any of the three derived files misses,
    repeats or adds an id against that set, if they name different schemas,
    or if `classify.jsonl` names more than one model. A failed or partial
    classify run therefore cannot be scored as a complete one. It prints,

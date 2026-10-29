@@ -3,10 +3,10 @@ version = 1
 
 id = 2
 slug = "real-mail-stays-local"
-title = "Real mail stays in PII_hidden_fixtures.local/"
+title = "Real mail stays outside the repository"
 status = "required"
 created = "2026-10-28"
-updated = "2026-10-28"
+updated = "2026-10-29"
 tags = []
 
 [relationships]

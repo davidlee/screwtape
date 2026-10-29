@@ -100,8 +100,3 @@
 # quotient forms: links into the nix store, rebuilt by `just quotient-forms`
 /.quotient/
 erl_crash.dump
-
-# POL-002: real mail stays here, never committed; only its two notes are tracked
-/PII_hidden_fixtures.local/*
-!/PII_hidden_fixtures.local/CLAUDE.md
-!/PII_hidden_fixtures.local/AGENTS.md

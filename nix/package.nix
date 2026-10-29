@@ -4,7 +4,6 @@
   lib,
   beamPackages,
   buildGleamApplication,
-  gitMinimal,
   just,
   doCheck ? false,
 }:
@@ -22,8 +21,8 @@ buildGleamApplication {
         ../src
       ]
       # The check also runs `just check-imports`, so it needs the justfile;
-      # the POL-002 and docs tests read .gitignore and README.md.
-      ++ lib.optionals doCheck [../test ../justfile ../.gitignore ../README.md]
+      # the docs test reads README.md.
+      ++ lib.optionals doCheck [../test ../justfile ../README.md]
     );
   };
 
@@ -32,15 +31,12 @@ buildGleamApplication {
   rebar3Package = beamPackages.rebar3WithPlugins {plugins = [beamPackages.pc];};
 
   inherit doCheck;
-  # git: the POL-002 test asks `git check-ignore`, which needs a repository.
-  nativeCheckInputs = [just gitMinimal];
+  nativeCheckInputs = [just];
   # Runs after buildPhase, so build/erlang-shipment is the shipment under test.
   # `just check-imports` is the I5/I6 structural check (PHASE-03/EX-6).
   checkPhase = ''
     runHook preCheck
     export HOME="$TMPDIR"
-    export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-    git init --quiet
     just check-imports
     gleam test
     runHook postCheck
