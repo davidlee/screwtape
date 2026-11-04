@@ -78,6 +78,13 @@
       default = screwtape false;
       quotient-read = formFamily.read;
       quotient-write = formFamily.write;
+
+      # The producer contract of the dev-envs consumer (flakes:SL-022): the
+      # tools the gate needs. Doctrine is not here; the jails bind the host's.
+      dev-tools = pkgs.buildEnv {
+        name = "screwtape-dev-tools";
+        paths = toolchain;
+      };
     };
 
     checks.${system} = {
