@@ -16,8 +16,7 @@ composable with the read tools, though application of these to mails is left to 
 These systems in aggregate, including their collaborators, constitute Belphegor - 
 the patron daemon of elaborate automation to avoid doing any actual work (and sysadmins).
 
-Uses [quotient](https://github.com/davidlee/quotient) for subagent confinement in development; 
-this repo provides an example of its forms.
+Uses [quotient](https://github.com/davidlee/quotient) for subagent confinement in development.
 
 ## What it is
 
