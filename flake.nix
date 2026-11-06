@@ -85,6 +85,13 @@
         name = "screwtape-dev-tools";
         paths = toolchain;
       };
+      # What the room takes: `dev-tools` plus Doctrine, as a room has no host install
+      # (flakes:DEC-130).
+      capsule-tools = pkgs.buildEnv {
+        name = "screwtape-capsule-tools";
+        paths = toolchain ++ [doctrine.packages.${system}.default];
+        ignoreCollisions = true;
+      };
     };
 
     checks.${system} = {
