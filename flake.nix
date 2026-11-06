@@ -99,7 +99,7 @@
     };
 
     devShells.${system}.default = pkgs.mkShell {
-      packages = toolchain ++ [doctrine.packages.${system}.default];
+      packages = toolchain;
     };
   };
 }
